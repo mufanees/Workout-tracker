@@ -217,7 +217,7 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(await readBody(req)))
       if (pathname === '/api/coach/status') return send(res, 200, { enabled: coachEnabled() })
       if (pathname === '/api/coach' && req.method === 'POST') {
-        if (!coachEnabled()) return send(res, 503, { error: 'Set ANTHROPIC_API_KEY on the server to turn on the coach.' })
+        if (!coachEnabled()) return send(res, 503, { error: 'Set GEMINI_API_KEY on the server to turn on the coach.' })
         return streamCoach(await readBody(req), res)
       }
       if (pathname === '/api/push/key') return send(res, 200, { key: push.publicKey })
