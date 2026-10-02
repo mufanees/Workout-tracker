@@ -1,0 +1,47 @@
+const { chromium } = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright')
+const fs = require('fs')
+const OUT = __dirname + '/shots6/'
+fs.mkdirSync(OUT, { recursive: true })
+;(async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' })
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark' })
+  await ctx.addInitScript(() => localStorage.setItem('reps-token', 'testkey'))
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://localhost:3000' })
+  const page = await ctx.newPage()
+  const errors = []
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
+  page.on('console', (m) => m.type() === 'error' && errors.push('console: ' + m.text()))
+  const shot = async (n, full) => { await page.waitForTimeout(450); await page.screenshot({ path: OUT + n + '.png', fullPage: !!full }) }
+  await page.goto('http://localhost:3000/')
+  await page.waitForSelector('.page-head')
+  await page.waitForTimeout(1800)
+  await page.locator('.folder-head', { hasText: 'Imported Comeback' }).tap().catch(() => errors.push('MCP-imported folder not found'))
+  await shot('01-train-imported', true)
+  // Paste import
+  await page.locator('button', { hasText: 'Import' }).first().tap()
+  await shot('02-import')
+  await page.locator('button', { hasText: 'Copy prompt' }).tap()
+  const clip = await page.evaluate(() => navigator.clipboard.readText())
+  console.log('prompt length', clip.length, '| starts:', clip.slice(0, 80).replace(/\n/g, ' '))
+  const plan = JSON.parse(fs.readFileSync(__dirname + '/plan.json', 'utf8'))
+  plan.folder = 'Pasted Plan'
+  await page.fill('#plan-json', 'Here is your plan:\n```json\n' + JSON.stringify(plan, null, 2) + '\n```')
+  await page.locator('button', { hasText: 'Preview routines' }).tap()
+  await shot('03-preview', true)
+  await page.locator('button', { hasText: 'Add routines' }).tap()
+  await page.waitForTimeout(600)
+  await shot('04-after-add')
+  // bad input
+  await page.locator('button', { hasText: 'Import' }).first().tap()
+  await page.fill('#plan-json', 'sorry I cannot')
+  await page.locator('button', { hasText: 'Preview routines' }).tap()
+  await shot('05-bad-input')
+  // Exercises library
+  await page.goto('http://localhost:3000/#/exercises')
+  await page.waitForTimeout(500)
+  await page.fill('input[type=search]', 'kettlebell swing')
+  await shot('06-library-search')
+  console.log('exercise count label:', await page.locator('input[type=search]').getAttribute('placeholder'))
+  console.log(errors.join('\n') || 'no errors')
+  await browser.close()
+})()
