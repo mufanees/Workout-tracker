@@ -32,7 +32,7 @@ Supersets take their colour from `SUPERSET_COLORS` in `src/util.ts` (`--ss`).
 ## Type
 
 - **Space Grotesk** (display and UI): headings, labels, buttons, every number.
-- **Source Serif 4** (`--font-read`, reading): exercise lists, notes, checklists, coach replies, hints. Anything you read rather than scan.
+- **Inter** (`--font-read`, reading): exercise lists, notes, checklists, coach replies, hints. Anything you read rather than scan.
 
 | Token | Size | Typical use |
 |---|---|---|
@@ -101,7 +101,7 @@ Touch targets are at least 44px: `--h-sm` 36 (secondary chips only), `--h-md` 44
 
 - **Card**: `--surface`, 1px `--line`, `--radius`, `--pad-card`.
 - **Hero card** (quote, celebration): `--ink` with lime diagonal stripes, `--r-2xl`; stays dark in light mode.
-- **Routine card**: name (17, bold) over a serif exercise list (15, up to 3 lines), actions on the right.
+- **Routine card**: name (17, bold) over an Inter exercise list (15, up to 3 lines), actions on the right.
 - **Superset block**: tinted with `--ss`, header "Superset N · 1a → 1b, then rest", member cards inside, one rest button at the bottom.
 - **Set row**: set number, previous (tap to copy), weight, reps, check; done rows tint lime.
 - **Buttons**: pill. Primary (lime) for the one main action per screen; secondary (surface-2); ink for actions on lime.

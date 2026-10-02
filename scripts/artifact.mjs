@@ -13,7 +13,7 @@ css = css.replace(/@font-face\{[^}]*\}/g, '')
 const html = `<title>Reps</title>
 <meta name="theme-color" content="#0b0c0f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Source+Serif+4:opsz,wght@8..60,400..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Inter:opsz,wght@14..32,400..700&display=swap">
 <style>${css}</style>
 <div id="app"></div>
 <script type="module">${js.replace(/<\/script/gi, '<\\/script')}</script>
