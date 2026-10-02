@@ -41,12 +41,15 @@ export function ExercisePicker({
   onPick,
   single,
   title,
+  initialMuscle,
 }: {
   open: boolean
   onClose: () => void
   onPick: (ids: string[], superset: boolean) => void
   single?: boolean
   title?: string
+  /** Pre-filter (e.g. same muscle group when replacing an exercise). */
+  initialMuscle?: string
 }) {
   const [query, setQuery] = useState('')
   const [muscle, setMuscle] = useState<string | null>(null)
@@ -57,7 +60,7 @@ export function ExercisePicker({
   useEffect(() => {
     if (open) {
       setQuery('')
-      setMuscle(null)
+      setMuscle(initialMuscle || null)
       setPicked([])
     }
   }, [open])

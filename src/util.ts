@@ -6,8 +6,8 @@ export const uid = (prefix = '') =>
 export const LB = 2.2046226218
 
 export function toDisplay(kg: number, unit: 'kg' | 'lb'): number {
-  // lb values usually come from converted kg, so keep them to one decimal (37.48 → 37.5).
-  if (unit === 'lb') return Math.round(kg * LB * 10) / 10
+  // lb values usually come from converted kg; round to the nearest half pound (26.46 → 26.5, 37.48 → 37.5).
+  if (unit === 'lb') return Math.round(kg * LB * 2) / 2
   return Math.round(kg * 100) / 100
 }
 
@@ -23,6 +23,10 @@ export function fmtWeight(kg: number | null, unit: 'kg' | 'lb', withUnit = true)
   if (kg == null) return 'BW'
   const s = fmtNum(toDisplay(kg, unit), 2)
   return withUnit ? `${s} ${unit}` : s
+}
+
+export function fmtVolume(kg: number, unit: 'kg' | 'lb'): string {
+  return `${fmtNum(Math.round(unit === 'lb' ? kg * LB : kg))} ${unit}`
 }
 
 export function parseNum(s: string): number | null {

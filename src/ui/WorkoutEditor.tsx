@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact'
 import { useRef, useState } from 'preact/hooks'
+import { signal } from '@preact/signals'
 import { exMap, settings, unit } from '../store'
 import { matchPrevious, previousSets } from '../stats'
 import { navigate } from '../router'
@@ -11,6 +12,9 @@ import { actionSheet, AutoText, toast } from './overlay'
 import { ExercisePicker } from './ExercisePicker'
 
 export type Mode = 'live' | 'edit' | 'routine'
+
+/** The set the live workout suggests doing next (outlined). */
+export const nextUp = signal<string | null>(null)
 
 export const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300]
 
@@ -50,7 +54,9 @@ export function WorkoutEditor({
     const group = asSuperset && ids.length > 1 ? uid('ss') : null
     mut((list) => {
       for (const id of ids) {
-        const we = newWExercise(id, settings.value.defaultRest)
+        // Match the rest you're already using in this workout, else your default.
+        const lastRest = [...list].reverse().find((e) => e.rest > 0)?.rest
+        const we = newWExercise(id, lastRest ?? settings.value.defaultRest)
         we.superset = group
         const prev = previousSets(id, workoutId, before)
         const n = mode === 'routine' ? 3 : Math.min(Math.max(prev.length, 1), 6)
@@ -73,6 +79,7 @@ export function WorkoutEditor({
       const we = list[at(list, weId)]
       if (!we) return
       we.exerciseId = id
+      we.notes = '' // cues were for the old exercise
       for (const s of we.sets) {
         s.tw = s.tr = s.ts = null
       }
@@ -181,16 +188,18 @@ export function WorkoutEditor({
   }
 
   const restMenu = (we: WExercise) => {
+    const group = we.superset ? exercises.filter((e) => e.superset === we.superset) : [we]
+    const current = Math.max(...group.map((e) => e.rest))
     actionSheet({
-      title: 'Rest timer',
-      message: nameOf(we),
+      title: we.superset ? 'Rest after each round' : 'Rest timer',
+      message: group.map(nameOf).join(' + '),
       actions: REST_OPTIONS.map((r) => ({
         label: fmtRest(r),
-        selected: r === we.rest,
+        selected: r === current,
+        // In a superset the rest belongs to the whole round, so it survives reordering.
         onSelect: () =>
           mut((list) => {
-            const k = at(list, we.id)
-            if (k >= 0) list[k].rest = r
+            for (const e of list) if (e.id === we.id || (we.superset && e.superset === we.superset)) e.rest = r
           }),
       })),
     })
@@ -238,6 +247,7 @@ export function WorkoutEditor({
       <ExercisePicker
         open={picker.open}
         single={picker.replace != null}
+        initialMuscle={picker.replace != null ? exMap.value.get(exercises.find((e) => e.id === picker.replace)?.exerciseId || '')?.muscle : undefined}
         onClose={() => setPicker({ open: false })}
         onPick={(ids, ss) => (picker.replace != null ? replaceExercise(picker.replace, ids[0]) : addExercises(ids, ss))}
       />
@@ -279,13 +289,21 @@ function ExerciseCard({
   const ssLabel = we.superset ? `${groupNo}${String.fromCharCode(97 + group.indexOf(we))}` : ''
   // In a superset the rest happens after the last exercise, so only that one shows its timer.
   const showRest = mode !== 'edit' && (!we.superset || group[group.length - 1] === we)
+  const restValue = we.superset ? Math.max(...group.map((e) => e.rest)) : we.rest
   const bodyweight = ex.equipment === 'Bodyweight'
 
   // Progression nudge: last time every working set reached the top of the target range.
   const top = targetTop(we.target)
   const prevWork = prev.filter((s) => s.kind !== 'warmup')
+  const prevMax = Math.max(0, ...prevWork.map((s) => s.weight || 0))
+  const wentHeavier = we.sets.some((s) => (s.weight || 0) > prevMax)
   const goHeavier =
-    mode === 'live' && ex.type === 'weight_reps' && top != null && prevWork.length > 0 && prevWork.every((s) => (s.reps || 0) >= top && s.weight != null)
+    mode === 'live' &&
+    ex.type === 'weight_reps' &&
+    top != null &&
+    !wentHeavier &&
+    prevWork.length > 0 &&
+    prevWork.every((s) => (s.reps || 0) >= top && s.weight != null)
 
   let n = 0
   const labels = we.sets.map((s) => (s.kind === 'warmup' ? 'W' : String(++n)))
@@ -297,6 +315,21 @@ function ExerciseCard({
     mut((w) => {
       const t = w.sets.find((x) => x.id === id)
       if (t) fn(t, w)
+    })
+
+  // In routines, typing a value carries it down to the sets below that were empty or matched.
+  const setField = (id: string, field: 'weight' | 'reps' | 'seconds', v: number | null) =>
+    mut((w) => {
+      const i = w.sets.findIndex((x) => x.id === id)
+      if (i < 0) return
+      const old = w.sets[i][field]
+      w.sets[i][field] = v
+      if (mode !== 'routine') return
+      for (let k = i + 1; k < w.sets.length; k++) {
+        const cur = w.sets[k][field]
+        if (cur == null || cur === old) w.sets[k][field] = v
+        else break
+      }
     })
 
   const toggleDone = (i: number) => {
@@ -328,7 +361,19 @@ function ExerciseCard({
           label: KIND_LABEL[k],
           hint: KIND_SHORT[k],
           selected: s.kind === k,
-          onSelect: () => mutSet(s.id, (t) => void (t.kind = k)),
+          onSelect: () =>
+            mut((w) => {
+              const idx = w.sets.findIndex((x) => x.id === s.id)
+              if (idx < 0) return
+              const [t] = w.sets.splice(idx, 1)
+              t.kind = k
+              // Warm-ups go before the working sets; a set leaving warm-up goes after them.
+              const firstWork = w.sets.findIndex((x) => x.kind !== 'warmup')
+              const lastWarm = w.sets.map((x) => x.kind).lastIndexOf('warmup')
+              if (k === 'warmup' && firstWork >= 0 && firstWork < idx) w.sets.splice(firstWork, 0, t)
+              else if (k !== 'warmup' && lastWarm >= idx) w.sets.splice(lastWarm + 1, 0, t)
+              else w.sets.splice(idx, 0, t)
+            }),
         })),
         { label: 'Delete set', icon: 'trash', danger: true, onSelect: () => deleteSet(i) },
       ],
@@ -370,7 +415,7 @@ function ExerciseCard({
   const showNote = noteOpen || !!we.notes
 
   return (
-    <div class={'ex-card' + (color ? ' superset' : '')} style={color ? { '--ss': color } : undefined} ref={cardRef}>
+    <div class={'ex-card' + (color ? ' superset' : '') + (color && group.indexOf(we) > 0 ? ' same-group' : '')} style={color ? { '--ss': color } : undefined} ref={cardRef}>
       <div class="ex-head">
         <div class="ex-title">
           <h3>{ex.name}</h3>
@@ -385,9 +430,14 @@ function ExerciseCard({
                 <Icon name="target" size={13} /> {we.target}
               </span>
             ) : null}
+            {goHeavier && (
+              <span class="tag tag-up" title={`You hit ${top}+ reps on every set last time`}>
+                <Icon name="up" size={13} /> Go heavier
+              </span>
+            )}
             {showRest && (
-              <button class="tag tag-btn" onClick={onRest} aria-label={`Rest timer ${fmtRest(we.rest)}. Change`}>
-                <Icon name="timer" size={13} /> {we.rest ? fmtRest(we.rest) : 'Rest off'}
+              <button class={'tag tag-btn' + (restValue ? '' : ' off')} onClick={onRest} aria-label={`Rest timer ${fmtRest(restValue)}. Change`}>
+                <Icon name="timer" size={13} /> {restValue ? fmtRest(restValue) : 'Rest off'}
               </button>
             )}
           </div>
@@ -422,18 +472,21 @@ function ExerciseCard({
         </div>
       )}
 
-      {goHeavier && (
-        <div class="nudge-card">
-          <Icon name="up" size={16} /> Hit {top}+ reps on every set last time. Go a little heavier.
-        </div>
-      )}
+
 
       <div class={`sets cols-${cols} mode-${mode}`} role="table" aria-label={`${ex.name} sets`}>
         <div class="set-row head" role="row">
-          <span role="columnheader">SET</span>
+          <span role="columnheader" class="num-head">SET</span>
           {mode !== 'routine' && <span role="columnheader">PREVIOUS</span>}
-          {ex.type === 'weight_reps' && <span role="columnheader">{u.toUpperCase()}</span>}
-          <span role="columnheader">{valueHeader}</span>
+          {ex.type === 'weight_reps' && (
+            <span role="columnheader" class="num-head">
+              {bodyweight ? '+' : ''}
+              {u.toUpperCase()}
+            </span>
+          )}
+          <span role="columnheader" class="num-head">
+            {valueHeader}
+          </span>
           {mode !== 'routine' && (
             <span role="columnheader" class="center">
               <Icon name="check" size={16} stroke={2.5} />
@@ -445,7 +498,7 @@ function ExerciseCard({
           const p = matched[i]
           const prevText = p ? (ex.type === 'duration' ? `${p.seconds ?? '–'}s` : ex.type === 'reps' || p.weight == null ? `${p.reps ?? '–'} reps` : `${fmtNum(toDisplay(p.weight, u))} × ${p.reps ?? '–'}`) : '—'
           return (
-            <SwipeRow key={s.id} onDelete={() => deleteSet(i)} done={s.done && mode === 'live'}>
+            <SwipeRow key={s.id} setId={s.id} next={mode === 'live' && !s.done && nextUp.value === s.id} onDelete={() => deleteSet(i)} done={s.done && mode === 'live'}>
               <button class={'set-kind k-' + s.kind} onClick={() => setMenu(i)} aria-label={`Set ${labels[i]}, ${KIND_LABEL[s.kind]}. Change type or delete`}>
                 {s.kind === 'normal' || s.kind === 'warmup' ? labels[i] : KIND_SHORT[s.kind]}
               </button>
@@ -473,7 +526,7 @@ function ExerciseCard({
                   label={`Set ${labels[i]} weight in ${u}`}
                   value={s.weight == null ? null : toDisplay(s.weight, u)}
                   placeholder={ph.weight != null ? fmtNum(toDisplay(ph.weight, u)) : bodyweight && mode !== 'routine' ? 'BW' : '–'}
-                  onChange={(v) => mutSet(s.id, (t) => void (t.weight = v == null ? null : fromDisplay(v, u)))}
+                  onChange={(v) => setField(s.id, 'weight', v == null ? null : fromDisplay(v, u))}
                 />
               )}
               {ex.type !== 'duration' ? (
@@ -482,7 +535,7 @@ function ExerciseCard({
                   label={`Set ${labels[i]} reps`}
                   value={s.reps}
                   placeholder={ph.reps != null ? String(ph.reps) : '–'}
-                  onChange={(v) => mutSet(s.id, (t) => void (t.reps = v == null ? null : Math.round(v)))}
+                  onChange={(v) => setField(s.id, 'reps', v == null ? null : Math.round(v))}
                 />
               ) : (
                 <NumInput
@@ -491,7 +544,7 @@ function ExerciseCard({
                   label={`Set ${labels[i]} seconds`}
                   value={s.seconds}
                   placeholder={ph.seconds != null ? String(ph.seconds) : '–'}
-                  onChange={(v) => mutSet(s.id, (t) => void (t.seconds = v))}
+                  onChange={(v) => setField(s.id, 'seconds', v)}
                 />
               )}
               {mode !== 'routine' && (
@@ -519,9 +572,24 @@ function ExerciseCard({
 export function placeholderFor(sets: WSet[], i: number, matched: (WSet | undefined)[]) {
   const s = sets[i]
   const p = matched[i]
-  const above = i > 0 ? sets[i - 1] : undefined
+  // The nearest set above of the same category (warm-ups don't inherit working weights and vice versa).
+  let above: WSet | undefined
+  for (let k = i - 1; k >= 0; k--) {
+    if ((sets[k].kind === 'warmup') === (s.kind === 'warmup')) {
+      above = sets[k]
+      break
+    }
+  }
+  // A weight you typed earlier in this session beats last time's: if you went up on set 1, the later sets follow.
+  let typedAbove: number | null = null
+  for (let k = i - 1; k >= 0; k--) {
+    if ((sets[k].kind === 'warmup') === (s.kind === 'warmup') && sets[k].weight != null) {
+      typedAbove = sets[k].weight
+      break
+    }
+  }
   return {
-    weight: p?.weight ?? s.tw ?? above?.weight ?? above?.tw ?? null,
+    weight: typedAbove ?? p?.weight ?? s.tw ?? above?.tw ?? null,
     reps: p?.reps ?? s.tr ?? above?.reps ?? above?.tr ?? null,
     seconds: p?.seconds ?? s.ts ?? above?.seconds ?? above?.ts ?? null,
   }
@@ -540,7 +608,7 @@ export function completeSet(s: WSet, ph: ReturnType<typeof placeholderFor>, ex: 
 }
 
 /** A set row you can swipe left to delete. */
-function SwipeRow({ children, onDelete, done }: { children: ComponentChildren; onDelete: () => void; done: boolean }) {
+function SwipeRow({ children, onDelete, done, next, setId }: { children: ComponentChildren; onDelete: () => void; done: boolean; next: boolean; setId: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const st = useRef({ x: 0, y: 0, dx: 0, active: false, swiping: false, id: -1 })
 
@@ -553,7 +621,7 @@ function SwipeRow({ children, onDelete, done }: { children: ComponentChildren; o
   }
 
   return (
-    <div class="swipe-wrap" role="row">
+    <div class={'swipe-wrap' + (next ? ' next' : '')} role="row" data-set={setId}>
       <div class="swipe-bg" aria-hidden="true">
         <Icon name="trash" size={18} /> Delete
       </div>

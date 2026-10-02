@@ -5,6 +5,7 @@ import type { Routine, Workout, WExercise } from './types'
 import { uid, clone } from './util'
 import { navigate } from './router'
 import { confirmDialog } from './ui/overlay'
+import { planStatus } from './plan'
 
 export function partOfDay(t = Date.now()) {
   const h = new Date(t).getHours()
@@ -54,10 +55,16 @@ export async function startRoutine(r: Routine) {
     start: Date.now(),
     end: null,
     notes: '',
-    exercises: fromTemplate(r.exercises),
+    exercises: planSets(r, fromTemplate(r.exercises)),
     updatedAt: 0,
   })
   navigate('/live')
+}
+
+/** Week 1 of the Comeback plan is 2 sets per exercise. */
+function planSets(r: Routine, exercises: WExercise[]): WExercise[] {
+  if (!r.id.startsWith('r-comeback-') || planStatus.value?.week !== 1) return exercises
+  return exercises.map((e) => ({ ...e, sets: e.sets.slice(0, 2) }))
 }
 
 export async function startEmpty() {

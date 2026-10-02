@@ -7,7 +7,7 @@ import { Icon } from '../ui/icons'
 import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import { WorkoutEditor } from '../ui/WorkoutEditor'
 import type { Workout } from '../types'
-import { counts, doneSets, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtWeight, startOfWeek, uid, workoutVolume, clone } from '../util'
+import { counts, doneSets, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
 
 const WEEK = 7 * 86400000
 
@@ -120,7 +120,7 @@ function WorkoutCard({ w }: { w: Workout }) {
         <span>
           <Icon name="timer" size={14} /> {w.end ? fmtDuration(w.end - w.start) : '–'}
         </span>
-        {vol > 0 && <span>{fmtWeight(vol, u)}</span>}
+        {vol > 0 && <span>{fmtVolume(vol, u)}</span>}
         <span>{doneSets(w)} sets</span>
         {prs > 0 && (
           <span class="pr-pill">
@@ -234,7 +234,7 @@ export function WorkoutDetail({ id }: { id: string }) {
         </div>
         <div>
           <span class="stat-label">Volume</span>
-          <b>{fmtWeight(workoutVolume(w), u)}</b>
+          <b>{fmtVolume(workoutVolume(w), u)}</b>
         </div>
         <div>
           <span class="stat-label">Sets</span>
@@ -295,7 +295,8 @@ export function WorkoutDetail({ id }: { id: string }) {
                       <span class="ds-val">{fmtSet(s, ex?.type || 'weight_reps', u)}</span>
                       {kinds.length > 0 && (
                         <span class="pr-pill" title={kinds.map((k) => PR_LABEL[k]).join(', ')}>
-                          <Icon name="medal" size={13} /> {kinds.length > 1 ? `${kinds.length} PRs` : PR_LABEL[kinds[0]]}
+                          <Icon name="medal" size={13} /> {PR_LABEL[kinds[0]]}
+                          {kinds.length > 1 ? ` +${kinds.length - 1}` : ''}
                         </span>
                       )}
                     </li>
