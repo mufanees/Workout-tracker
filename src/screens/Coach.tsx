@@ -1,21 +1,25 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { signal } from '@preact/signals'
 import { route, navigate } from '../router'
-import { getToken } from '../sync'
+import { getToken, syncNow } from '../sync'
 import { exMap, workouts } from '../store'
 import { sessionsByExercise } from '../stats'
-import { buildCoachContext, coachPasteText } from '../coachContext'
+import { buildCoachContext, coachPasteText, routinesText } from '../coachContext'
+import { applyProposal, checkCoach, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal } from '../coach'
 import { Icon } from '../ui/icons'
 import { confirmDialog, toast } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
+import { fmtDay } from '../util'
 
 interface Msg {
   role: 'user' | 'assistant'
   content: string
+  memory?: { action: string; text: string }[]
+  proposals?: Proposal[]
 }
 
 const KEY = 'reps-coach'
+const KEEP = 40 // messages kept on the phone; older ones are condensed into memory
 const load = (): Msg[] => {
   try {
     return JSON.parse(localStorage.getItem(KEY) || '[]')
@@ -25,25 +29,27 @@ const load = (): Msg[] => {
 }
 const persist = (m: Msg[]) => {
   try {
-    localStorage.setItem(KEY, JSON.stringify(m.slice(-40)))
+    localStorage.setItem(KEY, JSON.stringify(m))
   } catch {
     /* storage blocked */
   }
 }
 
-/** null = still checking; false = no coach on this server (or no server). */
-const enabled = signal<boolean | null>(null)
-async function checkCoach() {
-  try {
-    const res = await fetch('/api/coach/status', { headers: { authorization: `Bearer ${getToken()}` } })
-    enabled.value = res.ok && (res.headers.get('content-type') || '').includes('json') ? !!(await res.json()).enabled : false
-  } catch {
-    enabled.value = false
-  }
+const TOOL_LABEL: Record<string, string> = {
+  recent_workouts: 'Looking through your workouts',
+  exercise_progress: 'Checking that exercise’s history',
+  body_stats: 'Checking weight, recovery and shoulder',
+  list_routines: 'Looking at your routines',
+  remember: 'Saving to memory',
+  forget: 'Updating memory',
+  set_commitment: 'Noting a commitment',
+  resolve_commitment: 'Updating a commitment',
+  propose_routine_targets: 'Preparing a routine change',
+  propose_goal: 'Preparing a goal',
+  propose_profile_update: 'Preparing a profile update',
 }
 
 function suggestions(): string[] {
-  // Most-trained exercise lately makes a natural progress question.
   let top: string | null = null
   let n = 0
   for (const [id, s] of sessionsByExercise.value) {
@@ -56,6 +62,7 @@ function suggestions(): string[] {
     'What should I change in my next workout?',
     'Am I recovering well?',
     ...(name ? [`How is my ${name.toLowerCase()} progressing?`] : []),
+    'Set me a goal for the next 4 weeks',
     'I don’t feel like training today',
   ]
 }
@@ -64,12 +71,16 @@ export function Coach() {
   const [msgs, setMsgs] = useState<Msg[]>(load)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
   const abort = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (enabled.value == null) void checkCoach()
+    if (coachOn.value == null) void checkCoach()
   }, [])
+  useEffect(() => {
+    if (coachOn.value) void ensureTz()
+  }, [coachOn.value])
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [msgs.length, busy])
@@ -77,29 +88,49 @@ export function Coach() {
   // Deep link from a finished workout: /coach?review=<workoutId>
   useEffect(() => {
     const id = route.value.query.get('review')
-    if (id && enabled.value) {
+    if (id && coachOn.value) {
       navigate('/coach', { replace: true })
       void ask('Review this workout: what went well, what to adjust next time, and one thing to focus on.', id)
     }
-  }, [enabled.value])
+  }, [coachOn.value])
+
+  const save = (m: Msg[]) => {
+    setMsgs(m)
+    persist(m)
+  }
+
+  /** Keep the chat short: condense the oldest messages into memory notes, then drop them. */
+  const condense = async (all: Msg[]): Promise<Msg[]> => {
+    if (all.length <= KEEP) return all
+    const old = all.slice(0, all.length - KEEP + 10)
+    try {
+      await quick({ kind: 'condense', messages: old.map(({ role, content }) => ({ role, content })) })
+    } catch {
+      /* best effort: still trim */
+    }
+    return all.slice(old.length)
+  }
 
   const ask = async (text: string, focusWorkoutId?: string) => {
     const q = text.trim()
     if (!q || busy) return
-    if (!enabled.value) return copyForClaude(q)
+    if (!coachOn.value) return copyForClaude(q)
     const history: Msg[] = [...msgs, { role: 'user', content: q }]
-    setMsgs([...history, { role: 'assistant', content: '' }])
+    const reply: Msg = { role: 'assistant', content: '', memory: [], proposals: [] }
+    const show = () => setMsgs([...history, { ...reply }])
+    show()
     setInput('')
     setBusy(true)
-    let answer = ''
+    setStatus('')
     const ctrl = new AbortController()
     abort.current = ctrl
     try {
+      await syncNow() // the coach reads your profile and memory from the server
       const res = await fetch('/api/coach', {
         method: 'POST',
         signal: ctrl.signal,
         headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ messages: history, context: buildCoachContext({ focusWorkoutId }) }),
+        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), context: buildCoachContext({ focusWorkoutId }), routines: routinesText(), tz: tz() }),
       })
       if (!res.ok || !res.body) throw new Error(res.status === 401 ? 'Connect sync first (Settings → Sync key).' : 'The coach is unavailable right now.')
       const reader = res.body.getReader()
@@ -114,22 +145,24 @@ export function Coach() {
           const line = buf.slice(0, i).replace(/^data: /, '')
           buf = buf.slice(i + 2)
           if (!line) continue
-          const ev = JSON.parse(line) as { t?: string; error?: string }
+          const ev = JSON.parse(line) as { t?: string; error?: string; tool?: string; memory?: { action: string; text: string }; proposal?: Proposal }
           if (ev.error) throw new Error(ev.error)
           if (ev.t) {
-            answer += ev.t
-            setMsgs([...history, { role: 'assistant', content: answer }])
+            reply.content += ev.t
+            setStatus('')
           }
+          if (ev.tool) setStatus(TOOL_LABEL[ev.tool] || 'Working on it')
+          if (ev.memory) reply.memory!.push(ev.memory)
+          if (ev.proposal) reply.proposals!.push({ ...ev.proposal, state: 'pending' })
+          show()
         }
       }
-      const done = [...history, { role: 'assistant' as const, content: answer || '…' }]
-      setMsgs(done)
-      persist(done)
+      if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : '…'
+      save(await condense([...history, reply]))
+      void syncNow() // pull memory the coach saved
     } catch (e) {
       if ((e as Error).name === 'AbortError') {
-        const kept = [...history, { role: 'assistant' as const, content: answer ? answer + ' …' : '(stopped)' }]
-        setMsgs(kept)
-        persist(kept)
+        save([...history, { ...reply, content: reply.content ? reply.content + ' …' : '(stopped)' }])
       } else {
         setMsgs(history.slice(0, -1))
         setInput(q)
@@ -137,7 +170,21 @@ export function Coach() {
       }
     } finally {
       setBusy(false)
+      setStatus('')
       abort.current = null
+    }
+  }
+
+  const decide = async (mi: number, pid: string, approve: boolean) => {
+    const m = msgs[mi]
+    const p = m.proposals?.find((x) => x.id === pid)
+    if (!p) return
+    try {
+      if (approve) toast(await applyProposal(p))
+      const next = msgs.map((x, j) => (j === mi ? { ...x, proposals: x.proposals!.map((y) => (y.id === pid ? { ...y, state: approve ? ('approved' as const) : ('dismissed' as const) } : y)) } : x))
+      save(next)
+    } catch (e) {
+      toast((e as Error).message)
     }
   }
 
@@ -148,16 +195,21 @@ export function Coach() {
       .catch(() => toast('Couldn’t copy on this device.'))
 
   const clear = async () => {
-    if (!(await confirmDialog({ title: 'Clear this conversation?', confirm: 'Clear', danger: true }))) return
-    setMsgs([])
-    persist([])
+    if (!(await confirmDialog({ title: 'Clear this conversation?', message: 'Your coach keeps its memory. Manage that under Memory.', confirm: 'Clear', danger: true }))) return
+    save([])
   }
 
-  const off = enabled.value === false
+  const off = coachOn.value === false
+  const weekly = latestWeekly.value
+  const showWeekly = weekly && Date.now() - (weekly.created || 0) < 8 * 86400000
+  const open = openCommitments.value
   return (
     <div class="screen coach-screen">
       <header class="page-head">
         <h1>Coach</h1>
+        <button class="btn btn-text" onClick={() => navigate('/coach/memory')}>
+          <Icon name="brain" size={18} /> Memory
+        </button>
         {msgs.length > 0 && (
           <button class="icon-btn" onClick={clear} aria-label="Clear conversation">
             <Icon name="trash" />
@@ -165,11 +217,27 @@ export function Coach() {
         )}
       </header>
 
+      {showWeekly && <WeeklyCard text={weekly!.text || ''} date={weekly!.created || 0} />}
+
+      {open.length > 0 && (
+        <section class="commit-strip" aria-label="Open commitments">
+          <span class="eyebrow">
+            <Icon name="target" size={14} /> Working on
+          </span>
+          {open.slice(0, 3).map((c) => (
+            <span class={'commit' + (c.due && c.due < Date.now() ? ' due' : '')}>
+              {c.text}
+              {c.due ? <small> · {fmtDay(c.due)}</small> : null}
+            </span>
+          ))}
+        </section>
+      )}
+
       {!msgs.length && (
         <section class="coach-intro">
           <p>
-            Ask about your training. Your coach sees your workouts, progress, heart rate zones, morning readings, shoulder ratings, weight and fasts, and answers like a
-            trainer would.
+            Ask about your training. Your coach sees your workouts, progress, heart rate zones, recovery, shoulder ratings, weight and fasts, remembers what you tell it, and
+            can suggest changes for you to approve.
           </p>
           {workouts.value.length === 0 && <p class="muted">Log a few workouts first so there’s something to work with.</p>}
           <QuoteCard compact seed={7} />
@@ -191,7 +259,48 @@ export function Coach() {
           m.role === 'user' ? (
             <div class="bubble user">{m.content}</div>
           ) : (
-            <div class="bubble coach">{m.content ? <Markdown text={m.content} /> : busy && i === msgs.length - 1 ? <span class="typing" aria-label="Thinking" /> : null}</div>
+            <div class="bubble coach">
+              {m.content ? <Markdown text={m.content} /> : busy && i === msgs.length - 1 ? <span class="typing" aria-label="Thinking" /> : null}
+              {busy && i === msgs.length - 1 && status && (
+                <span class="coach-status">
+                  <span class="spinner" aria-hidden="true" /> {status}…
+                </span>
+              )}
+              {m.memory?.map((x) => (
+                <span class="mem-chip">
+                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : 'Remembered'}: {x.text}
+                </span>
+              ))}
+              {m.proposals?.map((p) => {
+                const d = describeProposal(p)
+                const reason = (p.args as { reason?: string }).reason
+                return (
+                  <div class={'proposal ' + (p.state || 'pending')}>
+                    <b>{d.title}</b>
+                    {reason && <span class="muted small">{reason}</span>}
+                    <ul>
+                      {d.lines.map((l) => (
+                        <li>{l}</li>
+                      ))}
+                    </ul>
+                    {p.state === 'pending' || !p.state ? (
+                      <div class="row gap">
+                        <button class="btn btn-secondary btn-sm grow" onClick={() => decide(i, p.id, false)}>
+                          Dismiss
+                        </button>
+                        <button class="btn btn-primary btn-sm grow" onClick={() => decide(i, p.id, true)}>
+                          Approve
+                        </button>
+                      </div>
+                    ) : (
+                      <span class="proposal-state">
+                        <Icon name={p.state === 'approved' ? 'check' : 'x'} size={14} /> {p.state === 'approved' ? 'Approved' : 'Dismissed'}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           ),
         )}
         <div ref={endRef} />
@@ -242,8 +351,27 @@ export function Coach() {
   )
 }
 
+function WeeklyCard({ text, date }: { text: string; date: number }) {
+  const [open, setOpen] = useState(Date.now() - date < 2 * 86400000)
+  return (
+    <section class="weekly-card">
+      <button class="weekly-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span class="eyebrow">
+          <Icon name="calendar" size={14} /> Week in review · {fmtDay(date)}
+        </span>
+        <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
+      </button>
+      {open && (
+        <div class="weekly-body">
+          <Markdown text={text} />
+        </div>
+      )}
+    </section>
+  )
+}
+
 /** Just enough Markdown for coach replies: paragraphs, lists, headings, bold. No HTML is injected. */
-function Markdown({ text }: { text: string }) {
+export function Markdown({ text }: { text: string }) {
   const blocks: ComponentChildren[] = []
   let list: { ordered: boolean; items: string[] } | null = null
   const flush = () => {

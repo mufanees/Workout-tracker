@@ -105,10 +105,26 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   const fs = fasts.value.filter((f) => f.start > now - 21 * DAY)
   if (fs.length) out.push(`\nFASTS, LAST 3 WEEKS\n${fs.map((f) => `${date(f.start)} ${f.end ? r1((f.end - f.start) / 3600000) + ' h' : 'in progress'} (goal ${f.goal} h)`).join(', ')}`)
 
-  const names = routines.value.map((r) => `${r.folder ? r.folder + ' / ' : ''}${r.name}`)
-  out.push(`\nROUTINES\n${names.join('\n')}`)
+  out.push(`\nROUTINES\n${routinesText()}`)
   out.push(`\nTotal workouts logged: ${list.length}${list[0] ? `; last on ${date(list[0].start)}` : ''}.`)
   return out.join('\n')
+}
+
+/** Routines with exercises and set targets, as the coach's list_routines tool returns them.
+ * Sent from the app because built-in routines only reach the server once edited. */
+export function routinesText() {
+  const name = (id: string) => exMap.value.get(id)?.name || 'Unknown exercise'
+  return routines.value
+    .map((r) => {
+      const ex = r.exercises.map((e) => {
+        const s = e.sets.filter((x) => x.kind !== 'warmup')
+        const w = s.find((x) => x.weight != null)?.weight
+        const reps = s.find((x) => x.reps != null)?.reps
+        return `${name(e.exerciseId)} ${s.length}×${e.target || reps || ''}${w != null ? ` @ ${w} kg` : ''}`
+      })
+      return `${r.folder ? r.folder + ' / ' : ''}${r.name}: ${ex.join(', ')}`
+    })
+    .join('\n')
 }
 
 /** For pasting into Gemini or Claude when the in-app coach isn't set up. */

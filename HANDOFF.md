@@ -39,6 +39,7 @@ A PWA replacing Hevy for one person. Offline-first, self-hosted sync.
 - **Push notifications** (`server/push.mjs`, `src/push.ts`): dependency-free web push. VAPID keys generated once and kept in SQLite; jobs scheduled by key (`rest`, `fast`, `train`); the server sends an empty push and the service worker fetches the text from `/api/push/inbox` using its endpoint URL. Rest pushes are sent 2.5 s after the end and cancelled if the app beeped on screen.
 - **Nightly backups:** `VACUUM INTO /data/backups/reps-YYYY-MM-DD.db`, newest 14 kept (`BACKUP_DAYS`).
 - **AI coach** (`src/screens/Coach.tsx`, `src/coachContext.ts`, `server/coach.mjs`): the phone builds a text summary of the training data and sends it with the chat; the server adds the coach system prompt and streams Google Gemini's reply over SSE. It calls the Gemini REST endpoint `v1beta/models/<model>:streamGenerateContent?alt=sse` with `fetch` (no SDK, server has zero npm dependencies), skips `thought` parts, maps `assistant` to Gemini's `model` role, and turns Gemini errors (429 free-tier limit, bad key, unknown model) into readable messages. Env: `GEMINI_API_KEY` (required), `GEMINI_MODEL` (default `gemini-3.5-flash`), `GEMINI_BASE_URL` (testing). Owner chose Gemini over Claude because its free tier costs nothing. Without a key, tapping a question copies question + summary for pasting into Gemini or Claude. "Ask your coach about it" on the post-workout screen opens `/coach?review=<id>`.
+- **Coach memory and tools** (`server/coach.mjs`, `src/coach.ts`, `src/screens/CoachMemory.tsx`): chat runs a Gemini function-calling loop (max 6 rounds; raw model parts, including thought signatures, are sent back unchanged; function responses go as role `user`). Tools: `recent_workouts`, `exercise_progress`, `body_stats`, `list_routines` (look-ups via the MCP handler), `remember`, `forget`, `set_commitment`, `resolve_commitment` (written server-side, deduped), and `propose_routine_targets`, `propose_goal`, `propose_profile_update` (sent to the app as SSE `proposal` events; applied on the phone only after Approve). `POST /api/coach/quick` with `kind` `pre` | `workout` | `condense` uses JSON mode (`responseSchema`). The weekly review runs on the server every 30 min and fires Sunday ≥ 18:00 in the profile's time zone (`WEEKLY_REVIEW_ANYDAY=1` bypasses the day check for testing).
 - **Motivation:** `Settings.quotes` (seeded from `src/data/quotes.json`, the owner's list), shown as a big rotating hero card at the top of Train (`HeroQuote`: changes every 12 s or on tap, consistency quotes first after 3+ days off), the post-workout screen, Coach, and training-day notifications; capitalised words are highlighted. Progress card on Train (`stats.ts recentWin`).
 - **Plan import:** in-app (copy a prompt for Claude, paste the JSON back, preview, add) or via the MCP endpoint (`import_plan` tool).
 - **Data:** Copy/Paste backup (clipboard), Export/Import backup file, server export at `GET /api/export`.
@@ -94,13 +95,15 @@ Phone (PWA)                                      Coolify container
 
 ### Data model (see `src/types.ts`)
 
-Synced stores: `exercises`, `routines`, `workouts`, `settings` (single record id `settings`), `body`, `fasts`, `readings`. Server-only tables: `push_subs`, `push_jobs`, `push_inbox`, `meta` (dbId, VAPID key). Every record has `id` and `updatedAt`; deletes are tombstones `{id, deleted: true, updatedAt}`.
+Synced stores: `exercises`, `routines`, `workouts`, `settings` (single record id `settings`), `body`, `fasts`, `readings`, `coach`. Server-only tables: `push_subs`, `push_jobs`, `push_inbox`, `meta` (dbId, VAPID key). Every record has `id` and `updatedAt`; deletes are tombstones `{id, deleted: true, updatedAt}`.
 
 - Weights are always stored in **kg**; lb is display-only (rounded to 0.5 lb).
 - Dumbbell exercises log the weight of one dumbbell.
 - `Workout.hr` is `[secondsSinceStart, bpm][]`, sampled every 5 s. `Workout.targetZone` is optional.
 - `WSet.tw/tr/ts` are planned values copied from a routine, used only as placeholders.
 - `Settings.hrZones` = upper bpm of zones 1–4 (default `[119, 145, 160, 175]`); `Settings.ft` = per-field change times for merging.
+- `coach` records (`CoachItem`) have `kind`: `profile` (id `profile`, includes `tz` for the weekly review), `note`, `goal`, `commitment` (`status` open/done/missed/dropped, `due`, `outcome`), `insight` (`type` workout/weekly, `ref` = workout id or week start). The server writes coach records itself (tool calls, takeaways, weekly review) with a fresh seq, so they reach the phone on the next sync.
+- `WSet.cw/cr` are coach targets for today (placeholders only); `Workout.coachPlan` holds the pre-workout card. Both are stripped on finish.
 - Device-only (not synced): the active workout (`meta.active` in IndexedDB), rest timer and sync key (localStorage), paired HR strap id (localStorage).
 
 ### Sync protocol
@@ -134,6 +137,7 @@ node qa/seed3.cjs       # stalled Hammer Curl, rising shoulder ratings, morning 
 node qa/walk7.cjs       # warm-up checklist, stall nudge, shoulder check-in, 60 s HRV reading, settings
 node qa/walk8.cjs       # quotes, progress card, coach chat, coach review after a workout (needs a coach backend; see below)
 node qa/walk9.cjs       # hero quote rotation (dark + light), coach
+node qa/walk10.cjs      # coach memory, tool calls, proposals, weekly review, pre-workout targets, takeaway (needs a function-calling stand-in)
 node qa/walk6.cjs       # MCP-imported folder, paste import, library search (run the MCP import in qa/ notes below first)
 ```
 
@@ -184,5 +188,6 @@ Because the owner wanted to train before the server was deployed, the app is als
 6. Added the ~930-exercise library, in-app plan import and the MCP endpoint.
 7. Added nightly backups, push notifications, shoulder check-in, stall detection, morning HR/HRV, zone 2 goal, warm-up/cool-down checklists.
 8. Added the AI coach and motivation (quotes, progress card).
+9. Made the coach stateful: memory (profile + notes), commitments checked after workouts, pre-workout targets, post-workout takeaways, Sunday weekly review with push, Gemini function calling (look-ups, memory writes, approval-gated proposals), condensing long chats. The app sends its routines with each request (`routines` field) because built-in routines only reach the server once edited.
 
 Commit history on the branch tells the same story in more detail (`git log`).

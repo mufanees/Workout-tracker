@@ -78,6 +78,18 @@ The free tier has per-minute and per-day request limits, which one person asking
 
 Without a key the Coach tab still works: tapping a question copies it with your training summary so you can paste it into the Gemini or Claude app. Conversations are kept on the phone.
 
+### What the coach remembers and does on its own
+
+- **Memory** (Coach → Memory): a profile you fill in (goals, injuries, equipment, schedule, preferences, age, max HR), plus notes the coach saves when you tell it something lasting. Everything there is sent with each question; edit or delete any of it, or "Forget everything".
+- **Commitments:** when you agree on something specific ("goblet squat 14 kg × 8–10 next session"), the coach records it with a due date, shows it under "Working on", and checks it after your next workout.
+- **Before a workout:** starting a routine asks for today's targets. "Use these targets" puts them in the grey placeholder values; you still log what you actually did.
+- **After a workout:** a one-line takeaway on the summary screen, saved under Reviews.
+- **Sunday evening:** a week in review appears on the Coach tab, with a notification.
+- **Proposals:** the coach can suggest new routine targets, a goal or a profile change. Nothing changes until you tap Approve.
+- Long chats are condensed: before old messages drop off, the coach saves anything worth keeping as notes.
+
+The memory lives in your server's database (synced store `coach`) and, like the training summary, is sent to Google with each request.
+
 ## Notifications
 
 Settings → Notifications turns them on for that phone (installed app, Chrome on Android or Safari on iPhone 16.4+ after Add to Home Screen). The server schedules them and sends a standard web push, so they arrive with the app closed: rest over (only if the app didn't already beep), fast complete, and an optional training-day reminder at a time you choose (every other day on the plan, otherwise daily). Optional env: `PUSH_CONTACT=mailto:you@example.com`.

@@ -117,9 +117,10 @@ export async function finishActive(name: string, notes: string, extra: Partial<W
   const w = active.value
   if (!w) return null
   const exercises = w.exercises
-    .map((e) => ({ ...e, sets: e.sets.filter((s) => s.done).map(({ tw: _tw, tr: _tr, ts: _ts, ...s }) => s) }))
+    .map((e) => ({ ...e, sets: e.sets.filter((s) => s.done).map(({ tw: _tw, tr: _tr, ts: _ts, cw: _cw, cr: _cr, ...s }) => s) }))
     .filter((e) => e.sets.length)
-  const saved = await saveWorkout({ ...w, ...extra, name: name.trim() || w.name, notes, end: Date.now(), exercises })
+  const { coachPlan: _plan, coachPlanAsked: _asked, ...rest } = w
+  const saved = await saveWorkout({ ...rest, ...extra, name: name.trim() || w.name, notes, end: Date.now(), exercises })
   setActive(null)
   stopRest()
   await flushActive()

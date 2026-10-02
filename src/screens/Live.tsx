@@ -3,6 +3,7 @@ import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate } from '../router'
 import { adjustRest, armRest, discardActive, finishActive, restTimer, startRest, stopRest, unlockAudio } from '../workout'
 import { HRPanel } from '../ui/HR'
+import { checkCoach, coachOn, quick } from '../coach'
 import { summarizeHR } from '../hr'
 import { WorkoutEditor, completeSet, placeholderFor, nextUp } from '../ui/WorkoutEditor'
 import type { WExercise, WSet } from '../types'
@@ -210,6 +211,7 @@ export function Live() {
 
       <main class="live-body">
         <HRPanel />
+        <CoachPlanCard />
         {w.routineId && w.exercises.length > 0 && <RoutineNotes />}
         {w.warmup?.length ? <Checklist kind="w" title="Warm-up" items={w.warmup} /> : null}
         <WorkoutEditor
@@ -240,6 +242,92 @@ function RoutineNotes() {
       <Icon name="note" size={16} />
       <span>{notes}</span>
     </button>
+  )
+}
+
+/** Today's targets from the coach, fetched once when a routine workout starts. */
+function CoachPlanCard() {
+  const w = active.value!
+  const plan = w.coachPlan
+  const started = w.exercises.some((e) => e.sets.some((s) => s.done))
+  useEffect(() => {
+    if (coachOn.value == null) void checkCoach()
+  }, [])
+  useEffect(() => {
+    if (!coachOn.value || w.coachPlanAsked || !w.exercises.length || started) return
+    updateActive((x) => void (x.coachPlanAsked = true))
+    const names = w.exercises.map((e) => exMap.value.get(e.exerciseId)?.name || '').filter(Boolean)
+    quick<{ focus: string; targets: { exercise: string; weight_kg?: number; reps?: string; note?: string }[] }>({ kind: 'pre', routine: w.name, exercises: names })
+      .then((r) => updateActive((x) => void (x.coachPlan = { focus: r.focus, targets: r.targets || [] })))
+      .catch(() => updateActive((x) => void (x.coachPlan = null)))
+  }, [coachOn.value])
+  if (!coachOn.value || (!plan && (!w.coachPlanAsked || started))) return null
+  if (!plan) {
+    return (
+      <section class="coach-card loading">
+        <span class="eyebrow">
+          <Icon name="sparkles" size={14} /> Coach
+        </span>
+        <span class="coach-status">
+          <span class="spinner" aria-hidden="true" /> Working out today’s targets…
+        </span>
+      </section>
+    )
+  }
+  const u = unit.value
+  const apply = () => {
+    let n = 0
+    updateActive((x) => {
+      for (const t of plan.targets) {
+        const want = t.exercise.toLowerCase()
+        const we = x.exercises.find((e) => (exMap.value.get(e.exerciseId)?.name || '').toLowerCase() === want) || x.exercises.find((e) => (exMap.value.get(e.exerciseId)?.name || '').toLowerCase().includes(want))
+        if (!we) continue
+        const reps = Number(String(t.reps || '').match(/\d+/)?.[0])
+        for (const s of we.sets) {
+          if (s.done || s.kind === 'warmup') continue
+          if (t.weight_kg != null && Number.isFinite(t.weight_kg)) s.cw = t.weight_kg
+          if (Number.isFinite(reps)) s.cr = reps
+        }
+        n++
+      }
+      if (x.coachPlan) x.coachPlan.applied = true
+    })
+    toast(n ? `Targets set for ${n} exercise${n > 1 ? 's' : ''}` : 'Couldn’t match those exercises')
+  }
+  return (
+    <section class="coach-card">
+      <span class="eyebrow">
+        <Icon name="sparkles" size={14} /> Coach · today
+      </span>
+      {plan.focus && <p>{plan.focus}</p>}
+      {plan.targets.length > 0 && (
+        <ul class="coach-targets">
+          {plan.targets.map((t) => (
+            <li>
+              <span>
+                {t.exercise}
+                {t.note && <small>{t.note}</small>}
+              </span>
+              <b>
+                {t.weight_kg != null ? `${fmtNum(toDisplay(t.weight_kg, u))} ${u}` : ''}
+                {t.weight_kg != null && t.reps ? ' × ' : ''}
+                {t.reps || ''}
+              </b>
+            </li>
+          ))}
+        </ul>
+      )}
+      {plan.targets.length > 0 &&
+        (plan.applied ? (
+          <span class="proposal-state">
+            <Icon name="check" size={14} /> Targets are in your grey values
+          </span>
+        ) : (
+          <button class="btn btn-secondary btn-sm" onClick={apply}>
+            Use these targets
+          </button>
+        ))}
+    </section>
   )
 }
 

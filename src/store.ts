@@ -1,6 +1,6 @@
 import { signal, computed, batch } from '@preact/signals'
 import * as db from './db'
-import type { BodyWeight, Exercise, Fast, Quote, Reading, Rec, Routine, Settings, StoreName, Workout } from './types'
+import type { BodyWeight, CoachItem, Exercise, Fast, Quote, Reading, Rec, Routine, Settings, StoreName, Workout } from './types'
 import QUOTES from './data/quotes.json'
 import { seedExercises, seedRoutines } from './seed'
 import { scheduleSync } from './sync'
@@ -35,6 +35,7 @@ export const active = signal<Workout | null>(null)
 export const bodyWeights = signal<BodyWeight[]>([]) // newest first
 export const fasts = signal<Fast[]>([]) // newest first
 export const readings = signal<Reading[]>([]) // newest first
+export const coachItems = signal<CoachItem[]>([])
 export const activeFast = computed(() => fasts.value.find((f) => f.end == null) || null)
 
 export const exMap = computed(() => new Map(exercises.value.map((e) => [e.id, e])))
@@ -57,10 +58,11 @@ const byOrder = (a: Routine, b: Routine) => a.order - b.order || a.name.localeCo
 const byStartDesc = (a: Workout, b: Workout) => b.start - a.start
 const byDateDesc = <T extends { date: number }>(a: T, b: T) => b.date - a.date
 const byFastDesc = (a: Fast, b: Fast) => b.start - a.start
+const byCreatedDesc = (a: CoachItem, b: CoachItem) => (b.created || 0) - (a.created || 0)
 
 export async function reloadFromDb(): Promise<void> {
   const version = writeVersion
-  const [ex, ro, wo, st, bw, fa, rd] = await Promise.all([
+  const [ex, ro, wo, st, bw, fa, rd, co] = await Promise.all([
     db.getAll<Exercise>('exercises'),
     db.getAll<Routine>('routines'),
     db.getAll<Workout>('workouts'),
@@ -68,6 +70,7 @@ export async function reloadFromDb(): Promise<void> {
     db.getAll<BodyWeight>('body'),
     db.getAll<Fast>('fasts'),
     db.getAll<Reading>('readings'),
+    db.getAll<CoachItem>('coach'),
   ])
   if (version !== writeVersion) return reloadFromDb()
   const ok = <T,>(store: StoreName, list: T[]) => list.map((r) => sanitize(store, r) as T | null).filter((r): r is T => r != null)
@@ -78,6 +81,7 @@ export async function reloadFromDb(): Promise<void> {
     bodyWeights.value = live(ok('body', bw)).sort(byDateDesc)
     fasts.value = live(ok('fasts', fa)).sort(byFastDesc)
     readings.value = live(ok('readings', rd)).sort(byDateDesc)
+    coachItems.value = live(ok('coach', co)).sort(byCreatedDesc)
     settings.value = { ...DEFAULT_SETTINGS, ...(st && !st.deleted ? st : {}) }
   })
 }
@@ -156,6 +160,12 @@ export async function saveBodyWeight(b: BodyWeight) {
   return rec
 }
 
+export async function saveCoachItem(c: CoachItem) {
+  const rec = await write('coach', c)
+  coachItems.value = upsert(coachItems.value, rec, byCreatedDesc)
+  return rec
+}
+
 export async function saveReading(r: Reading) {
   const rec = await write('readings', r)
   readings.value = upsert(readings.value, rec, byDateDesc)
@@ -169,8 +179,8 @@ export async function saveFast(f: Fast) {
 }
 
 /** Deletes leave a tombstone so the deletion syncs to other devices. */
-export async function remove(store: 'exercises' | 'routines' | 'workouts' | 'body' | 'fasts' | 'readings', id: string) {
-  const lists: Record<string, Rec[]> = { exercises: exercises.value, routines: routines.value, workouts: workouts.value, body: bodyWeights.value, fasts: fasts.value, readings: readings.value }
+export async function remove(store: 'exercises' | 'routines' | 'workouts' | 'body' | 'fasts' | 'readings' | 'coach', id: string) {
+  const lists: Record<string, Rec[]> = { exercises: exercises.value, routines: routines.value, workouts: workouts.value, body: bodyWeights.value, fasts: fasts.value, readings: readings.value, coach: coachItems.value }
   const list = lists[store]
   const tomb = await write(store, { id, deleted: true, updatedAt: list.find((r) => r.id === id)?.updatedAt || 0 })
   if (store === 'exercises') exercises.value = upsert(exercises.value, tomb as Exercise, byName)
@@ -179,6 +189,7 @@ export async function remove(store: 'exercises' | 'routines' | 'workouts' | 'bod
   if (store === 'body') bodyWeights.value = upsert(bodyWeights.value, tomb as BodyWeight, byDateDesc)
   if (store === 'fasts') fasts.value = upsert(fasts.value, tomb as Fast, byFastDesc)
   if (store === 'readings') readings.value = upsert(readings.value, tomb as Reading, byDateDesc)
+  if (store === 'coach') coachItems.value = upsert(coachItems.value, tomb as CoachItem, byCreatedDesc)
 }
 
 // ---- active workout (device only, saved continuously) ----------------------

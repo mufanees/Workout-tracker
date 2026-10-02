@@ -8,7 +8,7 @@ export type SyncStatus = 'checking' | 'syncing' | 'synced' | 'offline' | 'locked
 export const syncState = signal<{ status: SyncStatus; at?: number; message?: string }>({ status: 'checking' })
 
 const TOKEN_KEY = 'reps-token'
-const SYNCED: StoreName[] = ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings']
+const SYNCED: StoreName[] = ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings', 'coach']
 
 export const getToken = () => {
   try {

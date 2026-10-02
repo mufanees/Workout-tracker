@@ -10,6 +10,7 @@ import { Settings } from './screens/Settings'
 import { Body } from './screens/Body'
 import { ImportPlan } from './screens/ImportPlan'
 import { Coach } from './screens/Coach'
+import { CoachMemory } from './screens/CoachMemory'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
 
@@ -46,6 +47,7 @@ export function App() {
   else if (a === 'routine' && b) screen = <RoutineEditor id={b} key={b} />
   else if (a === 'settings') screen = <Settings />
   else if (a === 'import') screen = <ImportPlan />
+  else if (a === 'coach' && b === 'memory') screen = <CoachMemory />
   else if (a === 'coach') (screen = <Coach />), (tab = '/coach')
   else if (a === 'body') (screen = <Body />), (tab = '/body')
   else (screen = <Train />), (tab = '/train')

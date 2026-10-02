@@ -27,6 +27,9 @@ export interface WSet {
   tw?: number | null
   tr?: number | null
   ts?: number | null
+  // Today's targets from the coach (take priority over last time's numbers as placeholders).
+  cw?: number | null
+  cr?: number | null
 }
 
 export interface WExercise {
@@ -52,6 +55,9 @@ export interface Workout extends Rec {
   /** Copied from the routine when the workout started. */
   warmup?: string[]
   cooldown?: string[]
+  /** The coach's targets for this session (live workout only, not saved). */
+  coachPlan?: { focus: string; targets: { exercise: string; weight_kg?: number; reps?: string; note?: string }[]; applied?: boolean } | null
+  coachPlanAsked?: boolean
   routineId: string | null
   start: number
   end: number | null
@@ -95,6 +101,31 @@ export interface Quote {
   tag?: string
 }
 
+/**
+ * The coach's memory, one store with a `kind`:
+ * profile (single record id "profile"), note, goal, commitment, insight (weekly review / workout takeaway).
+ */
+export interface CoachItem extends Rec {
+  kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight'
+  text?: string
+  created?: number
+  due?: number | null // goals and commitments
+  status?: 'open' | 'done' | 'missed' | 'dropped'
+  outcome?: string
+  source?: 'coach' | 'you'
+  type?: 'weekly' | 'workout' // insights
+  ref?: string // insight: workout id or week start (YYYY-MM-DD)
+  // profile fields
+  goals?: string
+  injuries?: string
+  equipment?: string
+  schedule?: string
+  preferences?: string
+  age?: number | null
+  maxHr?: number | null
+  tz?: string
+}
+
 /** A morning resting heart rate / HRV reading. */
 export interface Reading extends Rec {
   date: number
@@ -113,4 +144,4 @@ export interface Fast extends Rec {
   goal: number // hours
 }
 
-export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts' | 'readings'
+export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts' | 'readings' | 'coach'

@@ -123,10 +123,20 @@ export function createMcpHandler({ db, q, rootDir }) {
     {
       name: 'recent_workouts',
       description: 'Recent finished workouts with sets, duration and heart rate summary.',
-      inputSchema: { type: 'object', properties: { limit: { type: 'number', description: 'How many (default 10)' } } },
-      run: ({ limit = 10 }) => {
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'How many (default 10, max 50)' },
+          from: { type: 'string', description: 'Only workouts on or after this date, YYYY-MM-DD' },
+          to: { type: 'string', description: 'Only workouts on or before this date, YYYY-MM-DD' },
+        },
+      },
+      run: ({ limit = 10, from, to }) => {
         const name = exName()
+        const lo = from ? Date.parse(from) : -Infinity
+        const hi = to ? Date.parse(to) + 86400000 : Infinity
         const list = rows('workouts')
+          .filter((w) => w.start >= lo && w.start < hi)
           .sort((a, b) => b.start - a.start)
           .slice(0, Math.min(50, limit))
         if (!list.length) return 'No workouts yet.'
@@ -215,11 +225,20 @@ export function createMcpHandler({ db, q, rootDir }) {
     }
   }
 
-  return async (body) => {
+  const handler = async (body) => {
     if (Array.isArray(body)) {
       const out = (await Promise.all(body.map(handle))).filter(Boolean)
       return out.length ? out : null
     }
     return handle(body)
   }
+  /** Run a read tool directly (the AI coach reuses these for look-ups). */
+  handler.callTool = async (name, args = {}) => {
+    const tool = tools.find((t) => t.name === name)
+    if (!tool) throw new Error(`Unknown tool ${name}`)
+    return tool.run(args)
+  }
+  handler.rows = rows
+  handler.library = library
+  return handler
 }

@@ -8,14 +8,14 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { createMcpHandler } from './mcp.mjs'
 import { createPush } from './push.mjs'
-import { coachEnabled, streamCoach } from './coach.mjs'
+import { coachEnabled, createCoach, friendlyError } from './coach.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, '..', 'data'))
 const DIST = path.resolve(process.env.DIST_DIR || path.join(ROOT, '..', 'dist'))
 const TOKEN = process.env.APP_TOKEN || ''
-const STORES = new Set(['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings'])
+const STORES = new Set(['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings', 'coach'])
 const MAX_BODY = 20 * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -171,6 +171,7 @@ function serveStatic(req, res, pathname) {
 
 const mcp = createMcpHandler({ db, q, rootDir: ROOT })
 const push = createPush(db, { subject: process.env.PUSH_CONTACT || 'mailto:reps@localhost' })
+const coach = createCoach({ db, q, mcp, push })
 
 // ---- nightly backups: /data/backups/reps-YYYY-MM-DD.db, newest BACKUP_DAYS kept ----
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
@@ -218,7 +219,15 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/coach/status') return send(res, 200, { enabled: coachEnabled() })
       if (pathname === '/api/coach' && req.method === 'POST') {
         if (!coachEnabled()) return send(res, 503, { error: 'Set GEMINI_API_KEY on the server to turn on the coach.' })
-        return streamCoach(await readBody(req), res)
+        return coach.streamChat(await readBody(req), res)
+      }
+      if (pathname === '/api/coach/quick' && req.method === 'POST') {
+        if (!coachEnabled()) return send(res, 503, { error: 'Set GEMINI_API_KEY on the server to turn on the coach.' })
+        try {
+          return send(res, 200, await coach.quick(await readBody(req)))
+        } catch (e) {
+          return send(res, e.status === 400 && !e.gemini ? 400 : 502, { error: friendlyError(e) })
+        }
       }
       if (pathname === '/api/push/key') return send(res, 200, { key: push.publicKey })
       if (pathname === '/api/push/subscribe' && req.method === 'POST') return push.subscribe((await readBody(req)).endpoint), send(res, 200, { ok: true })

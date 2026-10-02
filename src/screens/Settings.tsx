@@ -97,7 +97,7 @@ export function Settings() {
       let data = json?.data as Record<StoreName, { id: string }[]> | undefined
       // Also accept the server's /api/export format: { records: [{ store, id, data }] }
       if (!data && Array.isArray(json?.records)) {
-        data = { exercises: [], routines: [], workouts: [], settings: [], body: [], fasts: [], readings: [] }
+        data = { exercises: [], routines: [], workouts: [], settings: [], body: [], fasts: [], readings: [], coach: [] }
         for (const r of json.records) if (r && data[r.store as StoreName]) data[r.store as StoreName].push({ ...r.data, id: r.id })
       }
       if (!data || typeof data !== 'object') throw new Error('bad file')
@@ -110,7 +110,7 @@ export function Settings() {
       if (!ok) return
       const now = Date.now()
       const items: { store: db.Store; key: string; value: unknown }[] = []
-      for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings'] as StoreName[]) {
+      for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings', 'coach'] as StoreName[]) {
         for (const raw of Array.isArray(data[s]) ? data[s] : []) {
           const r = sanitize(s, raw)
           if (!r || r.deleted) continue
@@ -337,7 +337,7 @@ export function Settings() {
 
 async function buildBackup(): Promise<string> {
   const data: Record<string, unknown[]> = {}
-  for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
+  for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings', 'coach'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
   return JSON.stringify({ app: 'reps', version: 1, exportedAt: new Date().toISOString(), data })
 }
 

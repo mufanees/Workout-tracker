@@ -8,6 +8,10 @@ import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import { WorkoutEditor } from '../ui/WorkoutEditor'
 import { HRSummaryCard, hrLine, ZoneTrends } from '../ui/HR'
 import { summarizeHR } from '../hr'
+import { checkCoach, coachOn, quick } from '../coach'
+import { coachItems } from '../store'
+import { useRef } from 'preact/hooks'
+import { Markdown } from './Coach'
 import { QuoteCard } from '../ui/Quote'
 import type { Workout } from '../types'
 import { counts, doneSets, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
@@ -306,6 +310,7 @@ export function WorkoutDetail({ id }: { id: string }) {
 
       {w.notes && <p class="detail-notes">{w.notes}</p>}
 
+      <CoachTakeaway w={w} celebrate={celebrate} />
       <HRSummaryCard w={w} />
 
       <div class="detail-list">
@@ -426,5 +431,43 @@ export function EditWorkout({ id }: { id: string }) {
         onChange={(fn) => setDraft((d) => d && { ...d, exercises: fn(d.exercises) })}
       />
     </div>
+  )
+}
+
+/** The coach's one-line takeaway: asked for once, right after you finish. */
+function CoachTakeaway({ w, celebrate }: { w: Workout; celebrate: boolean }) {
+  const saved = coachItems.value.find((x) => x.kind === 'insight' && x.ref === w.id)
+  const [text, setText] = useState<string | null>(saved?.text || null)
+  const [loading, setLoading] = useState(false)
+  const asked = useRef(false)
+  useEffect(() => {
+    if (saved?.text) setText(saved.text)
+  }, [saved?.text])
+  useEffect(() => {
+    if (coachOn.value == null) void checkCoach()
+  }, [])
+  useEffect(() => {
+    if (!celebrate || !coachOn.value || saved || asked.current) return
+    asked.current = true
+    setLoading(true)
+    quick<{ text: string }>({ kind: 'workout', workoutId: w.id }, w.id)
+      .then((r) => setText(r.text || null))
+      .catch(() => setText(null))
+      .finally(() => setLoading(false))
+  }, [coachOn.value, celebrate])
+  if (!text && !loading) return null
+  return (
+    <section class={'coach-card' + (loading && !text ? ' loading' : '')}>
+      <span class="eyebrow">
+        <Icon name="sparkles" size={14} /> Coach
+      </span>
+      {text ? (
+        <Markdown text={text} />
+      ) : (
+        <span class="coach-status">
+          <span class="spinner" aria-hidden="true" /> Looking at this workout…
+        </span>
+      )}
+    </section>
   )
 }

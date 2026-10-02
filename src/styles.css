@@ -3426,3 +3426,249 @@ label.setting:active {
 .quote-card .q-em {
   color: #0b0c0f;
 }
+
+/* ---------- coach: memory, proposals, weekly ---------- */
+.coach-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--surface-3);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.mem-chip {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 6px 10px;
+  align-self: flex-start;
+}
+.mem-chip .icon {
+  margin-top: 1px;
+  color: var(--accent-text);
+}
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1.5px solid var(--accent);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: var(--accent-soft);
+}
+.proposal ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14.5px;
+}
+.proposal.dismissed {
+  border-color: var(--line);
+  background: transparent;
+  opacity: 0.7;
+}
+.proposal-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--accent-text);
+}
+.proposal.dismissed .proposal-state {
+  color: var(--muted);
+}
+.weekly-card {
+  background: var(--ink);
+  color: #fff;
+  border-radius: 24px;
+  padding: 6px 16px 14px;
+}
+.weekly-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  color: var(--accent);
+}
+.weekly-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.weekly-body ul,
+.weekly-body ol {
+  margin: 0;
+  padding-left: 20px;
+}
+.weekly-body h3 {
+  font-size: 15px;
+}
+.commit-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.commit-strip .eyebrow {
+  color: var(--accent-text);
+}
+.commit {
+  font-size: 14.5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.commit small {
+  color: var(--muted);
+}
+.commit.due {
+  border-color: var(--warn);
+}
+.stack-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.mem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mem-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  border-top: 1px solid var(--line);
+  padding: 6px 0;
+}
+.mem-row:first-child {
+  border-top: 0;
+}
+.mem-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+}
+.mem-text small {
+  color: var(--muted);
+}
+.mem-row.done .mem-text,
+.mem-row.closed .mem-text {
+  color: var(--muted);
+}
+.mem-row .cl-box {
+  flex: none;
+}
+.mem-row .cl-box.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.mem-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+}
+.mem-add .plain-input {
+  flex: 1;
+  min-width: 0;
+}
+.pill-state {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.pill-state.due {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+.pill-state.done {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+.pill-state.missed {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.review {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+  font-size: 14.5px;
+}
+.review:first-child {
+  border-top: 0;
+}
+.review summary {
+  cursor: pointer;
+  font-weight: 650;
+  min-height: 32px;
+}
+.review p,
+.review ul,
+.review ol {
+  margin: 6px 0 0;
+}
+.coach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.coach-card .eyebrow {
+  color: var(--accent-text);
+}
+.coach-card.loading {
+  border-style: dashed;
+  border-color: var(--line);
+}
+.coach-targets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14.5px;
+}
+.coach-targets li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.coach-targets b {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.coach-targets small {
+  display: block;
+  color: var(--muted);
+}
