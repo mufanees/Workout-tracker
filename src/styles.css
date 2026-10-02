@@ -5492,12 +5492,26 @@ html.vt .app > :is(.screen, .live) {
   object-fit: none;
   object-position: left center;
 }
+/* Keep the pill under every tab: it lives inside the active tab, so by default the browser
+   draws it on top of that tab's icon while it moves. */
+::view-transition-group(tab-pill) {
+  z-index: 1;
+}
+::view-transition-group(tab-0),
+::view-transition-group(tab-1),
+::view-transition-group(tab-2),
+::view-transition-group(tab-3),
+::view-transition-group(tab-4) {
+  z-index: 2;
+}
+/* An even crossfade (same duration, additive blend) so an icon never dips out mid-way. */
 ::view-transition-old(tab-0),
 ::view-transition-old(tab-1),
 ::view-transition-old(tab-2),
 ::view-transition-old(tab-3),
 ::view-transition-old(tab-4) {
-  animation: vt-out 150ms ease-out both;
+  animation: vt-out 300ms var(--ease) both;
+  mix-blend-mode: plus-lighter;
 }
 ::view-transition-new(tab-0),
 ::view-transition-new(tab-1),
@@ -5505,6 +5519,14 @@ html.vt .app > :is(.screen, .live) {
 ::view-transition-new(tab-3),
 ::view-transition-new(tab-4) {
   animation: vt-in 300ms var(--ease) both;
+  mix-blend-mode: plus-lighter;
+}
+::view-transition-image-pair(tab-0),
+::view-transition-image-pair(tab-1),
+::view-transition-image-pair(tab-2),
+::view-transition-image-pair(tab-3),
+::view-transition-image-pair(tab-4) {
+  isolation: isolate;
 }
 /* screens */
 ::view-transition-old(screen) {
