@@ -125,7 +125,7 @@ export function routineDiff(w: Workout): { routine: Routine; changes: string[] }
   for (const we of w.exercises) {
     const re = r.exercises.find((e) => e.exerciseId === we.exerciseId)
     if (!re) changes.push(`Add ${name(we.exerciseId)}`)
-    else if (we.sets.length > re.sets.length) changes.push(`${name(we.exerciseId)}: ${re.sets.length} → ${we.sets.length} sets`)
+    else if (we.sets.length > re.sets.length) changes.push(`${name(we.exerciseId)}: ${re.sets.length} to ${we.sets.length} sets`)
   }
   return changes.length ? { routine: r, changes } : null
 }

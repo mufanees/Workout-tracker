@@ -20,5 +20,8 @@
     "preact": "^10.27.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.0"
+  },
+  "dependencies": {
+    "lucide-preact": "^1.49.0"
   }
 }
