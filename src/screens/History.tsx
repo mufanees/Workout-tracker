@@ -13,10 +13,9 @@ import { coachItems } from '../store'
 import { useRef } from 'preact/hooks'
 import { Markdown } from './Coach'
 import { CalendarView } from './Calendar'
-import { Confetti, MilestoneList, RingStack } from '../ui/Rings'
-import { ringsFor, zone2Minutes } from '../rings'
+import { CelebrationHero, Confetti, MilestoneList } from '../ui/Rings'
+import { ringsFor } from '../rings'
 import { milestonesFor, nextWorkoutMilestone } from '../milestones'
-import { settings } from '../store'
 import { QuoteCard } from '../ui/Quote'
 import type { Workout } from '../types'
 import { counts, doneSets, startOfDay, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
@@ -532,8 +531,6 @@ function WorkoutCelebration({ w, number, prCount }: { w: Workout; number: number
   const day = ringsFor([startOfDay(new Date(w.start))])[0]
   const mins = Math.max(1, Math.round(((w.end ?? Date.now()) - w.start) / 60000))
   const closed = day.moveMin >= day.moveGoal
-  const z2 = zone2Minutes()
-  const z2Goal = settings.value.zone2Goal || 150
   const next = nextWorkoutMilestone()
   const earned = milestonesFor(w.id)
   const line = prCount
@@ -541,25 +538,19 @@ function WorkoutCelebration({ w, number, prCount }: { w: Workout; number: number
     : closed
       ? `Move ring closed: ${Math.round(day.moveMin)} of ${day.moveGoal} minutes today.`
       : mins < day.moveGoal
-        ? `${mins} minute${mins === 1 ? '' : 's'} today. You showed up, and that counts.`
+        ? 'You showed up, and that counts. The streak is yours.'
         : 'Logged and saved. Rest well.'
   return (
     <>
       <Confetti />
       <section class="celebrate">
-        <RingStack
-          size={150}
-          stroke={16}
-          check
-          rings={[
-            { pct: day.fastMs / day.fastGoalMs, cls: 'r-fast', label: 'Fast' },
-            { pct: day.moveMin / day.moveGoal, cls: 'r-move', label: 'Move' },
-            { pct: z2 / z2Goal, cls: 'r-z2', label: 'Zone 2 this week' },
-          ]}
+        <CelebrationHero
+          eyebrow={`Workout #${number} done`}
+          badge={prCount ? 'medal' : 'check'}
+          parts={[[String(mins), 'min']]}
+          bar={{ pct: day.moveMin / day.moveGoal, left: `Move ${Math.max(mins, Math.round(day.moveMin))} / ${day.moveGoal} min`, right: closed ? 'Ring closed' : 'Day earned', done: closed }}
+          line={line}
         />
-        <h1>Workout #{number} done</h1>
-        <p>{line}</p>
-        {!closed && <p class="cel-credit">Day earned. The Move ring fills at {day.moveGoal} minutes; showing up is what keeps the streak.</p>}
         {next && !earned.length && <p class="cel-next">{next.left === 1 ? `Next one is #${next.next}.` : `${next.left} more to reach ${next.next} workouts.`}</p>}
         <QuoteCard compact seed={3} />
       </section>

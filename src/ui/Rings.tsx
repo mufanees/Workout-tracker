@@ -170,3 +170,49 @@ export function MilestoneList({ list }: { list: Milestone[] }) {
     </div>
   )
 }
+
+/** Big celebratory card in the app's style: ink card, lime stripes, huge number, progress bar. */
+export function CelebrationHero({
+  eyebrow,
+  parts,
+  bar,
+  line,
+  badge = 'check',
+}: {
+  eyebrow: string
+  parts: [string, string][] // [number, unit]
+  bar?: { pct: number; left: string; right: string; done: boolean }
+  line?: string
+  badge?: string
+}) {
+  return (
+    <section class="cel-hero">
+      <div class="ch-top">
+        <span class="ch-eyebrow">{eyebrow}</span>
+        <span class="ch-badge" aria-hidden="true">
+          <Icon name={badge} size={26} stroke={3} />
+        </span>
+      </div>
+      <b class="ch-num">
+        {parts.map(([n, u]) => (
+          <span>
+            {n}
+            <small>{u}</small>
+          </span>
+        ))}
+      </b>
+      {bar && (
+        <div class="ch-bar-wrap">
+          <div class={'ch-bar' + (bar.done ? ' done' : '')}>
+            <span style={{ width: `${Math.max(4, Math.min(100, bar.pct * 100))}%` }} />
+          </div>
+          <div class="ch-bar-labels">
+            <span>{bar.left}</span>
+            <span>{bar.right}</span>
+          </div>
+        </div>
+      )}
+      {line && <p class="ch-line">{line}</p>}
+    </section>
+  )
+}

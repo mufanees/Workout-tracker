@@ -4,7 +4,7 @@ import { navigate } from '../router'
 import { HOUR, fastStats, hShort, hm, protocolLabel, stageAt } from '../fasting'
 import { milestonesFor } from '../milestones'
 import { ringsFor } from '../rings'
-import { Confetti, MilestoneList, RingStack } from '../ui/Rings'
+import { CelebrationHero, Confetti, MilestoneList } from '../ui/Rings'
 import { FastEditor } from '../ui/Fasting'
 import { QuoteCard } from '../ui/Quote'
 import { Icon } from '../ui/icons'
@@ -35,23 +35,17 @@ export function FastDone({ id }: { id: string }) {
           <Icon name="x" />
         </button>
       </header>
-      <section class={'celebrate fast-celebrate' + (hit ? ' hit' : '')}>
-        <RingStack
-          size={168}
-          stroke={18}
-          check={day.showedUp}
-          rings={[
-            { pct: len / (f.goal * HOUR), cls: 'r-fast', label: 'Fast' },
-            { pct: day.moveMin / day.moveGoal, cls: 'r-move', label: 'Move' },
+      <div class={'fast-celebrate' + (hit ? ' hit' : '')}>
+        <CelebrationHero
+          eyebrow={`${hit ? 'Fast complete' : 'Fast logged'} · ${protocolLabel(f.goal)}`}
+          badge={hit ? 'check' : 'fast'}
+          parts={[
+            [String(Math.floor(len / HOUR)), 'h'],
+            [String(Math.floor(len / 60000) % 60).padStart(2, '0'), 'm'],
           ]}
+          bar={{ pct: len / (f.goal * HOUR), left: `Goal ${f.goal}h`, right: hit ? (len - f.goal * HOUR >= 30 * 60000 ? `+${hm(len - f.goal * HOUR)}` : 'Reached') : `${hm(short)} to go`, done: hit }}
+          line={hit ? 'You said you would, and you did.' : `${Math.floor(len / HOUR)} hours of discipline still counts. Next one’s yours.`}
         />
-        <h1>{hit ? 'Fast complete' : 'Fast logged'}</h1>
-        <p class="cel-big">{hm(len)}</p>
-        <p>
-          {hit
-            ? `${protocolLabel(f.goal)} goal reached${len - f.goal * HOUR >= 30 * 60000 ? `, ${hm(len - f.goal * HOUR)} past it` : ''}.`
-            : `${hm(short)} short of ${protocolLabel(f.goal)}. ${Math.floor(len / HOUR)} hours of discipline still counts.`}
-        </p>
         <div class="cel-chips">
           <span class="cel-chip">
             <Icon name={stage.icon} size={14} /> Reached {stage.name.toLowerCase()}
@@ -66,8 +60,13 @@ export function FastDone({ id }: { id: string }) {
               <Icon name="medal" size={14} /> Longest fast yet
             </span>
           )}
+          {day.showedUp && (
+            <span class="cel-chip">
+              <Icon name="dumbbell" size={14} /> Trained today too
+            </span>
+          )}
         </div>
-      </section>
+      </div>
 
       <MilestoneList list={milestonesFor(f.id)} />
 
