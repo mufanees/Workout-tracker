@@ -177,21 +177,17 @@ export function CelebrationHero({
   parts,
   bar,
   line,
-  badge = 'check',
 }: {
   eyebrow: string
   parts: [string, string][] // [number, unit]
   bar?: { pct: number; left: string; right: string; done: boolean }
   line?: string
-  badge?: string
+  badge?: string // unused, kept for callers
 }) {
   return (
     <section class="cel-hero">
       <div class="ch-top">
         <span class="ch-eyebrow">{eyebrow}</span>
-        <span class="ch-badge" aria-hidden="true">
-          <Icon name={badge} size={26} stroke={3} />
-        </span>
       </div>
       <b class="ch-num">
         {parts.map(([n, u]) => (
