@@ -75,7 +75,7 @@ const sample = async (input, toolNames) => {
   await page.waitForSelector('.proposal', { timeout: 15000 })
   await page.waitForTimeout(800)
   await shot('04-coach-proposal', true)
-  console.log('coach saw feedback:', /Athlete feedback: .*HURT/.test(lastChat), '| time line:', /Time: warm-up \d+ min/.test(lastChat), '| note:', lastChat.includes('Only have 30 minutes'))
+  console.log('coach saw feedback:', /Athlete feedback: .*HURT/.test(lastChat), '| time line:', /Time: took \d+ min/.test(lastChat), '| note:', lastChat.includes('Only have 30 minutes'))
   await page.locator('.proposal .btn-primary').first().tap()
   await page.waitForTimeout(800)
   await shot('05-approved')

@@ -14,6 +14,7 @@ import { useRef } from 'preact/hooks'
 import { Markdown } from './Coach'
 import { CalendarView } from './Calendar'
 import { FeedbackCard } from '../ui/Feedback'
+import { TimeCard, TimeTrend } from '../ui/TimeCard'
 import { CelebrationHero, Confetti, MilestoneList } from '../ui/Rings'
 import { ringsFor } from '../rings'
 import { milestonesFor, nextWorkoutMilestone } from '../milestones'
@@ -117,6 +118,7 @@ export function History() {
           </div>
         </section>
       )}
+      {view === 'list' && <TimeTrend />}
       {view === 'list' && <ZoneTrends workouts={list} />}
       {view === 'list' && !list.length && (
         <div class="empty-state">
@@ -330,6 +332,7 @@ export function WorkoutDetail({ id }: { id: string }) {
 
       {w.notes && <p class="detail-notes">{w.notes}</p>}
 
+      <TimeCard w={w} />
       <FeedbackCard w={w} open={celebrate} />
       <CoachTakeaway w={w} celebrate={celebrate} />
       <HRSummaryCard w={w} />

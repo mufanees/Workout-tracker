@@ -215,26 +215,51 @@ export function WorkoutEditor({
 
   return (
     <div class="editor">
-      {exercises.map((we) => (
-        <ExerciseCard
-          key={we.id}
-          we={we}
-          all={exercises}
-          mode={mode}
-          workoutId={workoutId}
-          before={before}
-          noteOpen={openNotes.has(we.id)}
-          onMenu={() => exerciseMenu(we)}
-          onRest={() => restMenu(we)}
-          mut={(fn) =>
-            mut((list) => {
-              const k = at(list, we.id)
-              if (k >= 0) fn(list[k])
-            })
-          }
-          onSetDone={() => onSetDone?.(we.id)}
-        />
-      ))}
+      {blocks(exercises).map((items) => {
+        const card = (we: WExercise) => (
+          <ExerciseCard
+            key={we.id}
+            we={we}
+            all={exercises}
+            mode={mode}
+            workoutId={workoutId}
+            before={before}
+            noteOpen={openNotes.has(we.id)}
+            onMenu={() => exerciseMenu(we)}
+            onRest={() => restMenu(we)}
+            mut={(fn) =>
+              mut((list) => {
+                const k = at(list, we.id)
+                if (k >= 0) fn(list[k])
+              })
+            }
+            onSetDone={() => onSetDone?.(we.id)}
+          />
+        )
+        const lead = items[0]
+        if (!lead.superset || items.length < 2) return card(lead)
+        const color = supersetColor(lead.superset, exercises) || 'var(--accent)'
+        const n = [...new Set(exercises.map((e) => e.superset).filter(Boolean))].indexOf(lead.superset) + 1
+        const rest = Math.max(...items.map((e) => e.rest))
+        const last = items[items.length - 1]
+        return (
+          <section class="ss-group" style={{ '--ss': color }} key={lead.superset} aria-label={`Superset ${n}`}>
+            <header class="ss-head">
+              <span class="ss-badge">
+                <Icon name="link" size={14} /> Superset {n}
+              </span>
+              <span class="ss-hint">{items.map((_, k) => `${n}${String.fromCharCode(97 + k)}`).join(' → ')}, then rest</span>
+            </header>
+            {items.map(card)}
+            {mode !== 'edit' && (
+              <button class={'ss-rest' + (rest ? '' : ' off')} onClick={() => restMenu(last)} aria-label={`Rest after each round: ${rest ? fmtRest(rest) : 'off'}. Change`}>
+                <Icon name="timer" size={16} />
+                <span>{rest ? `Rest ${fmtRest(rest)} after each round` : 'No rest between rounds'}</span>
+              </button>
+            )}
+          </section>
+        )
+      })}
       {!exercises.length && (
         <div class="empty-card">
           <Icon name="dumbbell" size={28} />
@@ -253,6 +278,17 @@ export function WorkoutEditor({
       />
     </div>
   )
+}
+
+/** Consecutive exercises in the same superset form one block; everything else is a block of one. */
+function blocks(list: WExercise[]): WExercise[][] {
+  const out: WExercise[][] = []
+  for (const we of list) {
+    const prev = out[out.length - 1]
+    if (prev && we.superset && prev[0].superset === we.superset) prev.push(we)
+    else out.push([we])
+  }
+  return out
 }
 
 function ExerciseCard({
@@ -288,7 +324,8 @@ function ExerciseCard({
   const groupNo = we.superset ? [...new Set(all.map((e) => e.superset).filter(Boolean))].indexOf(we.superset) + 1 : 0
   const ssLabel = we.superset ? `${groupNo}${String.fromCharCode(97 + group.indexOf(we))}` : ''
   // In a superset the rest happens after the last exercise, so only that one shows its timer.
-  const showRest = mode !== 'edit' && (!we.superset || group[group.length - 1] === we)
+  // Supersets show their rest once, under the group.
+  const showRest = mode !== 'edit' && !we.superset
   const restValue = we.superset ? Math.max(...group.map((e) => e.rest)) : we.rest
   const bodyweight = ex.equipment === 'Bodyweight'
 
@@ -297,13 +334,7 @@ function ExerciseCard({
   const prevWork = prev.filter((s) => s.kind !== 'warmup')
   const prevMax = Math.max(0, ...prevWork.map((s) => s.weight || 0))
   const wentHeavier = we.sets.some((s) => (s.weight || 0) > prevMax)
-  const goHeavier =
-    mode === 'live' &&
-    ex.type === 'weight_reps' &&
-    top != null &&
-    !wentHeavier &&
-    prevWork.length > 0 &&
-    prevWork.every((s) => (s.reps || 0) >= top && s.weight != null)
+  const goHeavier = mode === 'live' && ex.type === 'weight_reps' && top != null && !wentHeavier && prevWork.length > 0 && prevWork.every((s) => (s.reps || 0) >= top && s.weight != null)
 
   // The plan's rule: same weight three sessions running → one lighter week (~70%, 2 sets).
   const stall = mode === 'live' && ex.type === 'weight_reps' && !goHeavier ? stalledAt(we.exerciseId, workoutId, before) : null
@@ -444,11 +475,7 @@ function ExerciseCard({
         <div class="ex-title">
           <h3>{ex.name}</h3>
           <div class="ex-tags">
-            {color && (
-              <span class="tag ss-tag">
-                <Icon name="link" size={13} /> Superset {ssLabel}
-              </span>
-            )}
+            {color && <span class="tag ss-tag">{ssLabel}</span>}
             {mode === 'routine' ? null : we.target ? (
               <span class="tag" title="Target">
                 <Icon name="target" size={13} /> {we.target}
@@ -501,11 +528,11 @@ function ExerciseCard({
         </div>
       )}
 
-
-
       <div class={`sets cols-${cols} mode-${mode}`} role="table" aria-label={`${ex.name} sets`}>
         <div class="set-row head" role="row">
-          <span role="columnheader" class="num-head">SET</span>
+          <span role="columnheader" class="num-head">
+            SET
+          </span>
           {mode !== 'routine' && <span role="columnheader">PREVIOUS</span>}
           {ex.type === 'weight_reps' && (
             <span role="columnheader" class="num-head">
@@ -525,7 +552,13 @@ function ExerciseCard({
         {we.sets.map((s, i) => {
           const ph = mode === 'routine' ? { weight: null, reps: null, seconds: null } : placeholder(i)
           const p = matched[i]
-          const prevText = p ? (ex.type === 'duration' ? `${p.seconds ?? '–'}s` : ex.type === 'reps' || p.weight == null ? `${p.reps ?? '–'} reps` : `${fmtNum(toDisplay(p.weight, u))} × ${p.reps ?? '–'}`) : '—'
+          const prevText = p
+            ? ex.type === 'duration'
+              ? `${p.seconds ?? '–'}s`
+              : ex.type === 'reps' || p.weight == null
+                ? `${p.reps ?? '–'} reps`
+                : `${fmtNum(toDisplay(p.weight, u))} × ${p.reps ?? '–'}`
+            : '—'
           return (
             <SwipeRow key={s.id} setId={s.id} next={mode === 'live' && !s.done && nextUp.value === s.id} onDelete={() => deleteSet(i)} done={s.done && mode === 'live'}>
               <button class={'set-kind k-' + s.kind} onClick={() => setMenu(i)} aria-label={`Set ${labels[i]}, ${KIND_LABEL[s.kind]}. Change type or delete`}>
@@ -577,12 +610,7 @@ function ExerciseCard({
                 />
               )}
               {mode !== 'routine' && (
-                <button
-                  class={'check' + (s.done ? ' on' : '')}
-                  aria-pressed={s.done}
-                  aria-label={s.done ? `Set ${labels[i]} done. Undo` : `Complete set ${labels[i]}`}
-                  onClick={() => toggleDone(i)}
-                >
+                <button class={'check' + (s.done ? ' on' : '')} aria-pressed={s.done} aria-label={s.done ? `Set ${labels[i]} done. Undo` : `Complete set ${labels[i]}`} onClick={() => toggleDone(i)}>
                   <Icon name="check" size={18} stroke={3} />
                 </button>
               )}

@@ -83,6 +83,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  --font-read: 'Source Serif 4 Variable', 'Source Serif 4', Charter, 'Iowan Old Style', Georgia, serif;
   font: 16px/1.45 'Space Grotesk Variable', 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
   font-feature-settings: 'tnum' 0;
   -webkit-font-smoothing: antialiased;
@@ -320,6 +321,8 @@ textarea {
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 .tab {
+  position: relative;
+  isolation: isolate;
   height: 48px;
   min-width: 52px;
   padding: 0 14px;
@@ -327,22 +330,35 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   color: rgba(255, 255, 255, 0.62);
   font-size: 14.5px;
   font-weight: 650;
-  transition: background 0.2s ease, color 0.2s ease;
+  touch-action: manipulation;
+  transition: color 200ms ease-out;
 }
-.tab span {
-  display: none;
+/* The lime pill is its own element so the browser can glide it from tab to tab. */
+.tab-pill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--accent);
+  view-transition-name: tab-pill;
+}
+.tab-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
 }
 .tab.on {
-  background: var(--accent);
   color: var(--accent-ink);
   padding: 0 18px;
 }
-.tab.on span {
-  display: inline;
+.tab.on .tab-label {
+  max-width: 120px;
+  margin-left: 8px;
+  opacity: 1;
 }
 .mini-bar {
   position: fixed;
@@ -748,19 +764,69 @@ textarea {
 .editor {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px; /* at least 2x the 6px inside a superset */
 }
 .ex-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 8px 10px 6px;
+  padding: 10px 12px 8px;
   position: relative;
   scroll-margin-top: 120px;
 }
-/* Superset partners sit closer together; the coloured tag carries the grouping. */
-.ex-card.superset + .ex-card.superset.same-group {
-  margin-top: -6px;
+/* A superset is one tinted block: its exercises, then the rest for the round. */
+.ss-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--ss) 10%, var(--bg));
+  border: 1.5px solid color-mix(in srgb, var(--ss) 45%, transparent);
+}
+.ss-group .ex-card {
+  border-color: transparent;
+  border-radius: 22px; /* concentric: 28 - 6 */
+}
+.ss-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 2px;
+}
+.ss-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ss);
+  white-space: nowrap;
+}
+.ss-hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ss-rest {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  border-radius: 22px;
+  font-weight: 650;
+  font-size: 15px;
+  color: var(--ss);
+  background: color-mix(in srgb, var(--ss) 14%, var(--surface));
+  touch-action: manipulation;
+}
+.ss-rest.off {
+  color: var(--muted);
 }
 .ex-head {
   display: flex;
@@ -774,7 +840,7 @@ textarea {
   padding: 8px 4px 6px;
 }
 .ex-title h3 {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 750;
   letter-spacing: -0.01em;
   line-height: 1.25;
@@ -800,8 +866,8 @@ textarea {
 }
 .tag-btn {
   color: var(--accent-text);
-  min-height: 32px;
-  padding: 3px 10px;
+  min-height: 36px;
+  padding: 4px 12px;
 }
 .tag-btn.off {
   color: var(--muted);
@@ -877,28 +943,28 @@ textarea {
 }
 
 .sets {
-  --cols: 34px minmax(0, 1fr) 64px 54px 44px;
+  --cols: 40px minmax(0, 1fr) 70px 60px 50px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 .sets.cols-r {
-  --cols: 34px minmax(0, 1fr) 76px 44px;
+  --cols: 40px minmax(0, 1fr) 84px 50px;
 }
 .sets.cols-w.mode-routine {
-  --cols: 34px 1fr 1fr;
+  --cols: 40px 1fr 1fr;
 }
 .sets.cols-r.mode-routine {
-  --cols: 34px 1fr;
+  --cols: 40px 1fr;
 }
 .set-row {
   display: grid;
   grid-template-columns: var(--cols);
   gap: 8px;
   align-items: center;
-  min-height: 50px;
+  min-height: 56px;
   padding: 0 4px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
   position: relative;
   touch-action: pan-y;
@@ -942,9 +1008,9 @@ textarea {
   display: flex;
 }
 .set-kind {
-  width: 34px;
-  height: 36px;
-  border-radius: 8px;
+  width: 40px;
+  height: 44px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
   font-weight: 750;
@@ -979,7 +1045,7 @@ textarea {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 2px;
 }
 .prev:disabled {
@@ -989,13 +1055,13 @@ textarea {
 .num {
   width: 100%;
   min-width: 0;
-  height: 40px;
+  height: 46px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface-2);
   text-align: center;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 17px;
   font-variant-numeric: tabular-nums;
   padding: 0 4px;
   transition: box-shadow 0.15s ease;
@@ -1029,9 +1095,10 @@ textarea {
   }
 }
 .check {
-  width: 44px;
-  height: 40px;
-  border-radius: 9px;
+  width: 50px;
+  height: 46px;
+  border-radius: 12px;
+  touch-action: manipulation;
   display: grid;
   place-items: center;
   background: var(--surface-2);
@@ -1044,7 +1111,9 @@ textarea {
 .check.on {
   background: var(--accent);
   color: var(--accent-ink);
-  animation: pop 0.25s ease;
+}
+.check.on .icon {
+  animation: icon-in 300ms cubic-bezier(0.2, 0, 0, 1);
 }
 @keyframes pop {
   50% {
@@ -1053,7 +1122,7 @@ textarea {
 }
 .add-set {
   width: 100%;
-  min-height: 40px;
+  min-height: 48px;
   margin-top: 4px;
   border-radius: 10px;
   display: flex;
@@ -1177,8 +1246,9 @@ textarea {
   border-radius: 22px 22px 0 0;
   box-shadow: var(--shadow);
   transform: translateY(100%);
-  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 220ms ease-out; /* closing: quicker and quieter than opening */
   padding-bottom: var(--safe-bottom);
+  will-change: transform;
 }
 .sheet.full {
   height: calc(100dvh - var(--safe-top) - 24px);
@@ -1186,6 +1256,7 @@ textarea {
 }
 .shown .sheet {
   transform: none;
+  transition: transform 300ms cubic-bezier(0.2, 0, 0, 1);
 }
 .sheet-grip {
   width: 38px;
@@ -1292,11 +1363,14 @@ textarea {
   box-shadow: var(--shadow);
   opacity: 0;
   transform: scale(0.96);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  filter: blur(4px);
+  transition: opacity 150ms ease-out, transform 150ms ease-out, filter 150ms ease-out;
 }
 .modal-root.shown .modal {
   opacity: 1;
   transform: none;
+  filter: none;
+  transition: opacity 300ms cubic-bezier(0.2, 0, 0, 1), transform 300ms cubic-bezier(0.2, 0, 0, 1), filter 300ms cubic-bezier(0.2, 0, 0, 1);
 }
 .modal h2 {
   font-size: 19px;
@@ -1342,7 +1416,7 @@ textarea {
   font-size: 15px;
   font-weight: 600;
   box-shadow: var(--shadow);
-  animation: drop 0.25s ease;
+  animation: enter-down 300ms cubic-bezier(0.2, 0, 0, 1);
   max-width: 480px;
 }
 .toast button {
@@ -2943,7 +3017,7 @@ label.setting:active {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 46px;
+  min-height: 52px;
   text-align: left;
   font-size: 15px;
   border-top: 1px solid var(--line);
@@ -5088,4 +5162,432 @@ label.setting:active {
 }
 .fb-collapsed .icon:first-child {
   color: var(--accent-text);
+}
+
+/* ---------- time budget ---------- */
+
+.pace {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pace.ahead b,
+.pace.on b {
+  color: var(--accent-text);
+}
+.pace.behind b {
+  color: var(--warn);
+}
+.time-card,
+.time-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.time-card .eyebrow,
+.time-trend .eyebrow {
+  color: var(--accent-text);
+}
+.tc-diff {
+  font-size: 15px;
+  white-space: nowrap;
+}
+.tc-diff.over {
+  color: var(--warn);
+}
+.tc-diff.on,
+.tc-diff.under {
+  color: var(--accent-text);
+}
+.tc-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tc-bar {
+  display: grid;
+  grid-template-columns: 64px 1fr 56px;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.tc-bar span {
+  color: var(--muted);
+}
+.tc-bar b {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tc-bar i {
+  display: block;
+  height: 12px;
+  border-radius: 99px;
+  background: var(--surface-3);
+}
+.tc-bar.actual i {
+  background: var(--accent);
+}
+.tc-bar.actual.over i {
+  background: var(--warn);
+}
+.tc-parts {
+  font-size: 13px;
+  color: var(--muted);
+}
+.tt-bars {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  height: 72px;
+  align-items: end;
+}
+.tt-col {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+}
+.tt-col i {
+  display: block;
+  width: 40%;
+  max-width: 12px;
+  border-radius: 4px;
+}
+.tt-plan {
+  background: var(--surface-3);
+}
+.tt-actual.on {
+  background: var(--accent);
+}
+.tt-actual.over {
+  background: var(--warn);
+}
+
+/* ---------- reading text: a serif for anything you read rather than scan ----------
+   Space Grotesk stays for headings, numbers, labels and buttons. */
+.routine-ex,
+.routine-note,
+.detail-notes,
+.detail-ex-note,
+.ex-note .autotext,
+.bubble.coach,
+.weekly-body,
+.mem-text,
+.coach-card p,
+.coach-targets small,
+.cl-item > span:last-child,
+.stage-card p,
+.stage-row > div span,
+.field-hint,
+.fb-card textarea,
+.day-card textarea,
+.fr-times small,
+.milestone span span,
+.review {
+  font-family: var(--font-read);
+  font-optical-sizing: auto;
+  letter-spacing: 0;
+  text-wrap: pretty;
+}
+.routine-ex {
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-line-clamp: 3;
+}
+.bubble.coach {
+  font-size: 17px;
+  line-height: 1.5;
+}
+.bubble.coach b,
+.bubble.coach strong {
+  font-weight: 650;
+}
+.cl-item > span:last-child {
+  font-size: 16.5px;
+}
+
+/* =====================================================================================
+   Motion. One curve for things arriving, cubic-bezier(0.2, 0, 0, 1) (a CSS stand-in for a
+   spring with no bounce), at 300ms; exits are shorter and quieter, 150ms ease-out. Only
+   transform, opacity and filter move. Presses scale to 0.96.
+   ===================================================================================== */
+
+:root {
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(4px);
+  }
+}
+@keyframes enter-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+    filter: blur(4px);
+  }
+}
+@keyframes icon-in {
+  from {
+    opacity: 0;
+    scale: 0.25;
+    filter: blur(4px);
+  }
+}
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--len);
+  }
+}
+@keyframes num-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+}
+
+/* Tab label slides open as the pill arrives. */
+.tab-label {
+  transition: max-width 300ms var(--ease), opacity 200ms ease-out, margin 300ms var(--ease);
+}
+
+/* Press feedback on everything you tap. */
+.btn,
+.icon-btn,
+.chip,
+.tab,
+.check,
+.set-kind,
+.ss-rest,
+.fb-opt,
+.tag-btn,
+.proto,
+.cal-day,
+.tr-day,
+.fw,
+.routine-main,
+.add-set,
+.cl-item,
+.fast-row,
+.day-workout,
+.workout-card,
+.proto-pill,
+.link-btn,
+.fast-card {
+  transition-property: scale, background-color, color, box-shadow, opacity, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+:is(.btn, .icon-btn, .chip, .tab, .check, .set-kind, .ss-rest, .fb-opt, .tag-btn, .proto, .cal-day, .tr-day, .fw, .routine-main, .add-set, .cl-item, .fast-row, .day-workout, .workout-card, .proto-pill, .link-btn):active:not(:disabled) {
+  scale: 0.96;
+}
+.fast-card:active {
+  scale: 0.98;
+}
+
+/* Small arrivals */
+.checklist ul,
+.fb-card,
+.coach-card,
+.proposal,
+.mem-chip,
+.cel-chips,
+.milestones {
+  animation: enter-up 300ms var(--ease) both;
+}
+.milestones {
+  animation-delay: 200ms;
+}
+.cel-chips {
+  animation-delay: 100ms;
+}
+.stat-value[data-n],
+.tr-row b[data-n] {
+  display: inline-block;
+}
+.bump {
+  animation: num-in 250ms var(--ease);
+}
+
+/* First open: the home screen arrives in chunks, 80ms apart. */
+.boot .screen > * {
+  animation: enter-up 400ms ease-out both;
+}
+.boot .screen > :nth-child(2) {
+  animation-delay: 80ms;
+}
+.boot .screen > :nth-child(3) {
+  animation-delay: 160ms;
+}
+.boot .screen > :nth-child(4) {
+  animation-delay: 240ms;
+}
+.boot .screen > :nth-child(n + 5) {
+  animation-delay: 320ms;
+}
+.boot .rs-fill {
+  animation: ring-fill 900ms var(--ease) 200ms both;
+}
+
+/* ---- screen transitions (View Transitions API) ---- */
+/* Named only while a transition runs: a view-transition-name makes a stacking context,
+   which would otherwise trap a screen's sheets under the tab bar. */
+html.vt .app > :is(.screen, .live) {
+  view-transition-name: screen;
+}
+.tabbar {
+  view-transition-name: tabbar;
+}
+.mini-bar {
+  view-transition-name: mini-bar;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(*) {
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease);
+}
+/* the pill: glide and resize; tabs: slide to their new places */
+::view-transition-group(tab-pill) {
+  animation-duration: 300ms;
+}
+::view-transition-old(tab-pill),
+::view-transition-new(tab-pill) {
+  height: 100%;
+  width: 100%;
+  animation: none;
+}
+::view-transition-old(tab-0),
+::view-transition-old(tab-1),
+::view-transition-old(tab-2),
+::view-transition-old(tab-3),
+::view-transition-old(tab-4),
+::view-transition-new(tab-0),
+::view-transition-new(tab-1),
+::view-transition-new(tab-2),
+::view-transition-new(tab-3),
+::view-transition-new(tab-4) {
+  height: 100%;
+  width: auto;
+  object-fit: none;
+  object-position: left center;
+}
+::view-transition-old(tab-0),
+::view-transition-old(tab-1),
+::view-transition-old(tab-2),
+::view-transition-old(tab-3),
+::view-transition-old(tab-4) {
+  animation: vt-out 150ms ease-out both;
+}
+::view-transition-new(tab-0),
+::view-transition-new(tab-1),
+::view-transition-new(tab-2),
+::view-transition-new(tab-3),
+::view-transition-new(tab-4) {
+  animation: vt-in 300ms var(--ease) both;
+}
+/* screens */
+::view-transition-old(screen) {
+  animation: vt-out 150ms ease-out both;
+}
+::view-transition-new(screen) {
+  animation: vt-in-up 300ms var(--ease) both;
+}
+html[data-nav='forward']::view-transition-new(screen) {
+  animation-name: vt-in-right;
+}
+html[data-nav='forward']::view-transition-old(screen) {
+  animation-name: vt-out-left;
+}
+html[data-nav='back']::view-transition-new(screen) {
+  animation-name: vt-in-left;
+}
+html[data-nav='back']::view-transition-old(screen) {
+  animation-name: vt-out-right;
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes vt-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes vt-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+    filter: blur(4px);
+  }
+}
+@keyframes vt-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+@keyframes vt-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+    filter: blur(4px);
+  }
+}
+@keyframes vt-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+/* Browsers without view transitions still get a soft arrival. */
+.no-vt .screen {
+  animation: enter-up 300ms var(--ease);
+}
+.no-vt .tab-pill {
+  transition: none;
+}
+
+/* Reduced motion: keep feedback (colour, press) but drop movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

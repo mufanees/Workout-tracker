@@ -1,5 +1,6 @@
 // Builds a compact plain-text summary of your training for the AI coach (or to paste into Claude).
 import { dayKey } from './fasting'
+import { planFor } from './timeplan'
 import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
 import { prIndex, sessionsByExercise, stalledAt } from './stats'
 import { planStatus } from './plan'
@@ -34,7 +35,11 @@ export function workoutLine(w: Workout) {
   }
   if (w.notes) lines.push(`  Session notes: ${w.notes}`)
   const ph = phaseMinutes(w)
-  if (ph.warmup != null || ph.cooldown != null) lines.push(`  Time: warm-up ${ph.warmup ?? '?'} min, cool-down ${ph.cooldown ?? '?'} min`)
+  const tp = w.timePlan
+  if (tp || ph.warmup != null || ph.cooldown != null)
+    lines.push(
+      `  Time: took ${mins} min${tp ? ` vs ${tp.fixed ? 'a budget of' : 'an estimated'} ${tp.budget} min (plan: warm-up ${tp.warmup}, sets ${tp.main}, cool-down ${tp.cooldown})` : ''}; actual warm-up ${ph.warmup ?? '?'} min, cool-down ${ph.cooldown ?? '?'} min`,
+    )
   const fb = w.feedback
   if (fb) {
     const felt: string[] = []
@@ -145,7 +150,8 @@ export function routinesText() {
         return `${name(e.exerciseId)} ${s.length}×${e.target || reps || ''}${w != null ? ` @ ${w} kg` : ''}`
       })
       const extra = [r.warmup?.length ? `\n    warm-up: ${r.warmup.join('; ')}` : '', r.cooldown?.length ? `\n    cool-down: ${r.cooldown.join('; ')}` : ''].join('')
-      return `${r.folder ? r.folder + ' / ' : ''}${r.name}: ${ex.join(', ')}${extra}`
+      const tp = planFor(r)
+      return `${r.folder ? r.folder + ' / ' : ''}${r.name} (~${tp.budget} min${tp.fixed ? ' budget' : ' estimated'}): ${ex.join(', ')}${extra}`
     })
     .join('\n')
 }

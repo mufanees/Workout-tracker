@@ -21,11 +21,64 @@ function parse(): Route {
 
 export const route = signal<Route>(parse())
 
+// ---- motion between screens ----
+// Uses the View Transitions API where available (Chrome on Android, Safari 18+): the browser
+// snapshots the old screen and animates to the new one, and the tab bar's lime pill glides between
+// tabs. `data-nav` on <html> picks the animation: a tab switch fades, going deeper slides in from
+// the right, going back slides the other way.
+type Nav = 'tab' | 'forward' | 'back'
+const TOP = new Set(['', 'train', 'history', 'exercises', 'body', 'coach'])
+const top = (path: string) => TOP.has(path.split('/').filter(Boolean)[0] || '') && path.split('?')[0].split('/').filter(Boolean).length <= 1
+
+let pending = 0
+/** True while a navigation is waiting for its view transition to apply it. */
+export const navPending = () => pending > 0
+
+function transition(update: () => void, nav: Nav) {
+  const doc = document as Document & { startViewTransition?: (cb: () => Promise<void> | void) => unknown }
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (!doc.startViewTransition || reduce) return update()
+  document.documentElement.dataset.nav = nav
+  pending++
+  let done = false
+  const apply = () => {
+    if (done) return
+    done = true
+    pending--
+    update()
+  }
+  const root = document.documentElement
+  root.classList.add('vt')
+  try {
+    const t = doc.startViewTransition(() => {
+      apply()
+      // Preact re-renders on the next microtask; let it finish before the new snapshot.
+      return new Promise<void>((r) => setTimeout(r, 0))
+    }) as { finished?: Promise<void> }
+    void Promise.resolve(t?.finished)
+      .catch(() => {})
+      .finally(() => !pending && root.classList.remove('vt'))
+  } catch {
+    root.classList.remove('vt')
+    apply()
+  }
+  // If the browser skips the transition callback for any reason, still navigate.
+  setTimeout(apply, 1000)
+}
+
 window.addEventListener('hashchange', () => {
-  route.value = parse()
+  transition(() => {
+    route.value = parse()
+  }, 'back')
 })
 
 export function navigate(path: string, opts: { replace?: boolean } = {}) {
+  const from = route.value.path
+  const nav: Nav = top(path) && top(from) ? 'tab' : opts.replace ? 'tab' : 'forward'
+  transition(() => go(path, opts), nav)
+}
+
+function go(path: string, opts: { replace?: boolean }) {
   const url = '#' + path
   try {
     if (opts.replace) history.replaceState({ depth: history.state?.depth || 0 }, '', url)
@@ -45,7 +98,7 @@ export function navigate(path: string, opts: { replace?: boolean } = {}) {
 export function back(fallback: string) {
   if (inMemoryDepth > 0) {
     inMemoryDepth--
-    navigate(fallback, { replace: true })
+    transition(() => go(fallback, { replace: true }), 'back')
   } else if ((history.state?.depth || 0) > 0) history.back()
-  else navigate(fallback, { replace: true })
+  else transition(() => go(fallback, { replace: true }), 'back')
 }

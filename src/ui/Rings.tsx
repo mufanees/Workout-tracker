@@ -28,7 +28,7 @@ export function RingStack({ rings, size = 132, stroke = 14, gap = 3, check }: { 
           return (
             <g class={'rs ' + r.cls + (r.pct >= 1 ? ' closed' : '')}>
               <circle cx={c} cy={c} r={rad} class="rs-track" stroke-width={stroke} />
-              {p > 0 && <circle cx={c} cy={c} r={rad} class="rs-fill" stroke-width={stroke} stroke-dasharray={len} stroke-dashoffset={len * (1 - Math.max(p, 0.015))} transform={`rotate(-90 ${c} ${c})`} />}
+              {p > 0 && <circle cx={c} cy={c} r={rad} class="rs-fill" style={{ '--len': len }} stroke-width={stroke} stroke-dasharray={len} stroke-dashoffset={len * (1 - Math.max(p, 0.015))} transform={`rotate(-90 ${c} ${c})`} />}
             </g>
           )
         })}

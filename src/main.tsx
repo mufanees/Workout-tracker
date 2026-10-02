@@ -5,6 +5,7 @@ import { startAutoSync } from './sync'
 import { reconnectSaved } from './hr'
 import { scheduleTrainingReminder } from './workout'
 import '@fontsource-variable/space-grotesk/wght.css'
+import '@fontsource-variable/source-serif-4/opsz.css'
 import './styles.css'
 
 render(<App />, document.getElementById('app')!)

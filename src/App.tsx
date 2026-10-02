@@ -1,4 +1,4 @@
-import { useEffect } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 import { route, navigate } from './router'
 import { active, ready, settings } from './store'
 import { Train, MiniBar } from './screens/Train'
@@ -27,6 +27,13 @@ const TABS = [
 
 export function App() {
   const theme = settings.value.theme
+  // First open: let the home screen arrive in chunks, once.
+  const [boot, setBoot] = useState(true)
+  useEffect(() => {
+    if (!(document as Document & { startViewTransition?: unknown }).startViewTransition) document.documentElement.classList.add('no-vt')
+    const t = setTimeout(() => setBoot(false), 1400)
+    return () => clearTimeout(t)
+  }, [])
   useEffect(() => {
     const root = document.documentElement
     if (theme === 'system') root.removeAttribute('data-theme')
@@ -62,17 +69,18 @@ export function App() {
   const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings', 'import'].includes(a) && !(a === 'fast' && b === 'done'))
 
   return (
-    <div class={'app' + (showTabs ? ' has-tabs' : '') + (active.value && !isLive && showTabs ? ' has-mini' : '')}>
+    <div class={'app' + (boot ? ' boot' : '') + (showTabs ? ' has-tabs' : '') + (active.value && !isLive && showTabs ? ' has-mini' : '')}>
       {screen}
       {!isLive && showTabs && <MiniBar />}
       {showTabs && (
         <nav class="tabbar" aria-label="Main">
-          {TABS.map((t) => {
+          {TABS.map((t, i) => {
             const on = (tab || ({ fast: '/body', day: '/history' } as Record<string, string>)[a] || '/' + a) === t.path
             return (
-              <button class={'tab' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => navigate(t.path, { replace: tab != null })}>
+              <button class={'tab' + (on ? ' on' : '')} style={{ viewTransitionName: `tab-${i}` }} aria-current={on ? 'page' : undefined} onClick={() => !on && navigate(t.path, { replace: tab != null })}>
+                {on && <span class="tab-pill" aria-hidden="true" />}
                 <Icon name={t.icon} size={22} stroke={on ? 2.4 : 2} />
-                <span>{t.label}</span>
+                <span class="tab-label">{t.label}</span>
               </button>
             )
           })}

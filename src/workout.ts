@@ -1,4 +1,5 @@
 // Starting, finishing and timing workouts.
+import { planFor } from './timeplan'
 import { signal } from '@preact/signals'
 import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap, workouts } from './store'
 import type { Routine, Workout, WExercise } from './types'
@@ -61,6 +62,7 @@ export async function startRoutine(r: Routine) {
     warmup: r.warmup?.length ? [...r.warmup] : undefined,
     cooldown: r.cooldown?.length ? [...r.cooldown] : undefined,
     checks: {},
+    timePlan: planFor({ ...r, exercises: planSets(r, r.exercises) }),
     updatedAt: 0,
   })
   navigate('/live')

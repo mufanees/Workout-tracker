@@ -1,6 +1,7 @@
+import { pace } from '../timeplan'
 import { useEffect, useState } from 'preact/hooks'
 import { active, exMap, routines, settings, unit, updateActive } from '../store'
-import { navigate } from '../router'
+import { navigate, navPending } from '../router'
 import { adjustRest, armRest, discardActive, finishActive, restTimer, startRest, stopRest, unlockAudio } from '../workout'
 import { HRPanel } from '../ui/HR'
 import { checkCoach, coachOn, quick } from '../coach'
@@ -45,6 +46,22 @@ function useWakeLock(on: boolean) {
   }, [on])
 }
 
+/** "of 30 min · 3 min behind": the time budget and how you're tracking against it. */
+function PaceLine() {
+  const w = active.value
+  const now = useNow(15000)
+  if (!w?.timePlan || settings.value.showPace === false) return null
+  const p = pace(w, now)
+  const over = (now - w.start) / 60000 > w.timePlan.budget
+  const cls = !p || Math.abs(p.behind) < 2 ? 'on' : p.behind > 0 ? 'behind' : 'ahead'
+  return (
+    <span class={'pace ' + (over ? 'behind' : cls)}>
+      of {w.timePlan.budget} min
+      {p && (over || Math.abs(p.behind) >= 2) ? <b> · {p.behind > 0 ? `${p.behind} min behind` : `${-p.behind} min ahead`}</b> : p ? <b> · on pace</b> : null}
+    </span>
+  )
+}
+
 export function Elapsed({ start }: { start: number }) {
   const now = useNow()
   return <>{fmtClock((now - start) / 1000)}</>
@@ -71,7 +88,8 @@ export function Live() {
   }, [])
 
   useEffect(() => {
-    if (!w) navigate('/train', { replace: true })
+    // A finished workout is already on its way to its summary; only redirect if nothing else is.
+    if (!w && !navPending()) navigate('/train', { replace: true })
   }, [!w])
   if (!w) return null
 
@@ -166,18 +184,19 @@ export function Live() {
           <b class="stat-value accent">
             <Elapsed start={w.start} />
           </b>
+          <PaceLine />
         </div>
         {w.exercises.length || !hrLive ? (
           <>
             <div>
               <span class="stat-label">Volume</span>
-              <b class="stat-value">
+              <b class="stat-value bump" key={'v' + Math.round(vol)}>
                 {fmtNum(Math.round(toDisplay(vol, unit.value)))} <small>{unit.value}</small>
               </b>
             </div>
             <div>
               <span class="stat-label">Sets</span>
-              <b class="stat-value">
+              <b class="stat-value bump" key={'s' + done}>
                 {done}
                 <small>/{total}</small>
               </b>

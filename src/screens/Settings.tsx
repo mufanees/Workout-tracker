@@ -164,6 +164,13 @@ export function Settings() {
           <Toggle label="Sound when rest ends" checked={st.sound} onChange={(v) => saveSettings({ sound: v })} />
         </div>
         <div class="setting">
+          <span>
+            Time budget on the workout screen
+            <small>Planned minutes and whether you’re on pace</small>
+          </span>
+          <Toggle label="Time budget on the workout screen" checked={st.showPace !== false} onChange={(v) => saveSettings({ showPace: v })} />
+        </div>
+        <div class="setting">
           <span>Keep screen on while training</span>
           <Toggle label="Keep screen on while training" checked={st.keepAwake} onChange={(v) => saveSettings({ keepAwake: v })} />
         </div>

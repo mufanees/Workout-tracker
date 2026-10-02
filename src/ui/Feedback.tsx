@@ -41,7 +41,7 @@ export function FeedbackCard({ w, open: startOpen }: { w: Workout; open?: boolea
   const [fb, setFb] = useState<Feedback>(w.feedback || {})
   const [open, setOpen] = useState(!!startOpen || !w.feedback)
   useEffect(() => setFb(w.feedback || {}), [w.id])
-  const total = w.end ? Math.round((w.end - w.start) / 60000) : null
+  const total = w.end ? Math.max(1, Math.round((w.end - w.start) / 60000)) : null
   const ph = phaseMinutes(w)
   const routine = routines.value.find((r) => r.id === w.routineId)
   const hasWarm = !!(w.warmup?.length || routine?.warmup?.length)

@@ -7,6 +7,7 @@ import { Icon } from '../ui/icons'
 import { AutoText, confirmDialog, toast } from '../ui/overlay'
 import type { Routine } from '../types'
 import { clone, uid } from '../util'
+import { estimate } from '../timeplan'
 
 export function RoutineEditor({ id }: { id: string }) {
   const isNew = id === 'new'
@@ -76,6 +77,7 @@ export function RoutineEditor({ id }: { id: string }) {
           ))}
         </datalist>
       </label>
+      <TimeBudgetField draft={draft} onChange={(budget) => setDraft({ ...draft, budget })} />
       <label class="field">
         <span>Notes</span>
         <AutoText value={draft.notes} onInput={(v) => setDraft({ ...draft, notes: v })} placeholder="Warm-up, cues, anything to remember" class="input-like" />
@@ -121,5 +123,27 @@ export function RoutineEditor({ id }: { id: string }) {
         </div>
       )}
     </div>
+  )
+}
+
+/** Optional time budget, next to what the plan is estimated to take. */
+function TimeBudgetField({ draft, onChange }: { draft: Routine; onChange: (v: number | null) => void }) {
+  const e = estimate(draft)
+  const total = e.warmup + e.main + e.cooldown
+  return (
+    <label class="field">
+      <span>Time you have (minutes)</span>
+      <input
+        id="routine-budget"
+        type="text"
+        inputMode="numeric"
+        value={draft.budget ?? ''}
+        placeholder={`About ${total} (estimated)`}
+        onInput={(ev) => onChange(Number(ev.currentTarget.value.replace(/\D/g, '')) || null)}
+      />
+      <span class="field-hint">
+        Estimated {total} min: warm-up {e.warmup}, sets {e.main}, cool-down {e.cooldown}. The workout screen shows whether you’re on pace.
+      </span>
+    </label>
   )
 }

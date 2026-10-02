@@ -54,6 +54,8 @@ export interface Workout extends Rec {
   checks?: Record<string, boolean>
   checkAt?: Record<string, number> // when each warm-up / cool-down item was ticked
   feedback?: Feedback
+  /** Expected minutes when the workout started (see timeplan.ts). */
+  timePlan?: { budget: number; warmup: number; main: number; cooldown: number; fixed: boolean }
   /** Copied from the routine when the workout started. */
   warmup?: string[]
   cooldown?: string[]
@@ -75,6 +77,7 @@ export interface Routine extends Rec {
   exercises: WExercise[]
   warmup?: string[]
   cooldown?: string[]
+  budget?: number | null // minutes you have for this routine; null = use the estimate
 }
 
 export interface Settings extends Rec {
@@ -98,6 +101,7 @@ export interface Settings extends Rec {
   weightGoal?: number | null // kg
   fastRemind?: boolean // notify when the eating window is about to close
   moveGoal?: number // daily Move ring, minutes of any workout
+  showPace?: boolean // time budget and pace on the workout screen
 }
 
 export interface Quote {

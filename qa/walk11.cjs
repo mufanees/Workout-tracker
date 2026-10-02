@@ -19,7 +19,12 @@ require('fs').mkdirSync(OUT, { recursive: true })
     if (scheme === 'dark') {
       // end any running fast first so we start from idle
       const endBtn = page.locator('.fast-card .btn', { hasText: 'End fast' })
-      if (await endBtn.count()) await endBtn.tap()
+      if (await endBtn.count()) {
+        await endBtn.tap()
+        await page.waitForSelector('.fast-celebrate')
+        await page.goto('http://localhost:3000/#/body')
+        await page.waitForTimeout(600)
+      }
       await page.locator('.fast-card').scrollIntoViewIfNeeded()
       await shot('01-body-card')
       await page.locator('.fast-card .eyebrow').tap()
