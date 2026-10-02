@@ -12,6 +12,7 @@ import { checkCoach, coachOn, quick } from '../coach'
 import { coachItems } from '../store'
 import { useRef } from 'preact/hooks'
 import { Markdown } from './Coach'
+import { CalendarView } from './Calendar'
 import { QuoteCard } from '../ui/Quote'
 import type { Workout } from '../types'
 import { counts, doneSets, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
@@ -43,7 +44,21 @@ function weekStats() {
   return { bars, streak, thisWeek: bars[bars.length - 1].count }
 }
 
+const VIEW_KEY = 'reps-history-view'
+
 export function History() {
+  const q = route.value.query.get('view')
+  let saved: string | null = null
+  try {
+    saved = localStorage.getItem(VIEW_KEY)
+  } catch {}
+  const view = q === 'calendar' || q === 'list' ? q : saved === 'calendar' ? 'calendar' : 'list'
+  const setView = (v: 'list' | 'calendar') => {
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {}
+    navigate(v === 'calendar' ? '/history?view=calendar' : '/history?view=list', { replace: true })
+  }
   const list = workouts.value
   const { bars, streak, thisWeek } = weekStats()
   const max = Math.max(4, ...bars.map((b) => b.count))
@@ -59,8 +74,17 @@ export function History() {
     <div class="screen">
       <header class="page-head">
         <h1>History</h1>
+        <div class="segmented view-toggle" role="radiogroup" aria-label="View">
+          <button role="radio" aria-checked={view === 'list'} class={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="List">
+            <Icon name="layoutList" size={18} />
+          </button>
+          <button role="radio" aria-checked={view === 'calendar'} class={view === 'calendar' ? 'on' : ''} onClick={() => setView('calendar')} aria-label="Calendar">
+            <Icon name="calendarDays" size={18} />
+          </button>
+        </div>
       </header>
-      {list.length > 0 && (
+      {view === 'calendar' && <CalendarView />}
+      {view === 'list' && list.length > 0 && (
         <section class="week-card">
           <div class="week-stats">
             <div>
@@ -89,8 +113,8 @@ export function History() {
           </div>
         </section>
       )}
-      <ZoneTrends workouts={list} />
-      {!list.length && (
+      {view === 'list' && <ZoneTrends workouts={list} />}
+      {view === 'list' && !list.length && (
         <div class="empty-state">
           <Icon name="history" size={36} />
           <h2>No workouts yet</h2>
@@ -100,7 +124,8 @@ export function History() {
           </button>
         </div>
       )}
-      {months.map((m) => (
+      {view === 'list' &&
+        months.map((m) => (
         <section key={m.label}>
           <h2 class="month-label">{m.label}</h2>
           <div class="workout-list">
@@ -312,6 +337,7 @@ export function WorkoutDetail({ id }: { id: string }) {
 
       <CoachTakeaway w={w} celebrate={celebrate} />
       <HRSummaryCard w={w} />
+      <MuscleSplit w={w} />
 
       <div class="detail-list">
         {w.exercises.map((we) => {
@@ -467,6 +493,40 @@ function CoachTakeaway({ w, celebrate }: { w: Workout; celebrate: boolean }) {
         <span class="coach-status">
           <span class="spinner" aria-hidden="true" /> Looking at this workout…
         </span>
+      )}
+    </section>
+  )
+}
+
+/** Share of working sets by muscle group, Hevy style. */
+function MuscleSplit({ w }: { w: Workout }) {
+  const [all, setAll] = useState(false)
+  const by = new Map<string, number>()
+  for (const we of w.exercises) {
+    const m = exMap.value.get(we.exerciseId)?.muscle || 'Other'
+    const n = we.sets.filter(counts).length
+    if (n) by.set(m, (by.get(m) || 0) + n)
+  }
+  const total = [...by.values()].reduce((a, b) => a + b, 0)
+  if (by.size < 2) return null
+  const rows = [...by.entries()].sort((a, b) => b[1] - a[1])
+  const top = rows[0][1]
+  return (
+    <section class="card split-card">
+      <span class="eyebrow">Muscle split</span>
+      {(all ? rows : rows.slice(0, 4)).map(([m, n]) => (
+        <div class="split-row">
+          <span class="split-name">{m}</span>
+          <span class="split-bar">
+            <span style={{ width: `${(n / top) * 100}%` }} />
+          </span>
+          <b>{Math.round((n / total) * 100)}%</b>
+        </div>
+      ))}
+      {rows.length > 4 && (
+        <button class="show-all" onClick={() => setAll(!all)}>
+          {all ? 'Show less' : `Show ${rows.length - 4} more`}
+        </button>
       )}
     </section>
   )

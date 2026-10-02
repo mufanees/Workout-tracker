@@ -11,6 +11,8 @@ import { Body } from './screens/Body'
 import { ImportPlan } from './screens/ImportPlan'
 import { Coach } from './screens/Coach'
 import { CoachMemory } from './screens/CoachMemory'
+import { Fast } from './screens/Fast'
+import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
 
@@ -50,6 +52,8 @@ export function App() {
   else if (a === 'coach' && b === 'memory') screen = <CoachMemory />
   else if (a === 'coach') (screen = <Coach />), (tab = '/coach')
   else if (a === 'body') (screen = <Body />), (tab = '/body')
+  else if (a === 'fast') screen = <Fast />
+  else if (a === 'day' && b && /^\d{4}-\d{2}-\d{2}$/.test(b)) screen = <DayView id={b} key={b} />
   else (screen = <Train />), (tab = '/train')
 
   const isLive = a === 'live'
@@ -62,7 +66,7 @@ export function App() {
       {showTabs && (
         <nav class="tabbar" aria-label="Main">
           {TABS.map((t) => {
-            const on = (tab || '/' + a) === t.path
+            const on = (tab || ({ fast: '/body', day: '/history' } as Record<string, string>)[a] || '/' + a) === t.path
             return (
               <button class={'tab' + (on ? ' on' : '')} aria-current={on ? 'page' : undefined} onClick={() => navigate(t.path, { replace: tab != null })}>
                 <Icon name={t.icon} size={22} stroke={on ? 2.4 : 2} />

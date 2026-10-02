@@ -63,7 +63,8 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
   }
   if (store === 'fasts') {
     const start = num(rec.start)
-    return start != null ? { ...rec, updatedAt, start, end: num(rec.end), goal: num(rec.goal) ?? 16 } : null
+    return start != null ? { ...rec, updatedAt, start, end: num(rec.end), goal: num(rec.goal) ?? 16, note: typeof rec.note === 'string' ? rec.note : undefined } : null
   }
+  if (store === 'days') return /^\d{4}-\d{2}-\d{2}$/.test(rec.id) ? { ...rec, updatedAt, text: String(rec.text ?? '') } : null
   return null
 }

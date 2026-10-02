@@ -177,7 +177,11 @@ export function createMcpHandler({ db, q, rootDir }) {
         const fasts = rows('fasts')
           .sort((a, b) => b.start - a.start)
           .slice(0, 14)
-          .map((f) => `${new Date(f.start).toISOString().slice(0, 16).replace('T', ' ')} ${f.end ? ((f.end - f.start) / 3600000).toFixed(1) + ' h' : 'in progress'} (goal ${f.goal} h)`)
+          .map((f) => `${new Date(f.start).toISOString().slice(0, 16).replace('T', ' ')} ${f.end ? ((f.end - f.start) / 3600000).toFixed(1) + ' h' : 'in progress'} (goal ${f.goal} h)${f.note ? ` "${f.note}"` : ''}`)
+        const notes = rows('days')
+          .sort((a, b) => b.id.localeCompare(a.id))
+          .slice(0, 21)
+          .map((d) => `${d.id}: ${String(d.text || '').slice(0, 300)}`)
         const reads = rows('readings')
           .sort((a, b) => b.date - a.date)
           .slice(0, 30)
@@ -187,7 +191,7 @@ export function createMcpHandler({ db, q, rootDir }) {
           .sort((a, b) => b.start - a.start)
           .slice(0, 20)
           .map((w) => `${new Date(w.start).toISOString().slice(0, 10)} ${w.shoulder}/10`)
-        return `Weight (newest first):\n${weights.join('\n') || 'none'}\n\nFasts:\n${fasts.join('\n') || 'none'}\n\nMorning readings:\n${reads.join('\n') || 'none'}\n\nShoulder stiffness after workouts (0-10):\n${shoulder.join('\n') || 'none'}`
+        return `Weight (newest first):\n${weights.join('\n') || 'none'}\n\nFasts:\n${fasts.join('\n') || 'none'}\n\nMorning readings:\n${reads.join('\n') || 'none'}\n\nShoulder stiffness after workouts (0-10):\n${shoulder.join('\n') || 'none'}\n\nDay notes:\n${notes.join('\n') || 'none'}`
       },
     },
   ]

@@ -30,7 +30,8 @@ A PWA replacing Hevy for one person. Offline-first, self-hosted sync.
 - **History:** week stats and streak, 12-week bars, workout cards with PR counts, workout detail.
 - **Exercises:** ~930 exercises (75 curated + free-exercise-db), detail page with records and a progress chart, custom exercises.
 - **Heart rate:** Web Bluetooth (standard Heart Rate Service), live zone display on every workout, optional target zone with a 15 s out-of-zone buzz, "Zone 2 cardio" quick start, HR stored with the workout, summary card (chart with zone bands, time in each zone), 12-week zone trends on History, editable zones.
-- **Body tab:** body weight log (7-day average, week/month change, chart) and intermittent fasting timer (goal presets, ring, history bars, streak).
+- **Body tab:** body weight log (7-day average, week/month change, chart, target weight in `Settings.weightGoal`) and a compact fasting card that opens **`/fast`** (`src/screens/Fast.tsx`, logic in `src/fasting.ts`, shared pieces in `src/ui/Fasting.tsx`): plans (`PROTOCOLS`), stage ring (`STAGES`, rough timings), back-dated start/end (`TimeSheet`), plan picker, stats, last-7-days bars, all fasts (editable, with notes), add a past fast. A fast counts toward the day it ended. Starting never overlaps the previous fast. Push job `eat` fires 30 min before the eating window closes (`Settings.fastRemind`).
+- **Calendar and day journal** (`src/screens/Calendar.tsx`): History has a list/calendar toggle (remembered in localStorage, `?view=calendar`). Month grid: workout days filled lime with the name, fast-hour pills in blue (solid when the goal was hit, striped while running), gold dot for a weigh-in, grey dot for a note. `/day/YYYY-MM-DD` shows that day's workouts, fasts, weight (log or edit for that day), morning check and a free-text note (synced store `days`). Workout detail has a muscle split card.
 - **Morning check:** 60 s reading with the strap → resting HR + HRV (RMSSD from R-R intervals), 30-day baseline verdict, trend chart; manual entry fallback. Store `readings`.
 - **Zone 2 weekly goal** ring on Body (setting `zone2Goal`, minutes).
 - **Shoulder check-in** (0–10) in the finish sheet (`Workout.shoulder`), trend card on Body that flags a rise of ≥1 point vs the previous two weeks.
@@ -95,7 +96,7 @@ Phone (PWA)                                      Coolify container
 
 ### Data model (see `src/types.ts`)
 
-Synced stores: `exercises`, `routines`, `workouts`, `settings` (single record id `settings`), `body`, `fasts`, `readings`, `coach`. Server-only tables: `push_subs`, `push_jobs`, `push_inbox`, `meta` (dbId, VAPID key). Every record has `id` and `updatedAt`; deletes are tombstones `{id, deleted: true, updatedAt}`.
+Synced stores: `exercises`, `routines`, `workouts`, `settings` (single record id `settings`), `body`, `fasts`, `readings`, `coach`, `days` (`DayNote`, id = local date). Server-only tables: `push_subs`, `push_jobs`, `push_inbox`, `meta` (dbId, VAPID key). Every record has `id` and `updatedAt`; deletes are tombstones `{id, deleted: true, updatedAt}`.
 
 - Weights are always stored in **kg**; lb is display-only (rounded to 0.5 lb).
 - Dumbbell exercises log the weight of one dumbbell.
@@ -137,6 +138,7 @@ node qa/seed3.cjs       # stalled Hammer Curl, rising shoulder ratings, morning 
 node qa/walk7.cjs       # warm-up checklist, stall nudge, shoulder check-in, 60 s HRV reading, settings
 node qa/walk8.cjs       # quotes, progress card, coach chat, coach review after a workout (needs a coach backend; see below)
 node qa/walk9.cjs       # hero quote rotation (dark + light), coach
+node qa/walk11.cjs      # fasting screen, plans, back-dated start, past fast, target weight, calendar, day journal
 node qa/walk10.cjs      # coach memory, tool calls, proposals, weekly review, pre-workout targets, takeaway (needs a function-calling stand-in)
 node qa/walk6.cjs       # MCP-imported folder, paste import, library search (run the MCP import in qa/ notes below first)
 ```
@@ -189,5 +191,6 @@ Because the owner wanted to train before the server was deployed, the app is als
 7. Added nightly backups, push notifications, shoulder check-in, stall detection, morning HR/HRV, zone 2 goal, warm-up/cool-down checklists.
 8. Added the AI coach and motivation (quotes, progress card).
 9. Made the coach stateful: memory (profile + notes), commitments checked after workouts, pre-workout targets, post-workout takeaways, Sunday weekly review with push, Gemini function calling (look-ups, memory writes, approval-gated proposals), condensing long chats. The app sends its routines with each request (`routines` field) because built-in routines only reach the server once edited.
+10. Fuller fasting (stages, plans, back-dating, stats, past fasts, notes, eating-window reminder), target weight, History calendar with a day journal and day notes, muscle split on workouts. Owner's references: Easy Fast (fasting, journal, calendar) and Hevy (calendar, workout detail).
 
 Commit history on the branch tells the same story in more detail (`git log`).

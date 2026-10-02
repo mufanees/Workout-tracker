@@ -1,36 +1,14 @@
 import { useEffect, useState } from 'preact/hooks'
-import { activeFast, bodyWeights, fasts, remove, saveBodyWeight, saveFast, settings, saveSettings, unit } from '../store'
-import type { BodyWeight, Fast } from '../types'
+import { activeFast, bodyWeights, fasts, remove, saveBodyWeight, settings, saveSettings, unit } from '../store'
+import type { BodyWeight } from '../types'
+import { navigate } from '../router'
+import { HOUR, endFast, fastStats, hm, protocolLabel, stageAt, startFast } from '../fasting'
+import { useNow, whenLabel } from '../ui/Fasting'
 import { fmtDay, fmtNum, fmtTime, LB, startOfDay, uid } from '../util'
 import { LineChart } from '../ui/Chart'
 import { MorningCheck, ShoulderCard, Zone2Week } from './BodyCards'
 import { Icon } from '../ui/icons'
-import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
-import { cancelPush, schedulePush } from '../push'
-
-const HOUR = 3600000
-
-function pushFast(f: Fast) {
-  schedulePush('fast', f.start + f.goal * HOUR, 'Fast complete', `You reached ${f.goal} hours. End it in Reps whenever you eat.`)
-}
-const GOALS = [12, 14, 16, 18, 20, 24]
-
-function useNow(ms = 1000) {
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), ms)
-    return () => clearInterval(t)
-  }, [ms])
-  return now
-}
-
-const hm = (ms: number) => {
-  const m = Math.max(0, Math.floor(ms / 60000))
-  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
-}
-
-/** "2026-10-02T07:30" for datetime-local inputs, in local time. */
-const toLocalInput = (t: number) => new Date(t - new Date(t).getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+import { actionSheet, Sheet, toast } from '../ui/overlay'
 
 export function Body() {
   return (
@@ -49,185 +27,75 @@ export function Body() {
 
 // ---- Fasting -----------------------------------------------------------------
 
+/** Compact fasting card; the full screen is /fast. */
 function FastingCard() {
   const f = activeFast.value
   const now = useNow(1000)
-  const [editing, setEditing] = useState<Fast | null>(null)
-  const goal = settings.value.fastGoal
-  const done = fasts.value.filter((x) => x.end != null)
-  const last = done[0]
+  const goal = f ? f.goal : settings.value.fastGoal
+  const last = fasts.value.find((x) => x.end != null)
+  const stats = fastStats(fasts.value, now)
+  const elapsed = f ? now - f.start : 0
+  const pct = Math.min(100, (elapsed / (goal * HOUR)) * 100)
+  const stage = stageAt(elapsed / HOUR)
+  const stop = (e: Event) => e.stopPropagation()
 
-  const start = async () => {
-    const f = await saveFast({ id: uid('f'), start: Date.now(), end: null, goal, updatedAt: 0 })
-    pushFast(f)
-  }
-  const end = async () => {
+  const end = async (e: Event) => {
+    stop(e)
     if (!f) return
-    const hours = (Date.now() - f.start) / HOUR
-    await saveFast({ ...f, end: Date.now() })
-    cancelPush('fast')
-    toast(hours >= f.goal ? `${hm(Date.now() - f.start)} fast. Goal reached.` : `Fast ended at ${hm(Date.now() - f.start)}`)
+    const saved = await endFast(f)
+    const len = saved.end! - saved.start
+    toast(len >= saved.goal * HOUR ? `${hm(len)} fast. Goal reached.` : `Fast ended at ${hm(len)}`)
   }
-
-  // Streak: consecutive days (ending today or yesterday) with a fast that hit its goal.
-  const hitDays = new Set(done.filter((x) => (x.end! - x.start) / HOUR >= x.goal).map((x) => startOfDay(new Date(x.end!))))
-  let streak = 0
-  let day = startOfDay(new Date())
-  if (!hitDays.has(day)) day -= 86400000
-  while (hitDays.has(day)) {
-    streak++
-    day -= 86400000
+  const start = (e: Event) => {
+    stop(e)
+    void startFast(Date.now(), goal)
   }
-  const recent = done.slice(0, 7)
-  const avg = recent.length ? recent.reduce((a, x) => a + (x.end! - x.start), 0) / recent.length : 0
 
   return (
-    <section class={'fast-card' + (f ? ' on' : '')}>
+    <section class={'fast-card' + (f ? ' on' : '')} onClick={() => navigate('/fast')} role="link" aria-label="Open fasting">
       <div class="fast-head">
         <span class="eyebrow">
-          <Icon name="fast" size={14} /> {f ? 'Fasting' : 'Not fasting'}
+          <Icon name="fast" size={14} /> {f ? `Fasting · ${protocolLabel(goal)}` : 'Not fasting'}
         </span>
-        {streak > 0 && (
-          <span class="fast-streak">
-            <Icon name="flame" size={14} /> {streak} day{streak > 1 ? 's' : ''}
-          </span>
-        )}
+        <span class="fast-streak">
+          {stats.streak > 0 && (
+            <>
+              <Icon name="flame" size={14} /> {stats.streak} day{stats.streak > 1 ? 's' : ''}
+            </>
+          )}
+          <Icon name="right" size={16} />
+        </span>
       </div>
-
       {f ? (
         <>
-          <FastRing elapsed={now - f.start} goal={f.goal} />
+          <div class="fc-now">
+            <b>{hm(elapsed)}</b>
+            <span>
+              <Icon name={stage.icon} size={14} /> {stage.name}
+            </span>
+          </div>
+          <div class="fc-bar" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+            <span style={{ width: `${pct}%` }} />
+          </div>
           <div class="fast-meta">
             <span>
-              Started <b>{fmtTime(f.start)}</b>
-              {startOfDay(new Date(f.start)) !== startOfDay(new Date()) ? ` ${fmtDay(f.start).toLowerCase()}` : ''}
+              Started <b>{whenLabel(f.start)}</b>
             </span>
-            <span>
-              Goal <b>{f.goal} h</b> · {now - f.start >= f.goal * HOUR ? 'reached' : `at ${fmtTime(f.start + f.goal * HOUR)}`}
-            </span>
+            <span>{elapsed >= goal * HOUR ? <b>Goal reached</b> : <>{hm(goal * HOUR - elapsed)} to go</>}</span>
           </div>
-          <div class="row gap">
-            <button class="btn btn-secondary grow" onClick={() => setEditing(f)}>
-              Edit
-            </button>
-            <button class="btn btn-ink grow" onClick={end}>
-              End fast
-            </button>
-          </div>
+          <button class="btn btn-ink btn-block" onClick={end}>
+            End fast
+          </button>
         </>
       ) : (
         <>
           <p class="fast-idle">{last ? `Eating window open for ${hm(now - last.end!)}` : 'Start a fast when you finish eating.'}</p>
-          <div class="goal-chips" role="radiogroup" aria-label="Fasting goal">
-            {GOALS.map((g) => (
-              <button role="radio" aria-checked={g === goal} class={'chip' + (g === goal ? ' on' : '')} onClick={() => saveSettings({ fastGoal: g })}>
-                {g}:{24 - g || '0'}
-              </button>
-            ))}
-          </div>
           <button class="btn btn-ink btn-block btn-lg" onClick={start}>
-            Start {goal} h fast
+            Start {protocolLabel(goal)} fast
           </button>
         </>
       )}
-
-      {recent.length > 0 && (
-        <div class="fast-history">
-          <div class="fast-stats">
-            <span>
-              Last {recent.length} avg <b>{hm(avg)}</b>
-            </span>
-          </div>
-          <div class="fast-bars" role="img" aria-label="Recent fasts">
-            {[...recent].reverse().map((x) => {
-              const h = (x.end! - x.start) / HOUR
-              return (
-                <button class="fast-bar" onClick={() => setEditing(x)} aria-label={`${fmtDay(x.start)}: ${hm(x.end! - x.start)}`}>
-                  <span class={h >= x.goal ? 'hit' : ''} style={{ height: `${Math.min(100, (h / 24) * 100)}%` }} />
-                  <small>{new Date(x.end!).toLocaleDateString(undefined, { weekday: 'narrow' })}</small>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-      <FastEditor fast={editing} onClose={() => setEditing(null)} />
     </section>
-  )
-}
-
-function FastRing({ elapsed, goal }: { elapsed: number; goal: number }) {
-  const pct = Math.min(1, elapsed / (goal * HOUR))
-  const r = 70
-  const c = 2 * Math.PI * r
-  const left = goal * HOUR - elapsed
-  return (
-    <div class="fast-ring">
-      <svg viewBox="0 0 160 160" aria-hidden="true">
-        <circle cx="80" cy="80" r={r} class="ring-bg" />
-        <circle cx="80" cy="80" r={r} class="ring-fg" stroke-dasharray={c} stroke-dashoffset={c * (1 - pct)} transform="rotate(-90 80 80)" />
-      </svg>
-      <div class="ring-text">
-        <b>{hm(elapsed)}</b>
-        <span>{left > 0 ? `${hm(left)} to go` : `${hm(-left)} over goal`}</span>
-      </div>
-    </div>
-  )
-}
-
-function FastEditor({ fast, onClose }: { fast: Fast | null; onClose: () => void }) {
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
-  useEffect(() => {
-    if (fast) {
-      setStart(toLocalInput(fast.start))
-      setEnd(fast.end ? toLocalInput(fast.end) : '')
-    }
-  }, [fast])
-  if (!fast) return <Sheet open={false} onClose={onClose}>{null}</Sheet>
-  const save = async () => {
-    const s = new Date(start).getTime()
-    const e = end ? new Date(end).getTime() : null
-    if (!Number.isFinite(s) || (e != null && (!Number.isFinite(e) || e <= s))) return toast('The end has to be after the start')
-    if (s > Date.now()) return toast('The start can’t be in the future')
-    const saved = await saveFast({ ...fast, start: s, end: fast.end == null ? null : e })
-    if (saved.end == null) pushFast(saved)
-    onClose()
-  }
-  return (
-    <Sheet
-      open={!!fast}
-      onClose={onClose}
-      title={fast.end == null ? 'Edit current fast' : 'Edit fast'}
-      footer={
-        <button class="btn btn-primary btn-block" onClick={save}>
-          Save
-        </button>
-      }
-    >
-      <label class="field">
-        <span>Started</span>
-        <input id="fast-start" type="datetime-local" value={start} onInput={(e) => setStart(e.currentTarget.value)} />
-      </label>
-      {fast.end != null && (
-        <label class="field">
-          <span>Ended</span>
-          <input id="fast-end" type="datetime-local" value={end} onInput={(e) => setEnd(e.currentTarget.value)} />
-        </label>
-      )}
-      <button
-        class="btn btn-ghost-danger btn-block"
-        onClick={async () => {
-          if (!(await confirmDialog({ title: 'Delete this fast?', confirm: 'Delete', danger: true }))) return
-          await remove('fasts', fast.id)
-          if (fast.end == null) cancelPush('fast')
-          onClose()
-          toast('Fast deleted', { label: 'Undo', run: () => void saveFast(fast) })
-        }}
-      >
-        Delete fast
-      </button>
-    </Sheet>
   )
 }
 
@@ -242,6 +110,7 @@ function WeightCard() {
   const latest = list[0]
   const [value, setValue] = useState('')
   const [all, setAll] = useState(false)
+  const [targetOpen, setTargetOpen] = useState(false)
   useEffect(() => {
     if (latest) setValue(String(Math.round(toUnit(latest.kg, u) * 10) / 10))
   }, [latest?.id, u])
@@ -313,6 +182,8 @@ function WeightCard() {
       ) : (
         <p class="fast-idle">Weigh in at the same time each day, ideally in the morning. The trend matters more than any single day.</p>
       )}
+      <WeightGoalBar onEdit={() => setTargetOpen(true)} />
+      <TargetSheet open={targetOpen} onClose={() => setTargetOpen(false)} />
       {(dW != null || dM != null) && (
         <div class="weight-trend">
           {avg7 != null && (
@@ -380,5 +251,83 @@ function WeightCard() {
         </button>
       )}
     </section>
+  )
+}
+
+/** Start → target progress, Easy Fast style. Start is the first weigh-in. */
+export function WeightGoalBar({ onEdit }: { onEdit: () => void }) {
+  const u = unit.value
+  const list = bodyWeights.value
+  const goal = settings.value.weightGoal
+  if (!list.length) return null
+  if (goal == null)
+    return (
+      <button class="btn-text small target-set" onClick={onEdit}>
+        <Icon name="target" size={14} /> Set a target weight
+      </button>
+    )
+  const start = list[list.length - 1].kg
+  const now = list[0].kg
+  const span = start - goal
+  const pct = span === 0 ? 100 : Math.max(0, Math.min(100, ((start - now) / span) * 100))
+  const left = Math.abs(now - goal)
+  return (
+    <button class="wgoal" onClick={onEdit} aria-label="Change target weight">
+      <span class="wgoal-bar">
+        <span style={{ width: `${pct}%` }} />
+      </span>
+      <span class="wgoal-labels">
+        <span>
+          Start <b>{fmtW(start, u)}</b>
+        </span>
+        <span>{left < 0.05 ? <b>Target reached</b> : `${fmtW(left, u)} ${u} to go`}</span>
+        <span>
+          Target <b>{fmtW(goal, u)}</b>
+        </span>
+      </span>
+    </button>
+  )
+}
+
+export function TargetSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const u = unit.value
+  const cur = settings.value.weightGoal
+  const [v, setV] = useState('')
+  useEffect(() => {
+    if (open) setV(cur != null ? String(Math.round(toUnit(cur, u) * 10) / 10) : '')
+  }, [open])
+  const save = async () => {
+    const n = Number(v.replace(',', '.'))
+    if (!Number.isFinite(n) || n <= 0 || n > 700) return toast('Enter a target weight')
+    await saveSettings({ weightGoal: u === 'lb' ? n / LB : n })
+    onClose()
+  }
+  const clear = async () => {
+    await saveSettings({ weightGoal: null })
+    onClose()
+  }
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Target weight"
+      footer={
+        <div class="row gap">
+          {cur != null && (
+            <button class="btn btn-secondary grow" onClick={clear}>
+              Remove
+            </button>
+          )}
+          <button class="btn btn-primary grow" onClick={save}>
+            Save
+          </button>
+        </div>
+      }
+    >
+      <label class="field">
+        <span>Target ({u})</span>
+        <input id="target-weight" type="text" inputMode="decimal" value={v} onInput={(e) => setV(e.currentTarget.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
+      </label>
+    </Sheet>
   )
 }

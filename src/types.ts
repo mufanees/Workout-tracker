@@ -93,6 +93,8 @@ export interface Settings extends Rec {
   reminderTime: string | null // "07:00" for a training-day notification, null = off
   quotes: Quote[]
   showQuotes: boolean
+  weightGoal?: number | null // kg
+  fastRemind?: boolean // notify when the eating window is about to close
 }
 
 export interface Quote {
@@ -142,6 +144,12 @@ export interface Fast extends Rec {
   start: number
   end: number | null
   goal: number // hours
+  note?: string
 }
 
-export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts' | 'readings' | 'coach'
+/** A note for one day. id is the local date, "YYYY-MM-DD". */
+export interface DayNote extends Rec {
+  text: string
+}
+
+export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts' | 'readings' | 'coach' | 'days'

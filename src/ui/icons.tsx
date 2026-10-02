@@ -1,6 +1,16 @@
 // All icons come from Lucide (lucide.dev). Names here are the short aliases used across the app.
 import {
   ArrowDown,
+  Utensils,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+  Recycle,
+  Droplet,
+  Clock,
+  CalendarDays,
+  LayoutList,
+  StickyNote,
   Bluetooth,
   MessageCircle,
   Brain,
@@ -91,6 +101,16 @@ const ICONS = {
   scale: Scale,
   fast: Hourglass,
   activity: Activity,
+  utensils: Utensils,
+  trendDown: TrendingDown,
+  trendUp: TrendingUp,
+  zap: Zap,
+  recycle: Recycle,
+  droplet: Droplet,
+  clock: Clock,
+  calendarDays: CalendarDays,
+  layoutList: LayoutList,
+  sticky: StickyNote,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

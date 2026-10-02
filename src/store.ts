@@ -1,6 +1,6 @@
 import { signal, computed, batch } from '@preact/signals'
 import * as db from './db'
-import type { BodyWeight, CoachItem, Exercise, Fast, Quote, Reading, Rec, Routine, Settings, StoreName, Workout } from './types'
+import type { BodyWeight, CoachItem, DayNote, Exercise, Fast, Quote, Reading, Rec, Routine, Settings, StoreName, Workout } from './types'
 import QUOTES from './data/quotes.json'
 import { seedExercises, seedRoutines } from './seed'
 import { scheduleSync } from './sync'
@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS: Settings = {
   hrZones: [119, 145, 160, 175],
   targetZone: null,
   fastGoal: 16,
+  weightGoal: null,
+  fastRemind: true,
   askShoulder: true,
   zone2Goal: 150,
   reminderTime: null,
@@ -36,6 +38,7 @@ export const bodyWeights = signal<BodyWeight[]>([]) // newest first
 export const fasts = signal<Fast[]>([]) // newest first
 export const readings = signal<Reading[]>([]) // newest first
 export const coachItems = signal<CoachItem[]>([])
+export const dayNotes = signal<Map<string, DayNote>>(new Map())
 export const activeFast = computed(() => fasts.value.find((f) => f.end == null) || null)
 
 export const exMap = computed(() => new Map(exercises.value.map((e) => [e.id, e])))
@@ -62,7 +65,7 @@ const byCreatedDesc = (a: CoachItem, b: CoachItem) => (b.created || 0) - (a.crea
 
 export async function reloadFromDb(): Promise<void> {
   const version = writeVersion
-  const [ex, ro, wo, st, bw, fa, rd, co] = await Promise.all([
+  const [ex, ro, wo, st, bw, fa, rd, co, dn] = await Promise.all([
     db.getAll<Exercise>('exercises'),
     db.getAll<Routine>('routines'),
     db.getAll<Workout>('workouts'),
@@ -71,6 +74,7 @@ export async function reloadFromDb(): Promise<void> {
     db.getAll<Fast>('fasts'),
     db.getAll<Reading>('readings'),
     db.getAll<CoachItem>('coach'),
+    db.getAll<DayNote>('days'),
   ])
   if (version !== writeVersion) return reloadFromDb()
   const ok = <T,>(store: StoreName, list: T[]) => list.map((r) => sanitize(store, r) as T | null).filter((r): r is T => r != null)
@@ -82,6 +86,7 @@ export async function reloadFromDb(): Promise<void> {
     fasts.value = live(ok('fasts', fa)).sort(byFastDesc)
     readings.value = live(ok('readings', rd)).sort(byDateDesc)
     coachItems.value = live(ok('coach', co)).sort(byCreatedDesc)
+    dayNotes.value = new Map(live(ok('days', dn)).map((d) => [d.id, d]))
     settings.value = { ...DEFAULT_SETTINGS, ...(st && !st.deleted ? st : {}) }
   })
 }
@@ -176,6 +181,18 @@ export async function saveFast(f: Fast) {
   const rec = await write('fasts', f)
   fasts.value = upsert(fasts.value, rec, byFastDesc)
   return rec
+}
+
+/** Saves a day's note; an empty note becomes a tombstone. */
+export async function saveDayNote(id: string, text: string) {
+  const cur = dayNotes.value.get(id)
+  if (!text.trim() && !cur) return
+  if (cur && cur.text === text) return
+  const rec = await write<DayNote>('days', text.trim() ? { id, text, updatedAt: cur?.updatedAt || 0 } : { id, text: '', deleted: true, updatedAt: cur?.updatedAt || 0 })
+  const next = new Map(dayNotes.value)
+  if (rec.deleted) next.delete(id)
+  else next.set(id, rec)
+  dayNotes.value = next
 }
 
 /** Deletes leave a tombstone so the deletion syncs to other devices. */

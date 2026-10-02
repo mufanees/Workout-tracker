@@ -6,7 +6,9 @@ It also does:
 
 - **Heart rate** from a Bluetooth strap (Garmin HRM-Dual or any standard one) during any workout, with live zones, an optional target zone that buzzes when you drift out, time in each zone per workout, and weekly zone trends. Zone 2 cardio has its own quick start.
 - **Body weight** with a 7-day average, weekly and monthly change, and a chart.
-- **Intermittent fasting**: start/end a fast, live progress toward your goal (16:8, 18:6…), history and streak.
+- **Intermittent fasting**: plans from 13:11 to OMAD and 36 h, a live ring with the metabolic stages (digesting, blood sugar falling, fat burning, ketosis…), back-dated start and end, past fasts with notes, streaks and stats, and a reminder before your eating window closes.
+- **Calendar**: History → calendar shows every month at a glance: workout days filled in with the workout name, hours fasted, weigh-ins and notes. Tap a day for its journal: workouts, fasts, weight, morning check and a note for the day.
+- **Target weight** with start → target progress.
 - **A library of about 930 exercises**, so you can build your own routines.
 - **Morning check**: a one-minute resting heart rate and HRV (RMSSD) reading with the strap, compared with your 30-day baseline ("keep today easy" / "recovered").
 - **Weekly zone 2 goal** (default 150 min) as a progress ring.
@@ -92,7 +94,7 @@ The memory lives in your server's database (synced store `coach`) and, like the 
 
 ## Notifications
 
-Settings → Notifications turns them on for that phone (installed app, Chrome on Android or Safari on iPhone 16.4+ after Add to Home Screen). The server schedules them and sends a standard web push, so they arrive with the app closed: rest over (only if the app didn't already beep), fast complete, and an optional training-day reminder at a time you choose (every other day on the plan, otherwise daily). Optional env: `PUSH_CONTACT=mailto:you@example.com`.
+Settings → Notifications turns them on for that phone (installed app, Chrome on Android or Safari on iPhone 16.4+ after Add to Home Screen). The server schedules them and sends a standard web push, so they arrive with the app closed: rest over (only if the app didn't already beep), fast complete, eating window closing, and an optional training-day reminder at a time you choose (every other day on the plan, otherwise daily). Optional env: `PUSH_CONTACT=mailto:you@example.com`.
 
 ## How sync works
 

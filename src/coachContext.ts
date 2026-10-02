@@ -1,5 +1,6 @@
 // Builds a compact plain-text summary of your training for the AI coach (or to paste into Claude).
-import { bodyWeights, exMap, fasts, readings, routines, settings, workouts } from './store'
+import { dayKey } from './fasting'
+import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
 import { prIndex, sessionsByExercise, stalledAt } from './stats'
 import { planStatus } from './plan'
 import { summarizeHR, zoneRange } from './hr'
@@ -103,7 +104,11 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   if (bw.length) out.push(`\nBODY WEIGHT, LAST 60 DAYS (kg)\n${bw.map((b) => `${date(b.date)} ${b.kg}`).join(', ')}`)
 
   const fs = fasts.value.filter((f) => f.start > now - 21 * DAY)
-  if (fs.length) out.push(`\nFASTS, LAST 3 WEEKS\n${fs.map((f) => `${date(f.start)} ${f.end ? r1((f.end - f.start) / 3600000) + ' h' : 'in progress'} (goal ${f.goal} h)`).join(', ')}`)
+  if (fs.length) out.push(`\nFASTS, LAST 3 WEEKS\n${fs.map((f) => `${date(f.start)} ${f.end ? r1((f.end - f.start) / 3600000) + ' h' : 'in progress'} (goal ${f.goal} h)${f.note ? ` “${f.note}”` : ''}`).join(', ')}`)
+
+  const dn = [...dayNotes.value.values()].filter((d) => d.id >= dayKey(now - 21 * DAY)).sort((a, b) => a.id.localeCompare(b.id))
+  if (dn.length) out.push(`\nDAY NOTES, LAST 3 WEEKS\n${dn.map((d) => `${d.id}: ${d.text.slice(0, 300)}`).join('\n')}`)
+  if (settings.value.weightGoal != null) out.push(`\nTarget body weight: ${settings.value.weightGoal} kg`)
 
   out.push(`\nROUTINES\n${routinesText()}`)
   out.push(`\nTotal workouts logged: ${list.length}${list[0] ? `; last on ${date(list[0].start)}` : ''}.`)
