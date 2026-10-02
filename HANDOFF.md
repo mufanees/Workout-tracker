@@ -181,7 +181,7 @@ Because the owner wanted to train before the server was deployed, the app is als
 4. Published the Claude-hosted copy so the owner could train immediately; made active-workout saves immediate; added Copy/Paste backup.
 5. Added Bluetooth HR, zones and trends, body weight, fasting.
 6. Added the ~930-exercise library, in-app plan import and the MCP endpoint.
-8. Added the AI coach and motivation (quotes, progress card).
 7. Added nightly backups, push notifications, shoulder check-in, stall detection, morning HR/HRV, zone 2 goal, warm-up/cool-down checklists.
+8. Added the AI coach and motivation (quotes, progress card).
 
 Commit history on the branch tells the same story in more detail (`git log`).
