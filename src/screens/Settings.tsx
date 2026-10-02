@@ -8,6 +8,7 @@ import { Segmented, Toggle } from '../ui/inputs'
 import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { REST_OPTIONS } from '../ui/WorkoutEditor'
 import { fmtRest } from '../util'
+import { connectHR, disconnectHR, hrName, hrStatus, hrSupported, ZONE_COLORS, ZONE_NAMES, zoneRange } from '../hr'
 import type { StoreName } from '../types'
 import { sanitize } from '../validate'
 
@@ -93,7 +94,7 @@ export function Settings() {
       let data = json?.data as Record<StoreName, { id: string }[]> | undefined
       // Also accept the server's /api/export format: { records: [{ store, id, data }] }
       if (!data && Array.isArray(json?.records)) {
-        data = { exercises: [], routines: [], workouts: [], settings: [] }
+        data = { exercises: [], routines: [], workouts: [], settings: [], body: [], fasts: [] }
         for (const r of json.records) if (r && data[r.store as StoreName]) data[r.store as StoreName].push({ ...r.data, id: r.id })
       }
       if (!data || typeof data !== 'object') throw new Error('bad file')
@@ -106,7 +107,7 @@ export function Settings() {
       if (!ok) return
       const now = Date.now()
       const items: { store: db.Store; key: string; value: unknown }[] = []
-      for (const s of ['exercises', 'routines', 'workouts', 'settings'] as StoreName[]) {
+      for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts'] as StoreName[]) {
         for (const raw of Array.isArray(data[s]) ? data[s] : []) {
           const r = sanitize(s, raw)
           if (!r || r.deleted) continue
@@ -184,6 +185,9 @@ export function Settings() {
           </div>
         )}
       </div>
+
+      <h2 class="section-title">Heart rate</h2>
+      <HRSettings />
 
       <h2 class="section-title">Appearance</h2>
       <div class="settings-group">
@@ -302,6 +306,100 @@ export function Settings() {
 
 async function buildBackup(): Promise<string> {
   const data: Record<string, unknown[]> = {}
-  for (const s of ['exercises', 'routines', 'workouts', 'settings'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
+  for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
   return JSON.stringify({ app: 'reps', version: 1, exportedAt: new Date().toISOString(), data })
+}
+
+function HRSettings() {
+  const st = settings.value
+  const status = hrStatus.value
+  const [draft, setDraft] = useState<string[]>(st.hrZones.map(String))
+  useEffect(() => setDraft(st.hrZones.map(String)), [st.hrZones.join()])
+
+  const commit = () => {
+    const nums = draft.map((v) => Math.round(Number(v)))
+    const ok = nums.every((n, i) => Number.isFinite(n) && n > 40 && n < 230 && (i === 0 || n > nums[i - 1]))
+    if (!ok) {
+      setDraft(st.hrZones.map(String))
+      return toast('Each zone has to end higher than the one before')
+    }
+    if (nums.join() !== st.hrZones.join()) void saveSettings({ hrZones: nums as [number, number, number, number] })
+  }
+
+  return (
+    <div class="settings-group">
+      {hrSupported ? (
+        <div class="setting">
+          <span>
+            {status === 'off' ? 'Heart rate strap' : hrName.value}
+            <small>
+              {status === 'connected' ? 'Connected' : status === 'reconnecting' ? 'Reconnecting…' : status === 'connecting' ? 'Looking…' : 'Garmin HRM-Dual or any Bluetooth strap'}
+            </small>
+          </span>
+          {status === 'off' || status === 'connecting' ? (
+            <button class="btn btn-secondary btn-sm" disabled={status === 'connecting'} onClick={() => connectHR().then((ok) => ok && toast(`Connected to ${hrName.value}`))}>
+              Connect
+            </button>
+          ) : (
+            <button class="btn btn-secondary btn-sm" onClick={disconnectHR}>
+              Disconnect
+            </button>
+          )}
+        </div>
+      ) : (
+        <p class="setting-note">Heart rate straps connect over Bluetooth, which works in Chrome on Android. This browser doesn’t support it.</p>
+      )}
+      <div class="setting column">
+        <span>Zones (bpm)</span>
+        <div class="zone-editor">
+          {[1, 2, 3, 4, 5].map((z) => (
+            <div class="ze-row">
+              <i style={{ background: ZONE_COLORS[z - 1] }} />
+              <span class="ze-name">
+                Zone {z} <small>{ZONE_NAMES[z - 1]}</small>
+              </span>
+              {z < 5 ? (
+                <label class="ze-input">
+                  <span>{z === 1 ? 'up to' : `${Number(draft[z - 2]) + 1 || '…'} to`}</span>
+                  <input
+                    id={`zone-${z}`}
+                    type="text"
+                    inputMode="numeric"
+                    value={draft[z - 1]}
+                    aria-label={`Zone ${z} top bpm`}
+                    onInput={(e) => {
+                      const next = [...draft]
+                      next[z - 1] = e.currentTarget.value.replace(/\D/g, '')
+                      setDraft(next)
+                    }}
+                    onBlur={commit}
+                  />
+                </label>
+              ) : (
+                <span class="ze-range">{zoneRange(5, draft.map(Number) as [number, number, number, number])}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      <button
+        class="setting"
+        onClick={() =>
+          actionSheet({
+            title: 'Target zone for workouts',
+            message: 'Zone 2 cardio always targets zone 2. This sets the target for other workouts.',
+            actions: [
+              { label: 'None (just show zones)', selected: !st.targetZone, onSelect: () => saveSettings({ targetZone: null }) },
+              ...[1, 2, 3, 4, 5].map((n) => ({ label: `Zone ${n} · ${ZONE_NAMES[n - 1]}`, hint: zoneRange(n), selected: st.targetZone === n, onSelect: () => saveSettings({ targetZone: n }) })),
+            ],
+          })
+        }
+      >
+        <span>Target zone for strength</span>
+        <span class="setting-value">
+          {st.targetZone ? `Zone ${st.targetZone}` : 'None'} <Icon name="right" size={16} />
+        </span>
+      </button>
+    </div>
+  )
 }

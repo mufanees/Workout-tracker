@@ -33,7 +33,8 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
   if (store === 'workouts') {
     const start = num(rec.start)
     if (start == null) return null
-    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises) }
+    const hr = Array.isArray(rec.hr) ? rec.hr.filter((p) => Array.isArray(p) && num(p[0]) != null && num(p[1]) != null) : undefined
+    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr }
   }
   if (store === 'routines') {
     return { ...rec, updatedAt, name: String(rec.name ?? 'Routine'), folder: String(rec.folder ?? ''), notes: String(rec.notes ?? ''), order: num(rec.order) ?? 0, exercises: cleanExercises(rec.exercises) }
@@ -44,5 +45,14 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     return { ...rec, updatedAt, muscle: String(rec.muscle ?? 'Other'), equipment: String(rec.equipment ?? 'Other'), type }
   }
   if (store === 'settings') return { ...rec, updatedAt }
+  if (store === 'body') {
+    const date = num(rec.date)
+    const kg = num(rec.kg)
+    return date != null && kg != null && kg > 0 ? { ...rec, updatedAt, date, kg } : null
+  }
+  if (store === 'fasts') {
+    const start = num(rec.start)
+    return start != null ? { ...rec, updatedAt, start, end: num(rec.end), goal: num(rec.goal) ?? 16 } : null
+  }
   return null
 }

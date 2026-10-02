@@ -1,6 +1,6 @@
 import { signal, computed, batch } from '@preact/signals'
 import * as db from './db'
-import type { Exercise, Rec, Routine, Settings, StoreName, Workout } from './types'
+import type { BodyWeight, Exercise, Fast, Rec, Routine, Settings, StoreName, Workout } from './types'
 import { seedExercises, seedRoutines } from './seed'
 import { scheduleSync } from './sync'
 import { sanitize } from './validate'
@@ -15,6 +15,9 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   showPlan: true,
   planStart: null,
+  hrZones: [119, 145, 160, 175],
+  targetZone: null,
+  fastGoal: 16,
 }
 
 export const ready = signal(false)
@@ -23,6 +26,9 @@ export const routines = signal<Routine[]>([])
 export const workouts = signal<Workout[]>([]) // newest first, finished only
 export const settings = signal<Settings>(DEFAULT_SETTINGS)
 export const active = signal<Workout | null>(null)
+export const bodyWeights = signal<BodyWeight[]>([]) // newest first
+export const fasts = signal<Fast[]>([]) // newest first
+export const activeFast = computed(() => fasts.value.find((f) => f.end == null) || null)
 
 export const exMap = computed(() => new Map(exercises.value.map((e) => [e.id, e])))
 export const unit = computed(() => settings.value.unit)
@@ -42,14 +48,18 @@ const live = <T extends Rec>(list: T[]) => list.filter((r) => !r.deleted)
 const byName = (a: Exercise, b: Exercise) => a.name.localeCompare(b.name)
 const byOrder = (a: Routine, b: Routine) => a.order - b.order || a.name.localeCompare(b.name)
 const byStartDesc = (a: Workout, b: Workout) => b.start - a.start
+const byDateDesc = (a: BodyWeight, b: BodyWeight) => b.date - a.date
+const byFastDesc = (a: Fast, b: Fast) => b.start - a.start
 
 export async function reloadFromDb(): Promise<void> {
   const version = writeVersion
-  const [ex, ro, wo, st] = await Promise.all([
+  const [ex, ro, wo, st, bw, fa] = await Promise.all([
     db.getAll<Exercise>('exercises'),
     db.getAll<Routine>('routines'),
     db.getAll<Workout>('workouts'),
     db.get<Settings>('settings', 'settings'),
+    db.getAll<BodyWeight>('body'),
+    db.getAll<Fast>('fasts'),
   ])
   if (version !== writeVersion) return reloadFromDb()
   const ok = <T,>(store: StoreName, list: T[]) => list.map((r) => sanitize(store, r) as T | null).filter((r): r is T => r != null)
@@ -57,6 +67,8 @@ export async function reloadFromDb(): Promise<void> {
     exercises.value = live(ok('exercises', ex)).sort(byName)
     routines.value = live(ok('routines', ro)).sort(byOrder)
     workouts.value = live(ok('workouts', wo)).sort(byStartDesc)
+    bodyWeights.value = live(ok('body', bw)).sort(byDateDesc)
+    fasts.value = live(ok('fasts', fa)).sort(byFastDesc)
     settings.value = { ...DEFAULT_SETTINGS, ...(st && !st.deleted ? st : {}) }
   })
 }
@@ -125,13 +137,28 @@ export async function saveSettings(patch: Partial<Settings>) {
   settings.value = rec
 }
 
+export async function saveBodyWeight(b: BodyWeight) {
+  const rec = await write('body', b)
+  bodyWeights.value = upsert(bodyWeights.value, rec, byDateDesc)
+  return rec
+}
+
+export async function saveFast(f: Fast) {
+  const rec = await write('fasts', f)
+  fasts.value = upsert(fasts.value, rec, byFastDesc)
+  return rec
+}
+
 /** Deletes leave a tombstone so the deletion syncs to other devices. */
-export async function remove(store: 'exercises' | 'routines' | 'workouts', id: string) {
-  const list: Rec[] = store === 'exercises' ? exercises.value : store === 'routines' ? routines.value : workouts.value
+export async function remove(store: 'exercises' | 'routines' | 'workouts' | 'body' | 'fasts', id: string) {
+  const lists: Record<string, Rec[]> = { exercises: exercises.value, routines: routines.value, workouts: workouts.value, body: bodyWeights.value, fasts: fasts.value }
+  const list = lists[store]
   const tomb = await write(store, { id, deleted: true, updatedAt: list.find((r) => r.id === id)?.updatedAt || 0 })
   if (store === 'exercises') exercises.value = upsert(exercises.value, tomb as Exercise, byName)
   if (store === 'routines') routines.value = upsert(routines.value, tomb as Routine, byOrder)
   if (store === 'workouts') workouts.value = upsert(workouts.value, tomb as Workout, byStartDesc)
+  if (store === 'body') bodyWeights.value = upsert(bodyWeights.value, tomb as BodyWeight, byDateDesc)
+  if (store === 'fasts') fasts.value = upsert(fasts.value, tomb as Fast, byFastDesc)
 }
 
 // ---- active workout (device only, saved continuously) ----------------------

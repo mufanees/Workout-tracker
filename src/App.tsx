@@ -7,6 +7,7 @@ import { History, WorkoutDetail, EditWorkout } from './screens/History'
 import { Exercises, ExerciseDetail } from './screens/Exercises'
 import { RoutineEditor } from './screens/RoutineEditor'
 import { Settings } from './screens/Settings'
+import { Body } from './screens/Body'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
 
@@ -14,6 +15,7 @@ const TABS = [
   { path: '/train', label: 'Train', icon: 'dumbbell' },
   { path: '/history', label: 'History', icon: 'history' },
   { path: '/exercises', label: 'Exercises', icon: 'list' },
+  { path: '/body', label: 'Body', icon: 'activity' },
 ]
 
 export function App() {
@@ -40,6 +42,7 @@ export function App() {
   else if (a === 'exercises') (screen = <Exercises />), (tab = '/exercises')
   else if (a === 'routine' && b) screen = <RoutineEditor id={b} key={b} />
   else if (a === 'settings') screen = <Settings />
+  else if (a === 'body') (screen = <Body />), (tab = '/body')
   else (screen = <Train />), (tab = '/train')
 
   const isLive = a === 'live'

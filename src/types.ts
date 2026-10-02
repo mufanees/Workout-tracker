@@ -41,6 +41,10 @@ export interface WExercise {
 
 export interface Workout extends Rec {
   name: string
+  /** Heart rate samples: [seconds since start, bpm]. */
+  hr?: [number, number][]
+  /** Heart rate zone to hold (1-5), e.g. 2 for a zone 2 session. */
+  targetZone?: number | null
   routineId: string | null
   start: number
   end: number | null
@@ -65,6 +69,21 @@ export interface Settings extends Rec {
   showPlan: boolean
   planStart: number | null // start of week 1 of the Comeback plan; null = infer
   ft?: Record<string, number> // when each field was last changed, for per-field sync merging
+  /** Upper bpm of zones 1-4 (zone 5 is everything above the last). */
+  hrZones: [number, number, number, number]
+  targetZone: number | null
+  fastGoal: number // hours
 }
 
-export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings'
+export interface BodyWeight extends Rec {
+  date: number
+  kg: number
+}
+
+export interface Fast extends Rec {
+  start: number
+  end: number | null
+  goal: number // hours
+}
+
+export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts'

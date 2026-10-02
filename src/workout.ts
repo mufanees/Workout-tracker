@@ -67,6 +67,14 @@ function planSets(r: Routine, exercises: WExercise[]): WExercise[] {
   return exercises.map((e) => ({ ...e, sets: e.sets.slice(0, 2) }))
 }
 
+/** A heart-rate-led session that holds a target zone (zone 2 by default). */
+export async function startCardio(targetZone = 2) {
+  if (!(await okToReplace())) return
+  restTimer.value = null
+  setActive({ id: uid('w'), name: `Zone ${targetZone} Cardio`, routineId: null, start: Date.now(), end: null, notes: '', exercises: [], targetZone, updatedAt: 0 })
+  navigate('/live')
+}
+
 export async function startEmpty() {
   if (!(await okToReplace())) return
   restTimer.value = null

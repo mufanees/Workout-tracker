@@ -2,6 +2,8 @@ import { useEffect, useState } from 'preact/hooks'
 import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate } from '../router'
 import { adjustRest, armRest, discardActive, finishActive, restTimer, startRest, stopRest, unlockAudio } from '../workout'
+import { HRPanel } from '../ui/HR'
+import { summarizeHR } from '../hr'
 import { WorkoutEditor, completeSet, placeholderFor, nextUp } from '../ui/WorkoutEditor'
 import type { WExercise, WSet } from '../types'
 import { Icon } from '../ui/icons'
@@ -73,6 +75,7 @@ export function Live() {
   if (!w) return null
 
   const vol = workoutVolume(w)
+  const hrLive = summarizeHR(w.hr)
   const working = w.exercises.flatMap((e) => e.sets).filter((s) => s.kind !== 'warmup')
   const done = working.filter((s) => s.done).length
   const total = working.length
@@ -105,10 +108,11 @@ export function Live() {
   }
 
   const finish = async () => {
-    if (!w.exercises.some((e) => e.sets.some((s) => s.done))) {
+    const hasHR = (w.hr?.length || 0) >= 6 // at least ~30 s of heart rate
+    if (!hasHR && !w.exercises.some((e) => e.sets.some((s) => s.done))) {
       const discard = await confirmDialog({
         title: 'Nothing logged yet',
-        message: 'Check off at least one set to save this workout, or discard it.',
+        message: 'Check off at least one set (or record some heart rate) to save this workout, or discard it.',
         confirm: 'Discard workout',
         cancel: 'Keep going',
         danger: true,
@@ -162,25 +166,50 @@ export function Live() {
             <Elapsed start={w.start} />
           </b>
         </div>
-        <div>
-          <span class="stat-label">Volume</span>
-          <b class="stat-value">
-            {fmtNum(Math.round(toDisplay(vol, unit.value)))} <small>{unit.value}</small>
-          </b>
-        </div>
-        <div>
-          <span class="stat-label">Sets</span>
-          <b class="stat-value">
-            {done}
-            <small>/{total}</small>
-          </b>
-        </div>
+        {w.exercises.length || !hrLive ? (
+          <>
+            <div>
+              <span class="stat-label">Volume</span>
+              <b class="stat-value">
+                {fmtNum(Math.round(toDisplay(vol, unit.value)))} <small>{unit.value}</small>
+              </b>
+            </div>
+            <div>
+              <span class="stat-label">Sets</span>
+              <b class="stat-value">
+                {done}
+                <small>/{total}</small>
+              </b>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <span class="stat-label">Avg HR</span>
+              <b class="stat-value">{hrLive.avg}</b>
+            </div>
+            <div>
+              <span class="stat-label">{w.targetZone ? `In Z${w.targetZone}` : 'Max HR'}</span>
+              <b class="stat-value">
+                {w.targetZone ? (
+                  <>
+                    {Math.floor(hrLive.zoneSeconds[w.targetZone - 1] / 60)}
+                    <small> min</small>
+                  </>
+                ) : (
+                  hrLive.max
+                )}
+              </b>
+            </div>
+          </>
+        )}
       </div>
       <div class="progress" aria-hidden="true">
         <span style={{ width: total ? `${(done / total) * 100}%` : '0%' }} />
       </div>
 
       <main class="live-body">
+        <HRPanel />
         {w.routineId && w.exercises.length > 0 && <RoutineNotes />}
         <WorkoutEditor
           mode="live"

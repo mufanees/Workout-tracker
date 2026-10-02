@@ -6,6 +6,8 @@ import { repeatWorkout, routineDiff, updateRoutineFrom } from '../workout'
 import { Icon } from '../ui/icons'
 import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import { WorkoutEditor } from '../ui/WorkoutEditor'
+import { HRSummaryCard, hrLine, ZoneTrends } from '../ui/HR'
+import { summarizeHR } from '../hr'
 import type { Workout } from '../types'
 import { counts, doneSets, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
 
@@ -82,6 +84,7 @@ export function History() {
           </div>
         </section>
       )}
+      <ZoneTrends workouts={list} />
       {!list.length && (
         <div class="empty-state">
           <Icon name="history" size={36} />
@@ -121,7 +124,12 @@ function WorkoutCard({ w }: { w: Workout }) {
           <Icon name="timer" size={14} /> {w.end ? fmtDuration(w.end - w.start) : '–'}
         </span>
         {vol > 0 && <span>{fmtVolume(vol, u)}</span>}
-        <span>{doneSets(w)} sets</span>
+        {doneSets(w) > 0 && <span>{doneSets(w)} sets</span>}
+        {hrLine(w) && (
+          <span>
+            <Icon name="heart" size={14} /> {hrLine(w)}
+          </span>
+        )}
         {prs > 0 && (
           <span class="pr-pill">
             <Icon name="medal" size={13} /> {prs} PR{prs > 1 ? 's' : ''}
@@ -161,6 +169,7 @@ export function WorkoutDetail({ id }: { id: string }) {
   const prCount = prs.byWorkout.get(w.id) || 0
   const diff = celebrate && !diffHandled ? routineDiff(w) : null
   const number = [...workouts.value].reverse().findIndex((x) => x.id === w.id) + 1
+  const hrStats = summarizeHR(w.hr)
 
   const menu = () =>
     actionSheet({
@@ -232,18 +241,39 @@ export function WorkoutDetail({ id }: { id: string }) {
           <span class="stat-label">Duration</span>
           <b>{w.end ? fmtDuration(w.end - w.start) : '–'}</b>
         </div>
-        <div>
-          <span class="stat-label">Volume</span>
-          <b>{fmtVolume(workoutVolume(w), u)}</b>
-        </div>
-        <div>
-          <span class="stat-label">Sets</span>
-          <b>{doneSets(w)}</b>
-        </div>
-        <div>
-          <span class="stat-label">PRs</span>
-          <b class={prCount ? 'gold' : ''}>{prCount}</b>
-        </div>
+        {doneSets(w) > 0 ? (
+          <>
+            <div>
+              <span class="stat-label">Volume</span>
+              <b>{fmtVolume(workoutVolume(w), u)}</b>
+            </div>
+            <div>
+              <span class="stat-label">Sets</span>
+              <b>{doneSets(w)}</b>
+            </div>
+            <div>
+              <span class="stat-label">PRs</span>
+              <b class={prCount ? 'gold' : ''}>{prCount}</b>
+            </div>
+          </>
+        ) : hrStats ? (
+          <>
+            <div>
+              <span class="stat-label">Avg HR</span>
+              <b>{hrStats.avg}</b>
+            </div>
+            <div>
+              <span class="stat-label">Max HR</span>
+              <b>{hrStats.max}</b>
+            </div>
+            {w.targetZone ? (
+              <div>
+                <span class="stat-label">In Z{w.targetZone}</span>
+                <b>{Math.round(hrStats.zoneSeconds[w.targetZone - 1] / 60)} min</b>
+              </div>
+            ) : null}
+          </>
+        ) : null}
       </div>
 
       {diff && (
@@ -273,6 +303,8 @@ export function WorkoutDetail({ id }: { id: string }) {
       )}
 
       {w.notes && <p class="detail-notes">{w.notes}</p>}
+
+      <HRSummaryCard w={w} />
 
       <div class="detail-list">
         {w.exercises.map((we) => {

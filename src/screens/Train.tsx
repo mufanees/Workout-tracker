@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks'
 import { active, routines, saveRoutine, remove, saveSettings, exMap } from '../store'
 import { navigate } from '../router'
-import { startEmpty, startRoutine } from '../workout'
+import { startCardio, startEmpty, startRoutine } from '../workout'
 import { planStatus } from '../plan'
 import { Icon } from '../ui/icons'
 import { actionSheet, confirmDialog, toast } from '../ui/overlay'
@@ -31,9 +31,14 @@ export function Train() {
 
       {!active.value && <PlanCard />}
 
-      <button class="btn btn-secondary btn-block btn-lg start-empty" onClick={startEmpty}>
-        <Icon name="plus" /> Start empty workout
-      </button>
+      <div class="quick-starts">
+        <button class="btn btn-secondary btn-lg grow" onClick={startEmpty}>
+          <Icon name="plus" /> Empty workout
+        </button>
+        <button class="btn btn-secondary btn-lg grow" onClick={() => startCardio(2)}>
+          <Icon name="heart" /> Zone 2 cardio
+        </button>
+      </div>
 
       <div class="section-head">
         <h2>Routines</h2>

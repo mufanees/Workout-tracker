@@ -12,7 +12,7 @@ const PORT = Number(process.env.PORT || 3000)
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, '..', 'data'))
 const DIST = path.resolve(process.env.DIST_DIR || path.join(ROOT, '..', 'dist'))
 const TOKEN = process.env.APP_TOKEN || ''
-const STORES = new Set(['exercises', 'routines', 'workouts', 'settings'])
+const STORES = new Set(['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts'])
 const MAX_BODY = 20 * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })

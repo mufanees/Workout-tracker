@@ -1,6 +1,11 @@
 // All icons come from Lucide (lucide.dev). Names here are the short aliases used across the app.
 import {
   ArrowDown,
+  Bluetooth,
+  Heart,
+  Scale,
+  Hourglass,
+  Activity,
   ArrowLeftRight,
   ArrowUp,
   Calendar,
@@ -73,6 +78,11 @@ const ICONS = {
   calendar: Calendar,
   minus: Minus,
   target: Target,
+  bluetooth: Bluetooth,
+  heart: Heart,
+  scale: Scale,
+  fast: Hourglass,
+  activity: Activity,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS
