@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,
+    "resolveJsonModule": true,
     "types": []
   },
-  "include": ["src"]
+  "include": ["src", "shared"]
 }

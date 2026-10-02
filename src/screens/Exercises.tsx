@@ -12,6 +12,7 @@ export function Exercises() {
   const [query, setQuery] = useState('')
   const [muscle, setMuscle] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [limit, setLimit] = useState(100)
   const list = useMemo(() => filterExercises(exercises.value, query, muscle), [exercises.value, query, muscle])
   const sessions = sessionsByExercise.value
 
@@ -34,7 +35,7 @@ export function Exercises() {
       </div>
       <MuscleChips value={muscle} onChange={setMuscle} />
       <div class="ex-list">
-        {list.map((e) => {
+        {list.slice(0, limit).map((e) => {
           const s = sessions.get(e.id)
           return (
             <button class="ex-row" onClick={() => navigate('/exercises/' + e.id)}>
@@ -53,6 +54,11 @@ export function Exercises() {
             </button>
           )
         })}
+        {list.length > limit && (
+          <button class="btn btn-quiet btn-block" onClick={() => setLimit(limit + 200)}>
+            Show more ({list.length - limit} left)
+          </button>
+        )}
         {!list.length && (
           <div class="empty-state small">
             <p>No exercises match “{query}”.</p>

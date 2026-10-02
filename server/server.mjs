@@ -6,6 +6,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
+import { createMcpHandler } from './mcp.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
@@ -166,10 +167,25 @@ function serveStatic(req, res, pathname) {
   fs.createReadStream(target).pipe(res)
 }
 
+const mcp = createMcpHandler({ db, q, rootDir: ROOT })
+
 const server = http.createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://localhost')
   try {
     if (pathname === '/api/health') return send(res, 200, { ok: true, auth: !!TOKEN })
+    // MCP for assistants. The token can be in the path (/mcp/<token>) for clients that can't send headers.
+    if (pathname === '/mcp' || pathname.startsWith('/mcp/')) {
+      const pathToken = pathname.slice(5)
+      const ok = !TOKEN || authorized(req) || (pathToken.length === TOKEN.length && crypto.timingSafeEqual(Buffer.from(pathToken), Buffer.from(TOKEN)))
+      if (!ok) return send(res, 401, { error: 'Unauthorized' })
+      if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' }, { allow: 'POST' })
+      const out = await mcp(await readBody(req))
+      if (out == null) {
+        res.writeHead(202)
+        return res.end()
+      }
+      return send(res, 200, out)
+    }
     if (pathname.startsWith('/api/')) {
       if (!authorized(req)) return send(res, 401, { error: 'Unauthorized' })
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(await readBody(req)))

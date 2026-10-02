@@ -8,6 +8,7 @@ import { Exercises, ExerciseDetail } from './screens/Exercises'
 import { RoutineEditor } from './screens/RoutineEditor'
 import { Settings } from './screens/Settings'
 import { Body } from './screens/Body'
+import { ImportPlan } from './screens/ImportPlan'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
 
@@ -42,11 +43,12 @@ export function App() {
   else if (a === 'exercises') (screen = <Exercises />), (tab = '/exercises')
   else if (a === 'routine' && b) screen = <RoutineEditor id={b} key={b} />
   else if (a === 'settings') screen = <Settings />
+  else if (a === 'import') screen = <ImportPlan />
   else if (a === 'body') (screen = <Body />), (tab = '/body')
   else (screen = <Train />), (tab = '/train')
 
   const isLive = a === 'live'
-  const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings'].includes(a))
+  const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings', 'import'].includes(a))
 
   return (
     <div class={'app' + (showTabs ? ' has-tabs' : '') + (active.value && !isLive && showTabs ? ' has-mini' : '')}>

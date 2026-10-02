@@ -55,6 +55,7 @@ export function ExercisePicker({
   const [muscle, setMuscle] = useState<string | null>(null)
   const [picked, setPicked] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
+  const [limit, setLimit] = useState(80)
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export function ExercisePicker({
       setQuery('')
       setMuscle(initialMuscle || null)
       setPicked([])
+      setLimit(80)
     }
   }, [open])
 
@@ -159,7 +161,12 @@ export function ExercisePicker({
             <div class="list-label">All exercises</div>
           </>
         )}
-        {results.map(row)}
+        {results.slice(0, limit).map(row)}
+        {results.length > limit && (
+          <button class="btn btn-quiet btn-block" onClick={() => setLimit(limit + 150)}>
+            Show {Math.min(150, results.length - limit)} more of {results.length - limit}
+          </button>
+        )}
         {query.trim() && !exact && results.length > 0 && (
           <button class="pick-row create" onClick={() => setCreating(true)}>
             <span class="pick-badge accent" aria-hidden="true">

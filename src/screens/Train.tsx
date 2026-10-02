@@ -42,9 +42,14 @@ export function Train() {
 
       <div class="section-head">
         <h2>Routines</h2>
-        <button class="btn btn-text" onClick={() => navigate('/routine/new')}>
-          <Icon name="plus" size={18} /> New
-        </button>
+        <div class="row">
+          <button class="btn btn-text" onClick={() => navigate('/import')}>
+            <Icon name="upload" size={18} /> Import
+          </button>
+          <button class="btn btn-text" onClick={() => navigate('/routine/new')}>
+            <Icon name="plus" size={18} /> New
+          </button>
+        </div>
       </div>
       {!routines.value.length && <p class="empty-note">No routines yet. Build one you can start with a tap.</p>}
       {keys.map((k) => (

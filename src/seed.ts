@@ -1,4 +1,7 @@
 import type { Exercise, ExType, Routine, WExercise, WSet } from './types'
+// ~870 exercises from free-exercise-db (public domain): [name, muscle, equipment, type]
+import EXTRA from './data/library.json'
+import CURATED from './data/curated.json'
 
 // Seed records use a fixed, tiny updatedAt so anything you edit (or anything
 // already on the server) always wins over the built-in defaults.
@@ -6,102 +9,26 @@ const SEED_TIME = 1
 
 type Def = [name: string, muscle: string, equipment: string, type?: ExType, video?: string]
 
-const LIBRARY: Def[] = [
-  // From the Dumbbell Comeback Plan
-  ['Goblet Squat', 'Legs', 'Dumbbell', 'weight_reps', 'dumbbell goblet squat form'],
-  ['One-Arm Dumbbell Row', 'Back', 'Dumbbell', 'weight_reps', 'dumbbell one arm row without bench staggered stance'],
-  ['Dumbbell Floor Press', 'Chest', 'Dumbbell', 'weight_reps', 'dumbbell floor press form'],
-  ['Glute Bridge', 'Glutes', 'Dumbbell', 'weight_reps', 'dumbbell glute bridge form'],
-  ['Single-Leg Glute Bridge', 'Glutes', 'Bodyweight', 'weight_reps', 'single leg glute bridge form'],
-  ['Dead Bug', 'Core', 'Bodyweight', 'weight_reps', 'dead bug exercise form'],
-  ['Prone Y-T Raise', 'Shoulders', 'Bodyweight', 'weight_reps', 'prone Y T raises'],
-  ['Dumbbell Romanian Deadlift', 'Legs', 'Dumbbell', 'weight_reps', 'dumbbell romanian deadlift form'],
-  ['Bent-Over Dumbbell Row', 'Back', 'Dumbbell', 'weight_reps', 'dumbbell bent over row form'],
-  ['Half-Kneeling One-Arm Press', 'Shoulders', 'Dumbbell', 'weight_reps', 'half kneeling single arm dumbbell press'],
-  ['Standing One-Arm Press', 'Shoulders', 'Dumbbell', 'weight_reps', 'standing single arm dumbbell shoulder press'],
-  ['Reverse Lunge', 'Legs', 'Dumbbell', 'weight_reps', 'dumbbell reverse lunge form'],
-  ['Side Plank', 'Core', 'Bodyweight', 'duration', 'side plank form'],
-  ['Bird Dog', 'Core', 'Bodyweight', 'reps', 'bird dog exercise form'],
-  ['Rear Delt Fly', 'Shoulders', 'Dumbbell', 'weight_reps', 'dumbbell bent over rear delt fly form'],
-  ['Dumbbell Split Squat', 'Legs', 'Dumbbell', 'weight_reps', 'dumbbell split squat form'],
-  ['Hammer Curl', 'Arms', 'Dumbbell', 'weight_reps', 'dumbbell hammer curl form'],
-  ['Floor Skull Crusher', 'Arms', 'Dumbbell', 'weight_reps', 'dumbbell skull crusher on floor'],
-  ['Dumbbell Front Squat', 'Legs', 'Dumbbell', 'weight_reps', 'dumbbell front squat form'],
-  ['Plank Dumbbell Drag', 'Core', 'Dumbbell', 'weight_reps', 'plank dumbbell drag'],
-  ['Bulgarian Split Squat', 'Legs', 'Dumbbell', 'weight_reps', 'bulgarian split squat dumbbell at home chair'],
-  ['Single-Leg Romanian Deadlift', 'Legs', 'Dumbbell', 'weight_reps', 'dumbbell single leg romanian deadlift form'],
-  ['Push-Up', 'Chest', 'Bodyweight', 'reps', 'push up form'],
-  // General library
-  ['Dumbbell Bench Press', 'Chest', 'Dumbbell'],
-  ['Incline Dumbbell Press', 'Chest', 'Dumbbell'],
-  ['Dumbbell Fly', 'Chest', 'Dumbbell'],
-  ['Bench Press', 'Chest', 'Barbell'],
-  ['Incline Bench Press', 'Chest', 'Barbell'],
-  ['Cable Fly', 'Chest', 'Cable'],
-  ['Chest Dip', 'Chest', 'Bodyweight', 'reps'],
-  ['Pull-Up', 'Back', 'Bodyweight', 'reps'],
-  ['Chin-Up', 'Back', 'Bodyweight', 'reps'],
-  ['Lat Pulldown', 'Back', 'Cable'],
-  ['Seated Cable Row', 'Back', 'Cable'],
-  ['Barbell Row', 'Back', 'Barbell'],
-  ['Deadlift', 'Back', 'Barbell'],
-  ['Face Pull', 'Shoulders', 'Cable'],
-  ['Dumbbell Shrug', 'Back', 'Dumbbell'],
-  ['Dumbbell Shoulder Press', 'Shoulders', 'Dumbbell'],
-  ['Arnold Press', 'Shoulders', 'Dumbbell'],
-  ['Overhead Press', 'Shoulders', 'Barbell'],
-  ['Lateral Raise', 'Shoulders', 'Dumbbell'],
-  ['Front Raise', 'Shoulders', 'Dumbbell'],
-  ['Dumbbell Curl', 'Arms', 'Dumbbell'],
-  ['Incline Dumbbell Curl', 'Arms', 'Dumbbell'],
-  ['Concentration Curl', 'Arms', 'Dumbbell'],
-  ['Barbell Curl', 'Arms', 'Barbell'],
-  ['Overhead Triceps Extension', 'Arms', 'Dumbbell'],
-  ['Triceps Kickback', 'Arms', 'Dumbbell'],
-  ['Triceps Pushdown', 'Arms', 'Cable'],
-  ['Close-Grip Push-Up', 'Arms', 'Bodyweight', 'reps'],
-  ['Back Squat', 'Legs', 'Barbell'],
-  ['Front Squat', 'Legs', 'Barbell'],
-  ['Romanian Deadlift', 'Legs', 'Barbell'],
-  ['Leg Press', 'Legs', 'Machine'],
-  ['Leg Extension', 'Legs', 'Machine'],
-  ['Lying Leg Curl', 'Legs', 'Machine'],
-  ['Walking Lunge', 'Legs', 'Dumbbell'],
-  ['Step-Up', 'Legs', 'Dumbbell'],
-  ['Sumo Squat', 'Legs', 'Dumbbell'],
-  ['Standing Calf Raise', 'Legs', 'Dumbbell'],
-  ['Hip Thrust', 'Glutes', 'Barbell'],
-  ['Dumbbell Hip Thrust', 'Glutes', 'Dumbbell'],
-  ['Kettlebell Swing', 'Glutes', 'Kettlebell'],
-  ['Plank', 'Core', 'Bodyweight', 'duration'],
-  ['Crunch', 'Core', 'Bodyweight', 'reps'],
-  ['Hanging Leg Raise', 'Core', 'Bodyweight', 'reps'],
-  ['Russian Twist', 'Core', 'Dumbbell'],
-  ['Ab Wheel Rollout', 'Core', 'Bodyweight', 'reps'],
-  ['Hollow Hold', 'Core', 'Bodyweight', 'duration'],
-  ["Farmer's Carry", 'Full Body', 'Dumbbell', 'duration'],
-  ['Dumbbell Thruster', 'Full Body', 'Dumbbell'],
-  ['Burpee', 'Full Body', 'Bodyweight', 'reps'],
-  ['Mountain Climber', 'Core', 'Bodyweight', 'duration'],
-  ['Jump Rope', 'Cardio', 'Other', 'duration'],
-]
+// Hand-picked exercises (the Comeback plan's, with form-video searches) plus common lifts.
+const LIBRARY = CURATED as Def[]
 
 export const slug = (name: string) =>
   'x-' + name.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
-export const MUSCLES = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Glutes', 'Core', 'Full Body', 'Cardio']
+export const MUSCLES = ['Chest', 'Back', 'Shoulders', 'Arms', 'Legs', 'Glutes', 'Core', 'Full Body', 'Cardio', 'Mobility']
 export const EQUIPMENT = ['Dumbbell', 'Barbell', 'Kettlebell', 'Cable', 'Machine', 'Bodyweight', 'Band', 'Other']
 
 export function seedExercises(): Exercise[] {
-  return LIBRARY.map(([name, muscle, equipment, type = 'weight_reps', video]) => ({
-    id: slug(name),
-    name,
-    muscle,
-    equipment,
-    type,
-    video,
-    updatedAt: SEED_TIME,
-  }))
+  const out: Exercise[] = []
+  const seen = new Set<string>()
+  // The hand-picked list wins on duplicates (it has plan names, form-video searches and dumbbell defaults).
+  for (const [name, muscle, equipment, type = 'weight_reps', video] of [...LIBRARY, ...(EXTRA as Def[])]) {
+    const id = slug(name)
+    if (seen.has(id)) continue
+    seen.add(id)
+    out.push({ id, name, muscle, equipment, type, video, updatedAt: SEED_TIME })
+  }
+  return out
 }
 
 // ---- Dumbbell Comeback Plan -------------------------------------------------
