@@ -1,0 +1,24 @@
+{
+ "v": 3,
+ "layout": "files",
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-02T17:02:55Z"
+ },
+ "title": "Reps Design System",
+ "namespace": "Reps",
+ "libraries": [],
+ "sections": {},
+ "groups": [],
+ "assetGroups": {},
+ "blobs": {},
+ "docs": {
+  "sections": []
+ },
+ "lastChange": {
+  "by": "Mufhim",
+  "at": "2026-10-02T17:02:55Z",
+  "via": "Claude Code",
+  "note": "Reading text switched from Source Serif 4 to Inter, to match the app."
+ }
+}

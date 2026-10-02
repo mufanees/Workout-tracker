@@ -1,0 +1,30 @@
+<!-- @dsCard height=288 -->
+<style>
+  .cover { position: relative; width: 960px; height: 288px; background: var(--bg); overflow: hidden; }
+  .cover svg { position: absolute; inset: 0; }
+  .lime { fill: var(--accent); }
+  .slab { fill: var(--surface-3); }
+  .fast { fill: var(--blue); }
+  .z2 { fill: var(--ring-z2); }
+  .stripe { stroke: var(--accent-ink); stroke-width: 6; opacity: 0.18; }
+  .tile { rx: var(--r-2xl); }
+  .name { position: absolute; left: 40px; bottom: 64px; margin: 0; font: 700 120px/0.92 var(--font-display); letter-spacing: -0.05em; color: var(--text); }
+  .tag { position: absolute; left: 44px; bottom: 36px; margin: 0; font: 500 14px/1.3 var(--font-display); color: var(--muted); max-width: 420px; }
+</style>
+<div class="cover">
+  <svg viewBox="0 0 960 288" width="960" height="288" aria-hidden="true">
+    <!-- blocks: accent (lime) slab 264x240 r-2xl as the identity colour; surface-3 slab bleeding right (stands in for ink, which vanishes on the dark ground);
+         blue pill 120x56 (Fast) and ring-z2 disc r=28 (Zone 2) as satellites.
+         arrangement: one tall lime slab with satellites to its right, the slab bleeding top and bottom like the plan card.
+         pattern: diagonal stripes at a 32px pitch (sp-8) cut into the lime slab, the same speed stripes as the app's hero cards ("loud, bold, poster type").
+         scales: sp-8 pitch, sp-6 margins, r-2xl corners, pill = half of 56. -->
+    <defs><clipPath id="slab"><rect x="496" y="-28" width="264" height="344" rx="28"/></clipPath></defs>
+    <rect class="lime tile" x="496" y="-28" width="264" height="344"/>
+    <g clip-path="url(#slab)"><line class="stripe" x1="304" y1="288" x2="424" y2="0"/><line class="stripe" x1="336" y1="288" x2="456" y2="0"/><line class="stripe" x1="368" y1="288" x2="488" y2="0"/><line class="stripe" x1="400" y1="288" x2="520" y2="0"/><line class="stripe" x1="432" y1="288" x2="552" y2="0"/><line class="stripe" x1="464" y1="288" x2="584" y2="0"/><line class="stripe" x1="496" y1="288" x2="616" y2="0"/><line class="stripe" x1="528" y1="288" x2="648" y2="0"/><line class="stripe" x1="560" y1="288" x2="680" y2="0"/><line class="stripe" x1="592" y1="288" x2="712" y2="0"/><line class="stripe" x1="624" y1="288" x2="744" y2="0"/><line class="stripe" x1="656" y1="288" x2="776" y2="0"/><line class="stripe" x1="688" y1="288" x2="808" y2="0"/><line class="stripe" x1="720" y1="288" x2="840" y2="0"/><line class="stripe" x1="752" y1="288" x2="872" y2="0"/><line class="stripe" x1="784" y1="288" x2="904" y2="0"/><line class="stripe" x1="816" y1="288" x2="936" y2="0"/><line class="stripe" x1="848" y1="288" x2="968" y2="0"/></g>
+    <rect class="slab tile" x="784" y="24" width="200" height="144"/>
+    <rect class="fast" x="784" y="192" width="120" height="56" rx="28"/>
+    <circle class="z2" cx="944" cy="220" r="28"/>
+  </svg>
+  <h1 class="name">Reps</h1>
+  <p class="tag">Train, fast and show up. Numbers first, lime for what matters.</p>
+</div>

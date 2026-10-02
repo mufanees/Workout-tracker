@@ -1,5 +1,7 @@
 # Reps
 
+> **Picking this up?** Read [`HANDOFF.md`](HANDOFF.md) first (state, next steps, switching Claude accounts), then [`DESIGN.md`](DESIGN.md) for the design system. Get the code with `git clone https://github.com/mufanees/workout-tracker.git`.
+
 A small, fast workout tracker you install on your phone. It covers the parts of Hevy you actually use: routines, logging sets with your last numbers pre-filled, a rest timer, supersets, history, personal records and per-exercise progress charts. Your 12-week **Dumbbell Comeback** plan comes preloaded.
 
 It also does:
@@ -22,7 +24,7 @@ It also does:
 - **Warm-up and cool-down checklists** per routine (the Comeback plan's are built in).
 - **Notifications** from your server: rest over, fast complete, training-day reminder, even with the app closed.
 - **Nightly server backups**, 14 days kept.
-- **AI coach** (Gemini) that reads your training and answers like a personal trainer: weekly reviews, what to change next session, recovery, progress on a lift, and a push when you don't feel like training.
+- **AI coach** (Gemini on the server, Claude in the Claude-hosted copy) that reads your training and answers like a personal trainer: weekly reviews, what to change next session, recovery, progress on a lift, and a push when you don't feel like training.
 - **Motivation**: your own quotes (editable, capitals are highlighted) as a big rotating quote card at the top of Train, after workouts and in reminders, plus a progress card showing what you can do now that you couldn't a few weeks ago.
 - **Plan import**: give Claude a plan (a sheet like the Comeback plan, a screenshot, text) and get routines back, either by pasting its answer into the app or through MCP.
 
@@ -160,6 +162,11 @@ src/plan.ts              where you are in the 12-week plan
 src/ui/WorkoutEditor.tsx the set-logging editor (used for live workouts, edits and routines)
 src/screens/*            Train, Live, History, Exercises, Routine editor, Settings
 src/sw.js                service worker (precache list is filled in at build time)
+src/cloud.ts             Claude-hosted copy: saves to your Claude account
+shared/coachSpec.mjs     coach prompt and tools (Gemini server and Claude)
+DESIGN.md                design system rules (tokens, type, spacing, motion)
+design-system/           design system generator (python3 design-system/build.py)
+HANDOFF.md               full handoff: architecture, data model, testing, history
 ```
 
 ## Limits worth knowing

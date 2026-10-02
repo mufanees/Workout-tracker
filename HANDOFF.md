@@ -7,13 +7,16 @@ Everything a new person or a new Claude session needs to pick this up cold. Read
 | | |
 |---|---|
 | Repo | `mufanees/workout-tracker` |
-| Branch | `ccr-82a33bbf-3kimrv` (all work is here; nothing merged to `main` yet, no PR opened) |
-| Hosted preview | Private Claude artifact: https://claude.ai/artifact/Cg23G2PSbJtSp6GNDqv4Sb (owner's Claude account only; see "The Claude-hosted copy" below) |
+| Branch | `ccr-82a33bbf-3kimrv`. It is the repo's only branch (and its default), so a plain `git clone` gets everything. No `main` yet, no PR. |
+| Get the code | `git clone https://github.com/mufanees/workout-tracker.git && cd workout-tracker && npm install` (or `git pull` in an existing clone) |
+| Design system | `DESIGN.md` (rules) and `design-system/` (generator + generated files). Also a private Claude Design System artifact: https://claude.ai/artifact/DmFNNgMBC8PN5woMDfjcdk |
+| Hosted preview | Private Claude artifact: https://claude.ai/artifact/Cg23G2PSbJtSp6GNDqv4Sb (the owner's current Claude account only; see "The Claude-hosted copy" and "Switching Claude accounts" below) |
 | Production | **Not deployed yet.** Target is the owner's self-hosted Coolify instance (Dockerfile build). |
 | Owner's phone | Android, Chrome. Trains with dumbbells at home. Garmin HRM-Dual strap. Zone 2 = 120–145 bpm. |
 
 ### Next steps, in order
 
+0. **Before switching Claude accounts**, take your data out of the hosted copy (see "Switching Claude accounts"). The code is all on GitHub; the data is not.
 1. **Deploy to Coolify** (README → "Deploy on Coolify"). Dockerfile build, port 3000, env `APP_TOKEN`, persistent volume at `/data`, HTTPS domain. The Docker image has **never been built** (no Docker daemon in the build sandbox), so the first deploy is its first real test. `npm run build` and the server do run fine on Node 22.
 2. On the phone: open the domain in Chrome, install to home screen, Settings → paste `APP_TOKEN` → Connect.
 3. Move data from the Claude-hosted copy: in the artifact, Settings → **Copy backup**; in the deployed app, Settings → **Paste a backup**.
@@ -59,7 +62,7 @@ Phone (PWA)                                      Coolify container
                                                  └───────────────────────────────┘
 ```
 
-- **Client:** Preact 10 + `@preact/signals`, Vite 7, TypeScript (strict). No router library: hash routes in `src/router.ts`. Icons: `lucide-preact` only (owner's rule: Lucide icons, no emojis). Font: Space Grotesk (self-hosted via `@fontsource-variable/space-grotesk`).
+- **Client:** Preact 10 + `@preact/signals`, Vite 7, TypeScript (strict). No router library: hash routes in `src/router.ts`. Icons: `lucide-preact` only (owner's rule: Lucide icons, no emojis). Fonts: Space Grotesk (display) and Inter (reading text), self-hosted via `@fontsource-variable/space-grotesk` and `@fontsource-variable/inter`.
 - **Server:** zero npm dependencies. Node 22.13+ built-in `node:sqlite`. One table `records(store, id, updated_at, deleted, data, seq)` plus `meta(dbId)`.
 - **Shared:** `shared/planImport.mjs` is plain JS used by both the app (Vite) and the server. Typings in `shared/planImport.d.mts`.
 
@@ -69,7 +72,7 @@ Phone (PWA)                                      Coolify container
 |---|---|
 | `src/store.ts` | Signals for all data, IndexedDB writes, seeding, active workout persistence (written in the same tick as each edit) |
 | `src/sync.ts` | Push dirty records, pull changes since `syncSeq`, one IndexedDB transaction per apply, per-field merge for settings, DB-reset detection |
-| `src/db.ts` | IndexedDB wrapper (DB `reps`, version 2) |
+| `src/db.ts` | IndexedDB wrapper (DB `reps`, version 5) |
 | `src/validate.ts` | Sanitises records from sync/import so malformed data can't crash the app |
 | `src/seed.ts` | Builds the exercise library and the Comeback plan routines |
 | `src/data/curated.json`, `src/data/library.json` | Exercise library rows `[name, muscle, equipment, type, video?]` |
@@ -92,6 +95,14 @@ Phone (PWA)                                      Coolify container
 | `scripts/artifact.mjs` | Bundles `dist/` into one HTML file (used for the Claude-hosted copy) |
 | `scripts/library.mjs` | Rebuilds `src/data/library.json` from free-exercise-db JSON |
 | `scripts/icons.mjs` | Renders PNG icons from `public/favicon.svg` with Playwright |
+| `src/cloud.ts`, `src/coachClaude.ts` | Claude-hosted copy: save to the Claude account, coach on Claude |
+| `shared/coachSpec.mjs` | Coach system prompt, tools, memory format; shared by the Gemini server and the Claude path |
+| `src/coach.ts`, `src/ui/Feedback.tsx` | Coach proposals (apply on Approve), workout feedback card |
+| `src/timeplan.ts`, `src/ui/TimeCard.tsx` | Time budget: estimates, pace, planned vs actual |
+| `src/rings.ts`, `src/ui/Rings.tsx`, `src/milestones.ts` | Daily rings, celebrations, milestones |
+| `src/fasting.ts`, `src/screens/Fast.tsx`, `src/screens/Calendar.tsx` | Fasting, calendar, day journal |
+| `src/styles.css` | All styles. Design tokens at the top; motion block near the end |
+| `DESIGN.md`, `design-system/` | Design rules; design-system generator and generated files |
 | `qa/` | Playwright UI walkthrough scripts and seed data (see Testing) |
 
 ### Data model (see `src/types.ts`)
@@ -158,17 +169,41 @@ node -e "const plan=require('./qa/plan.json');fetch('http://localhost:3000/mcp/t
 
 ## The Claude-hosted copy
 
-Because the owner wanted to train before the server was deployed, the app is also published as a private Claude artifact (link above), built with `npm run single`. Things to know:
+Because the owner wanted to train before the server was deployed, the app is also published as a private Claude artifact (link above), built with `npm run single` (`dist/reps-single.html`, one self-contained file; fonts come from Google Fonts). Things to know:
 
-- It lives in the owner's claude.ai account; another account can't open or update it. A new account would publish its own copy from `dist/reps-single.html`.
-- Data is stored only in that browser/app (per-artifact IndexedDB). No sync: the sync call is blocked there and the status shows offline.
-- Blocked there: Bluetooth (no heart rate), file downloads (use Copy backup), service worker (no offline), install to home screen.
-- The Claude Android app and Chrome keep **separate** copies of the data.
+- It lives in the owner's current claude.ai account. Another account can't open or update it unless the owner shares it from the artifact's Share menu.
+- It is published with the artifact capabilities `db`, `user` and `sample`:
+  - `db` + `user`: data is saved to the viewer's Claude account (`src/cloud.ts`), in a private `data/users/<user id>` collection, one document per record (`<store>~<id>`) plus `active` for the workout in progress. So it survives closing the page and is the same in the Claude app and the browser, for the same account. The Settings status reads "Saved to your Claude account".
+  - `sample`: the coach runs on Claude through the artifact runtime (`src/coachClaude.ts`), no Gemini key needed.
+- Blocked there: Bluetooth (no heart rate), file downloads (the Export backup button does nothing; use **Copy backup**), service worker (no offline), install to home screen, push notifications.
+- To publish a fresh copy (new account, or after changes): `npm run build && npm run single`, then ask Claude to publish `dist/reps-single.html` as an artifact with capabilities `{"db": {}, "user": {}, "sample": {}}`. To update an existing one, publish to its URL.
+- `qa/fake-claude.cjs` stands in for the artifact runtime (`window.claude` db, user, sample) so `walk13`/`walk14` can test this path locally.
+
+## Switching Claude accounts
+
+Code, docs and the design system are all in this repo. Two things are tied to the old Claude account and need moving by hand:
+
+1. **Your training data** (the hosted copy saves to the account that opened it):
+   1. In the old account, open the app → Settings → **Copy backup**. It copies one JSON text with everything (workouts, routines, fasts, body weight, readings, coach memory, day notes, settings).
+   2. Paste it somewhere safe right away (a note, an email to yourself, or a file). Check the paste isn't empty.
+   3. In the new account, publish a fresh copy (see above), open it → Settings → **Paste a backup** → Import. Or, once the Coolify server is up, paste it into the deployed app instead; it then syncs to the server.
+   4. Only then stop using the old account. A workout in progress is **not** in the backup: finish it first.
+2. **The artifacts.** The new account gets new URLs:
+   - App: publish `dist/reps-single.html` as above.
+   - Design system: run `python3 design-system/build.py`, then publish `design-system/project/` with the Design System artifact type (index file `project/design-system.json`, every other file under `project/` as supporting files). See `design-system/README.md`.
+   - Or share the old artifacts with the new account from their Share menu before switching.
+
+The Coolify deployment (when it exists) doesn't depend on any Claude account: its data is in `/data/reps.db` on the server.
 
 ## Owner preferences (keep these)
 
 - Dead simple, minimal, exceptional UX. QA through real UI walkthroughs, plus adversarial reviews.
 - No emojis anywhere in the UI. Icons from Lucide only.
+- Space Grotesk for display, numbers and UI; **Inter** for reading text (exercise lists, notes, checklists, coach replies). The owner tried a serif (Source Serif 4) and asked for a sans instead: no serifs.
+- One spacing system (`DESIGN.md`): generous spacing, cards 20px padding, 12px apart, sections 32px apart. Use tokens, never raw pixels.
+- Big touch targets (44px minimum; set rows 56px) and clear grouping on the workout screen; supersets as one block with one rest timer after the round.
+- Time matters most (dad and primary caregiver): keep the time budget, pace and "showed up" credit for short sessions.
+- Motion: smooth, quick, never in the way (see `DESIGN.md` → Motion). Solid ring colours, no glow, no tick badge on rings.
 - Space Grotesk; visual direction from the owner's references: lime (`#c6f432`) hero card, black pill tab bar, big numerals, uppercase micro-labels, dark default with a light theme.
 - No coloured left border ("spine") on cards.
 - Self-hosted over Supabase.
@@ -198,6 +233,7 @@ Because the owner wanted to train before the server was deployed, the app is als
 11. Daily rings on Train (`src/rings.ts`, `src/ui/Rings.tsx`): Fast, Move (`Settings.moveGoal`, default 30 min; any workout sets `showedUp`, shown as a check), Zone 2 weekly. Celebration screens: `/fast/done/<id>` (`src/screens/FastDone.tsx`) after ending a fast, and the workout summary (`WorkoutCelebration` in History.tsx) with confetti, rings and milestones (`src/milestones.ts`, each tied to the workout or fast that earned it). Warm-up/cool-down items link to a YouTube search (`movementVideoUrl`). Docker image built and run in the sandbox: health check passes, data survives a restart in a named volume; a root-owned bind mount fails with a clear message.
 12. Claude-hosted copy saves to the viewer's Claude account (`src/cloud.ts`: artifact `db` capability, private `data/users/<id>` collection, one doc per changed record plus `active` for the workout in progress; `sync.ts` uses it when there's no sync key) and runs the coach on Claude (`src/coachClaude.ts`, artifact `sample` capability with page tools). Coach instructions, tools, memory format and structured prompts moved to `shared/coachSpec.mjs`, used by both the Gemini server and the Claude path. New `propose_routine_changes` (targets, swaps, removals, new warm-up/cool-down) and `search_exercises`. Workout feedback (`Workout.feedback`, `checkAt` tick times → warm-up/cool-down minutes) on the summary (`src/ui/Feedback.tsx`) with "Ask coach to adjust" (`/coach?adjust=<id>`). Rings use solid colours on a neutral track. QA: `qa/fake-claude.cjs` stands in for the artifact runtime; `walk13` (saving survives closing the page) and `walk14` (feedback → coach → approve) run against `npx vite preview --port 4173`.
 13. Time budget (`src/timeplan.ts`: estimate from warm-up/cool-down lines, sets, rest and superset rounds; `Routine.budget` overrides; `Workout.timePlan` saved at start; pace on the live header, `TimeCard`/`TimeTrend` in `src/ui/TimeCard.tsx`, in the coach context). Workout screen: superset pairs render as one tinted block with the rest timer once after the round (`blocks()` in WorkoutEditor), 44–50px targets, 16px gaps between blocks. Reading text in Inter (`--font-read`), Space Grotesk for display and numbers. Motion per Jakub Krehel's interface skills (github.com/jakubkrehel/skills): one curve `cubic-bezier(0.2, 0, 0, 1)` at 300ms for arrivals, 150ms ease-out exits, press scale 0.96, icon swaps from 0.25 with blur; screens and the tab pill move with the View Transitions API (`transition()` in router.ts; names applied only while `html.vt` is set, because a view-transition-name creates a stacking context that traps sheets); `navPending()` stops the live screen's redirect from racing a deliberate navigation; reduced motion respected.
-14. Design system: tokens for spacing (4px scale), layout roles (gutter, card padding, gaps), radius, type scale and control heights at the top of `src/styles.css`; the whole stylesheet was converted to them (556 spacing, 89 radius, 233 font-size values; in-between values rounded up for more air). Rules and tables in `DESIGN.md`.
+14. Design system: tokens for spacing (4px scale), layout roles (gutter, card padding, gaps), radius, type scale and control heights at the top of `src/styles.css`; the whole stylesheet was converted to them (556 spacing, 89 radius, 233 font-size values; in-between values rounded up for more air). Rules and tables in `DESIGN.md`. `design-system/build.py` generates a Design System artifact (tokens, fonts, 9 component previews) from the same values.
+15. Reading text switched from Source Serif 4 to Inter at the owner's request (`--font-read`, `@fontsource-variable/inter`, Google Fonts in the single-file build). Design-system generator moved into the repo (`design-system/`) and updated. This handoff rewritten for an account switch.
 
 Commit history on the branch tells the same story in more detail (`git log`).
