@@ -1,4 +1,5 @@
-import { useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
+import { Icon } from './icons'
 import { settings } from '../store'
 import type { Quote } from '../types'
 import { startOfDay } from '../util'
@@ -40,6 +41,54 @@ export function QuoteCard({ tag, compact, seed = 0 }: { tag?: string; compact?: 
         <QuoteText text={q.text} />
       </span>
       {q.author && <span class="q-author">{q.author}</span>}
+    </button>
+  )
+}
+
+const ROTATE_MS = 12000
+
+/**
+ * The big one: a bold, rotating quote at the top of Train. Changes every 12 seconds (tap for the
+ * next one), starting from today's quote, in a shuffled order so it doesn't feel like a list.
+ */
+export function HeroQuote({ tag }: { tag?: string }) {
+  const all = settings.value.quotes || []
+  const order = useMemo(() => {
+    const pool = tag ? all.filter((q) => q.tag === tag) : []
+    const rest = all.filter((q) => !pool.includes(q))
+    const shuffle = (xs: Quote[]) => xs.map((q) => [Math.random(), q] as const).sort((a, b) => a[0] - b[0]).map((x) => x[1])
+    const first = quoteOfTheDay(0, tag)
+    const list = [...shuffle(pool), ...shuffle(rest)]
+    return first ? [first, ...list.filter((q) => q !== first)] : list
+  }, [all.length, tag])
+  const [i, setI] = useState(0)
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    if (paused || order.length < 2) return
+    const t = setTimeout(() => setI((n) => (n + 1) % order.length), ROTATE_MS)
+    return () => clearTimeout(t)
+  }, [i, paused, order.length])
+  useEffect(() => {
+    const onVis = () => setPaused(document.visibilityState !== 'visible')
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+  if (!settings.value.showQuotes || !order.length) return null
+  const q = order[i % order.length]
+  const long = q.text.length > 90
+  return (
+    <button class="hero-quote" onClick={() => setI((n) => (n + 1) % order.length)} aria-label="Next quote" aria-live="polite">
+      <Icon name="quote" size={26} class="hq-mark" stroke={2.5} />
+      <span class={'hq-text' + (long ? ' long' : '')} key={i}>
+        <QuoteText text={q.text} />
+      </span>
+      <span class="hq-foot">
+        <span class="hq-author">{q.author || q.tag || 'Keep going'}</span>
+        <span class="hq-count">
+          {(i % order.length) + 1}/{order.length}
+        </span>
+      </span>
+      {order.length > 1 && !paused && <span class="hq-timer" key={'t' + i} style={{ animationDuration: ROTATE_MS + 'ms' }} />}
     </button>
   )
 }

@@ -111,7 +111,7 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   return out.join('\n')
 }
 
-/** For pasting into Claude when the in-app coach isn't set up. */
+/** For pasting into Gemini or Claude when the in-app coach isn't set up. */
 export function coachPasteText(question: string) {
   return `You're my personal trainer. Here's my training data from my workout app. ${question}\n\n${buildCoachContext()}`
 }

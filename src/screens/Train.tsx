@@ -8,7 +8,7 @@ import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import type { Routine } from '../types'
 import { uid, startOfWeek } from '../util'
 import { SyncBadge } from './Settings'
-import { QuoteCard } from '../ui/Quote'
+import { HeroQuote } from '../ui/Quote'
 import { recentWin } from '../stats'
 import { workouts, unit } from '../store'
 import { fmtDay as fmtDayU, fmtNum, fmtSeconds, toDisplay } from '../util'
@@ -33,7 +33,7 @@ export function Train() {
         </button>
       </header>
 
-      <QuoteCard tag={daysSinceLast() >= 3 ? 'Action & Consistency' : undefined} />
+      <HeroQuote tag={daysSinceLast() >= 3 ? 'Action & Consistency' : undefined} />
       {!active.value && <PlanCard />}
       <WinCard />
 

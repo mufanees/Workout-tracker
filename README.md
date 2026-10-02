@@ -15,8 +15,8 @@ It also does:
 - **Warm-up and cool-down checklists** per routine (the Comeback plan's are built in).
 - **Notifications** from your server: rest over, fast complete, training-day reminder, even with the app closed.
 - **Nightly server backups**, 14 days kept.
-- **AI coach** (Claude) that reads your training and answers like a personal trainer: weekly reviews, what to change next session, recovery, progress on a lift, and a push when you don't feel like training.
-- **Motivation**: your own quotes (editable, capitals are highlighted) on Train, after workouts and in reminders, plus a progress card showing what you can do now that you couldn't a few weeks ago.
+- **AI coach** (Gemini) that reads your training and answers like a personal trainer: weekly reviews, what to change next session, recovery, progress on a lift, and a push when you don't feel like training.
+- **Motivation**: your own quotes (editable, capitals are highlighted) as a big rotating quote card at the top of Train, after workouts and in reminders, plus a progress card showing what you can do now that you couldn't a few weeks ago.
 - **Plan import**: give Claude a plan (a sheet like the Comeback plan, a screenshot, text) and get routines back, either by pasting its answer into the app or through MCP.
 
 - **Offline-first.** Everything is saved on the phone (IndexedDB) the moment you type it, so a dead gym signal never loses a set.
@@ -68,12 +68,15 @@ Then ask, for example, "import this plan into Reps" with the plan attached. Tool
 
 ## AI coach
 
-The Coach tab sends your question plus a text summary of your training (the last 8 weeks of totals, 4 weeks of workouts, progression per exercise, heart rate zones, morning readings, shoulder ratings, weight and fasts) to your server, which asks Claude (Claude Opus 5.5) and streams the answer back. To turn it on, add an Anthropic API key to the server's environment:
+The Coach tab sends your question plus a text summary of your training (the last 8 weeks of totals, 4 weeks of workouts, progression per exercise, heart rate zones, morning readings, shoulder ratings, weight and fasts) to your server, which asks Google's Gemini (`gemini-3.5-flash` by default) and streams the answer back. To turn it on:
 
-- `ANTHROPIC_API_KEY=sk-ant-...` (from console.anthropic.com; usage is billed to that account; each question costs a few cents)
-- Optional `COACH_MODEL` to use a different model.
+1. Create a free API key in Google AI Studio (aistudio.google.com → Get API key).
+2. Add `GEMINI_API_KEY=...` to the server's environment in Coolify and redeploy.
+3. Optional: `GEMINI_MODEL` to use a different Gemini model.
 
-Without a key the Coach tab still works: tapping a question copies it with your training summary so you can paste it into the Claude app. Conversations are kept on the phone.
+The free tier has per-minute and per-day request limits, which one person asking a coach won't normally hit. On Google's free tier, your prompts (including the training summary) may be used by Google to improve its products; a paid key doesn't have that.
+
+Without a key the Coach tab still works: tapping a question copies it with your training summary so you can paste it into the Gemini or Claude app. Conversations are kept on the phone.
 
 ## Notifications
 

@@ -3323,3 +3323,106 @@ label.setting:active {
 .has-mini .composer {
   bottom: calc(var(--safe-bottom) + var(--tabbar-h) + 100px);
 }
+
+/* ---------- hero quote: big, loud, rotating ---------- */
+.hero-quote {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 28px;
+  padding: 20px 20px 18px;
+  min-height: 210px;
+  isolation: isolate;
+}
+.hero-quote::before {
+  /* lime speed stripes sweeping in from the corner */
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 75%;
+  height: 160%;
+  background: repeating-linear-gradient(115deg, rgba(198, 244, 50, 0.16) 0 14px, transparent 14px 34px);
+  transform: rotate(8deg);
+  z-index: -1;
+  mask-image: linear-gradient(to left, #000 20%, transparent 85%);
+  -webkit-mask-image: linear-gradient(to left, #000 20%, transparent 85%);
+}
+.hq-mark {
+  color: var(--accent);
+}
+.hq-text {
+  font-size: clamp(27px, 8.2vw, 38px);
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  animation: quote-in 0.45s cubic-bezier(0.2, 0.9, 0.2, 1.15);
+}
+.hq-text.long {
+  font-size: clamp(22px, 6.4vw, 30px);
+}
+.hero-quote .q-em,
+.quote-card .q-em {
+  font-style: normal;
+  color: #0b0c0f;
+  background: var(--accent);
+  padding: 0 0.14em;
+  margin: 0 -0.04em;
+  border-radius: 0.12em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.hq-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.hq-author {
+  color: var(--accent);
+}
+.hq-count {
+  color: rgba(255, 255, 255, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+.hq-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  animation: quote-timer linear forwards;
+}
+@keyframes quote-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) skewY(2deg);
+  }
+}
+@keyframes quote-timer {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+/* the smaller quotes elsewhere get the same marker emphasis */
+.quote-card .q-text {
+  font-weight: 700;
+}
+.quote-card .q-em {
+  color: #0b0c0f;
+}

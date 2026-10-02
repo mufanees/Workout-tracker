@@ -144,7 +144,7 @@ export function Coach() {
   const copyForClaude = (q: string) =>
     navigator.clipboard
       .writeText(coachPasteText(q))
-      .then(() => toast('Copied. Paste it into Claude to get your answer.'))
+      .then(() => toast('Copied. Paste it into Gemini or Claude to get your answer.'))
       .catch(() => toast('Couldn’t copy on this device.'))
 
   const clear = async () => {
@@ -180,8 +180,8 @@ export function Coach() {
         <section class="coach-off">
           <b>The in-app coach isn’t set up here</b>
           <span>
-            It runs on your server with an Anthropic API key (set <code>ANTHROPIC_API_KEY</code>, see the README). Until then, tap a question below: Reps copies it with your
-            training summary, ready to paste into Claude.
+            It runs on your server with a free Gemini API key (set <code>GEMINI_API_KEY</code>, see the README). Until then, tap a question below: Reps copies it with your
+            training summary, ready to paste into Gemini or Claude.
           </span>
         </section>
       )}
@@ -218,7 +218,7 @@ export function Coach() {
           id="coach-input"
           rows={1}
           value={input}
-          placeholder={off ? 'Ask, then paste into Claude' : 'Ask your coach'}
+          placeholder={off ? 'Ask, then paste into Gemini' : 'Ask your coach'}
           aria-label="Message your coach"
           onInput={(e) => setInput(e.currentTarget.value)}
           onKeyDown={(e) => {
@@ -233,7 +233,7 @@ export function Coach() {
             <Icon name="x" size={20} />
           </button>
         ) : (
-          <button type="submit" class="send" disabled={!input.trim()} aria-label={off ? 'Copy for Claude' : 'Send'}>
+          <button type="submit" class="send" disabled={!input.trim()} aria-label={off ? 'Copy question and training summary' : 'Send'}>
             <Icon name={off ? 'copy' : 'up'} size={20} />
           </button>
         )}

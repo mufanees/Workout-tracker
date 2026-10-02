@@ -38,8 +38,8 @@ A PWA replacing Hevy for one person. Offline-first, self-hosted sync.
 - **Warm-up / cool-down checklists:** `Routine.warmup/cooldown` (string lists, editable in the routine editor, part of plan import); copied into the workout with tick state in `Workout.checks`. Seed version 3 refreshes unedited built-in routines.
 - **Push notifications** (`server/push.mjs`, `src/push.ts`): dependency-free web push. VAPID keys generated once and kept in SQLite; jobs scheduled by key (`rest`, `fast`, `train`); the server sends an empty push and the service worker fetches the text from `/api/push/inbox` using its endpoint URL. Rest pushes are sent 2.5 s after the end and cancelled if the app beeped on screen.
 - **Nightly backups:** `VACUUM INTO /data/backups/reps-YYYY-MM-DD.db`, newest 14 kept (`BACKUP_DAYS`).
-- **AI coach** (`src/screens/Coach.tsx`, `src/coachContext.ts`, `server/coach.mjs`): the phone builds a text summary of the training data and sends it with the chat; the server adds the coach system prompt and streams Claude's reply over SSE using `@anthropic-ai/sdk` (`claude-opus-5-5`, adaptive thinking, effort medium, `fallbacks: "default"` with beta `server-side-fallback-2026-07-01`, training data in a cached system block). Needs `ANTHROPIC_API_KEY` on the server; without it, tapping a question copies question + summary for pasting into Claude. "Ask your coach about it" on the post-workout screen opens `/coach?review=<id>`.
-- **Motivation:** `Settings.quotes` (seeded from `src/data/quotes.json`, the owner's list), shown on Train (consistency quotes after 3+ days off), the post-workout screen, Coach, and training-day notifications; capitalised words are highlighted. Progress card on Train (`stats.ts recentWin`).
+- **AI coach** (`src/screens/Coach.tsx`, `src/coachContext.ts`, `server/coach.mjs`): the phone builds a text summary of the training data and sends it with the chat; the server adds the coach system prompt and streams Google Gemini's reply over SSE. It calls the Gemini REST endpoint `v1beta/models/<model>:streamGenerateContent?alt=sse` with `fetch` (no SDK, server has zero npm dependencies), skips `thought` parts, maps `assistant` to Gemini's `model` role, and turns Gemini errors (429 free-tier limit, bad key, unknown model) into readable messages. Env: `GEMINI_API_KEY` (required), `GEMINI_MODEL` (default `gemini-3.5-flash`), `GEMINI_BASE_URL` (testing). Owner chose Gemini over Claude because its free tier costs nothing. Without a key, tapping a question copies question + summary for pasting into Gemini or Claude. "Ask your coach about it" on the post-workout screen opens `/coach?review=<id>`.
+- **Motivation:** `Settings.quotes` (seeded from `src/data/quotes.json`, the owner's list), shown as a big rotating hero card at the top of Train (`HeroQuote`: changes every 12 s or on tap, consistency quotes first after 3+ days off), the post-workout screen, Coach, and training-day notifications; capitalised words are highlighted. Progress card on Train (`stats.ts recentWin`).
 - **Plan import:** in-app (copy a prompt for Claude, paste the JSON back, preview, add) or via the MCP endpoint (`import_plan` tool).
 - **Data:** Copy/Paste backup (clipboard), Export/Import backup file, server export at `GET /api/export`.
 
@@ -84,7 +84,7 @@ Phone (PWA)                                      Coolify container
 | `server/push.mjs` | Web push: VAPID signing, job scheduler, inbox for the service worker |
 | `src/push.ts` | Subscribe/unsubscribe, schedule/cancel notifications |
 | `src/screens/BodyCards.tsx` | Morning check (HR/HRV), zone 2 goal, shoulder trend |
-| `server/coach.mjs` | AI coach endpoint (system prompt, streaming, error mapping) |
+| `server/coach.mjs` | AI coach endpoint: Gemini REST streaming, system prompt, error mapping |
 | `src/coachContext.ts` | Plain-text training summary sent to the coach |
 | `src/ui/Quote.tsx`, `src/data/quotes.json` | Quotes and their display |
 | `scripts/artifact.mjs` | Bundles `dist/` into one HTML file (used for the Claude-hosted copy) |
@@ -133,12 +133,13 @@ node qa/walk5.cjs       # simulated Bluetooth strap, zone 2 cardio, HR summary, 
 node qa/seed3.cjs       # stalled Hammer Curl, rising shoulder ratings, morning readings
 node qa/walk7.cjs       # warm-up checklist, stall nudge, shoulder check-in, 60 s HRV reading, settings
 node qa/walk8.cjs       # quotes, progress card, coach chat, coach review after a workout (needs a coach backend; see below)
+node qa/walk9.cjs       # hero quote rotation (dark + light), coach
 node qa/walk6.cjs       # MCP-imported folder, paste import, library search (run the MCP import in qa/ notes below first)
 ```
 
 Scripts write screenshots to `qa/shots*/` (git-ignored). They default to `/opt/node22/lib/node_modules/playwright` and `/opt/pw-browsers/chromium`; override with `PLAYWRIGHT=` and `CHROMIUM=`. All use 390×844 at 2× with touch; `walk3.cjs` uses 360×760 light mode. `walk5.cjs` mocks `navigator.bluetooth` with a fake strap sending 8-bit HR values.
 
-The coach can be tested without an API key by pointing the server at a stand-in for the Anthropic API that streams a canned reply in the real event format: start one on a port and run the server with `ANTHROPIC_API_KEY=fake ANTHROPIC_BASE_URL=http://localhost:<port>`. The stand-in used in this session also saved the request body, which confirmed the model, beta header, fallbacks, thinking, effort and cache settings.
+The coach can be tested without a key by pointing the server at a stand-in for the Gemini API that streams a canned reply in Gemini's SSE format: `GEMINI_API_KEY=fake GEMINI_BASE_URL=http://localhost:<port>`. The stand-in used in this session saved the request, which confirmed the endpoint, key header, roles and system instruction.
 
 To exercise MCP import by hand:
 
@@ -166,7 +167,7 @@ Because the owner wanted to train before the server was deployed, the app is als
 
 ## Known gaps and ideas
 
-- **Unverified:** the coach against the real Claude API (no key in the build sandbox; tested with a stand-in that checks the request shape), whether the HRM-Dual sends R-R intervals over Bluetooth (if not, the morning check gives resting HR only), real push delivery through Google's push service (signing verified locally), Docker build, a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
+- **Unverified:** the coach against the real Gemini API (Google's docs and API were unreachable from the build sandbox; the request follows the long-standing v1beta REST format and was tested with a stand-in, so if Gemini 3.5 changed something, the server shows Google's error message), whether the HRM-Dual sends R-R intervals over Bluetooth (if not, the morning check gives resting HR only), real push delivery through Google's push service (signing verified locally), Docker build, a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
 - Bluetooth stops when Android turns the screen off; the app keeps the screen awake by default during workouts.
 - iPhone: no Web Bluetooth (Bluefy browser would work). Rest-timer sound can't fire while iOS has the app backgrounded.
 - From the UX review, not done: "add to routine?" wording when an exercise was replaced; equipment filter / dumbbell-first ordering in the exercise picker; plan card hides during an active workout; a bare "Squat" matches "Box Squat" in plan import.
