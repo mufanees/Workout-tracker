@@ -1,0 +1,153 @@
+import { signal, computed, batch } from '@preact/signals'
+import * as db from './db'
+import type { Exercise, Rec, Routine, Settings, StoreName, Workout } from './types'
+import { seedExercises, seedRoutines } from './seed'
+import { scheduleSync } from './sync'
+
+export const DEFAULT_SETTINGS: Settings = {
+  id: 'settings',
+  updatedAt: 1,
+  unit: 'kg',
+  defaultRest: 90,
+  sound: true,
+  keepAwake: true,
+  theme: 'system',
+  showPlan: true,
+  planStart: null,
+}
+
+export const ready = signal(false)
+export const exercises = signal<Exercise[]>([])
+export const routines = signal<Routine[]>([])
+export const workouts = signal<Workout[]>([]) // newest first, finished only
+export const settings = signal<Settings>(DEFAULT_SETTINGS)
+export const active = signal<Workout | null>(null)
+
+export const exMap = computed(() => new Map(exercises.value.map((e) => [e.id, e])))
+export const unit = computed(() => settings.value.unit)
+
+const SEED_VERSION = 1
+let lastStamp = 0
+function stamp() {
+  const now = Date.now()
+  lastStamp = now > lastStamp ? now : lastStamp + 1
+  return lastStamp
+}
+
+const live = <T extends Rec>(list: T[]) => list.filter((r) => !r.deleted)
+const byName = (a: Exercise, b: Exercise) => a.name.localeCompare(b.name)
+const byOrder = (a: Routine, b: Routine) => a.order - b.order || a.name.localeCompare(b.name)
+const byStartDesc = (a: Workout, b: Workout) => b.start - a.start
+
+export async function reloadFromDb() {
+  const [ex, ro, wo, st] = await Promise.all([
+    db.getAll<Exercise>('exercises'),
+    db.getAll<Routine>('routines'),
+    db.getAll<Workout>('workouts'),
+    db.get<Settings>('settings', 'settings'),
+  ])
+  batch(() => {
+    exercises.value = live(ex).sort(byName)
+    routines.value = live(ro).sort(byOrder)
+    workouts.value = live(wo).sort(byStartDesc)
+    settings.value = { ...DEFAULT_SETTINGS, ...(st && !st.deleted ? st : {}) }
+  })
+}
+
+export async function init() {
+  const seeded = (await db.get<number>('meta', 'seedVersion')) || 0
+  if (seeded < SEED_VERSION) {
+    const existing = new Set([
+      ...(await db.getAllKeys('exercises')).map((k) => 'exercises:' + k),
+      ...(await db.getAllKeys('routines')).map((k) => 'routines:' + k),
+    ])
+    const items: { store: db.Store; key: string; value: unknown }[] = []
+    for (const e of seedExercises()) if (!existing.has('exercises:' + e.id)) items.push({ store: 'exercises', key: e.id, value: e })
+    for (const r of seedRoutines()) if (!existing.has('routines:' + r.id)) items.push({ store: 'routines', key: r.id, value: r })
+    items.push({ store: 'meta', key: 'seedVersion', value: SEED_VERSION })
+    await db.putMany(items)
+  }
+  await reloadFromDb()
+  active.value = (await db.get<Workout>('meta', 'active')) || null
+  ready.value = true
+}
+
+// ---- writes -----------------------------------------------------------------
+
+async function write<T extends Rec>(store: StoreName, rec: T): Promise<T> {
+  rec = { ...rec, updatedAt: stamp() }
+  await db.putMany([
+    { store, key: rec.id, value: rec },
+    { store: 'dirty', key: `${store}:${rec.id}`, value: { store, id: rec.id } },
+  ])
+  scheduleSync()
+  return rec
+}
+
+function upsert<T extends Rec>(list: T[], rec: T, sort: (a: T, b: T) => number): T[] {
+  const next = list.filter((r) => r.id !== rec.id)
+  if (!rec.deleted) next.push(rec)
+  return next.sort(sort)
+}
+
+export async function saveExercise(e: Exercise) {
+  const rec = await write('exercises', e)
+  exercises.value = upsert(exercises.value, rec, byName)
+  return rec
+}
+
+export async function saveRoutine(r: Routine) {
+  const rec = await write('routines', r)
+  routines.value = upsert(routines.value, rec, byOrder)
+  return rec
+}
+
+export async function saveWorkout(w: Workout) {
+  const rec = await write('workouts', w)
+  workouts.value = upsert(workouts.value, rec, byStartDesc)
+  return rec
+}
+
+export async function saveSettings(patch: Partial<Settings>) {
+  const rec = await write('settings', { ...settings.value, ...patch, id: 'settings' })
+  settings.value = rec
+}
+
+/** Deletes leave a tombstone so the deletion syncs to other devices. */
+export async function remove(store: 'exercises' | 'routines' | 'workouts', id: string) {
+  const tomb = await write(store, { id, deleted: true, updatedAt: 0 })
+  if (store === 'exercises') exercises.value = upsert(exercises.value, tomb as Exercise, byName)
+  if (store === 'routines') routines.value = upsert(routines.value, tomb as Routine, byOrder)
+  if (store === 'workouts') workouts.value = upsert(workouts.value, tomb as Workout, byStartDesc)
+}
+
+// ---- active workout (device only, saved continuously) ----------------------
+
+let activeTimer: ReturnType<typeof setTimeout> | null = null
+export function setActive(w: Workout | null) {
+  active.value = w
+  if (activeTimer) clearTimeout(activeTimer)
+  activeTimer = setTimeout(flushActive, 150)
+}
+
+export function flushActive() {
+  if (activeTimer) clearTimeout(activeTimer)
+  activeTimer = null
+  const w = active.value
+  return w ? db.put('meta', 'active', w) : db.del('meta', 'active')
+}
+
+export function updateActive(fn: (w: Workout) => void) {
+  const w = active.value
+  if (!w) return
+  const next = structuredClone(w)
+  fn(next)
+  setActive(next)
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushActive()
+  })
+  window.addEventListener('pagehide', () => flushActive())
+}

@@ -1,0 +1,21 @@
+{
+  "name": "workout-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "start": "node --disable-warning=ExperimentalWarning server/server.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "engines": { "node": ">=22.13" },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.2",
+    "@preact/signals": "^2.3.1",
+    "preact": "^10.27.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.0"
+  }
+}

@@ -1,0 +1,12 @@
+services:
+  reps:
+    build: .
+    restart: unless-stopped
+    environment:
+      - APP_TOKEN=${APP_TOKEN:?Set APP_TOKEN to a long random string}
+    volumes:
+      - reps-data:/data
+    ports:
+      - "3000:3000"
+volumes:
+  reps-data:
