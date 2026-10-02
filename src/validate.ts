@@ -4,6 +4,8 @@ import type { StoreName } from './types'
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
+const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map(String) : undefined)
+
 function cleanExercises(list: unknown) {
   if (!Array.isArray(list)) return []
   return list.filter(isObj).filter((e) => typeof e.exerciseId === 'string').map((e) => ({
@@ -34,10 +36,10 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     const start = num(rec.start)
     if (start == null) return null
     const hr = Array.isArray(rec.hr) ? rec.hr.filter((p) => Array.isArray(p) && num(p[0]) != null && num(p[1]) != null) : undefined
-    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr }
+    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr, warmup: strs(rec.warmup), cooldown: strs(rec.cooldown), shoulder: num(rec.shoulder) }
   }
   if (store === 'routines') {
-    return { ...rec, updatedAt, name: String(rec.name ?? 'Routine'), folder: String(rec.folder ?? ''), notes: String(rec.notes ?? ''), order: num(rec.order) ?? 0, exercises: cleanExercises(rec.exercises) }
+    return { ...rec, updatedAt, name: String(rec.name ?? 'Routine'), folder: String(rec.folder ?? ''), notes: String(rec.notes ?? ''), order: num(rec.order) ?? 0, exercises: cleanExercises(rec.exercises), warmup: strs(rec.warmup), cooldown: strs(rec.cooldown) }
   }
   if (store === 'exercises') {
     if (typeof rec.name !== 'string' || !rec.name) return null
@@ -49,6 +51,11 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     const date = num(rec.date)
     const kg = num(rec.kg)
     return date != null && kg != null && kg > 0 ? { ...rec, updatedAt, date, kg } : null
+  }
+  if (store === 'readings') {
+    const date = num(rec.date)
+    const rhr = num(rec.rhr)
+    return date != null && rhr != null ? { ...rec, updatedAt, date, rhr, hrv: num(rec.hrv) } : null
   }
   if (store === 'fasts') {
     const start = num(rec.start)

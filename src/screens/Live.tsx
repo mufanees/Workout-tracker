@@ -211,6 +211,7 @@ export function Live() {
       <main class="live-body">
         <HRPanel />
         {w.routineId && w.exercises.length > 0 && <RoutineNotes />}
+        {w.warmup?.length ? <Checklist kind="w" title="Warm-up" items={w.warmup} /> : null}
         <WorkoutEditor
           mode="live"
           exercises={w.exercises}
@@ -218,6 +219,7 @@ export function Live() {
           onChange={(fn) => updateActive((x) => void (x.exercises = fn(x.exercises)))}
           onSetDone={onSetDone}
         />
+        {w.cooldown?.length ? <Checklist kind="c" title="Cool-down" items={w.cooldown} /> : null}
         <button class="btn btn-ghost-danger btn-block" onClick={discard}>
           Discard workout
         </button>
@@ -238,6 +240,53 @@ function RoutineNotes() {
       <Icon name="note" size={16} />
       <span>{notes}</span>
     </button>
+  )
+}
+
+/** Tick-off list for the routine's warm-up or cool-down. Collapses once everything is done. */
+function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; items: string[] }) {
+  const checks = active.value?.checks || {}
+  const done = items.filter((_, i) => checks[kind + i]).length
+  const complete = done === items.length
+  const [open, setOpen] = useState(!complete)
+  useEffect(() => {
+    if (complete) setOpen(false)
+  }, [complete])
+  return (
+    <section class={'checklist' + (complete ? ' complete' : '')}>
+      <button class="checklist-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span class={'cl-dot' + (complete ? ' on' : '')}>{complete && <Icon name="check" size={14} stroke={3} />}</span>
+        <b>{title}</b>
+        <span class="cl-count">
+          {done}/{items.length}
+        </span>
+        <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
+      </button>
+      {open && (
+        <ul>
+          {items.map((it, i) => {
+            const on = !!checks[kind + i]
+            return (
+              <li>
+                <button
+                  class={'cl-item' + (on ? ' on' : '')}
+                  aria-pressed={on}
+                  onClick={() => {
+                    haptic(8)
+                    updateActive((x) => {
+                      x.checks = { ...(x.checks || {}), [kind + i]: !on }
+                    })
+                  }}
+                >
+                  <span class="cl-box">{on && <Icon name="check" size={14} stroke={3} />}</span>
+                  <span>{it}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -274,8 +323,10 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [stuck, setStuck] = useState<string[]>([])
+  const [shoulder, setShoulder] = useState<number | null>(null)
   useEffect(() => {
     if (open && w) {
+      setShoulder(w.shoulder ?? null)
       setNotes(w.notes)
       setSaving(false)
       setStuck([])
@@ -306,7 +357,7 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   const save = async () => {
     if (saving) return
     setSaving(true)
-    const saved = await finishActive(w.name, notes)
+    const saved = await finishActive(w.name, notes, settings.value.askShoulder ? { shoulder } : {})
     onClose()
     if (saved) navigate('/history/' + saved.id + '?done=1', { replace: true })
   }
@@ -358,9 +409,27 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
           </div>
         </div>
       )}
+      {settings.value.askShoulder && (
+        <div class="field">
+          <span>Shoulder stiffness today</span>
+          <div class="scale-row" role="radiogroup" aria-label="Shoulder stiffness, 0 none to 10 worst">
+            {Array.from({ length: 11 }, (_, n) => (
+              <button
+                role="radio"
+                aria-checked={shoulder === n}
+                class={'scale-btn' + (shoulder === n ? ' on' : '') + (n >= 7 ? ' high' : n >= 4 ? ' mid' : '')}
+                onClick={() => setShoulder(shoulder === n ? null : n)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <span class="field-hint">0 is none, 10 is the worst. Skip it if you didn’t notice.</span>
+        </div>
+      )}
       <label class="field">
         <span>How did it go?</span>
-        <AutoText value={notes} onInput={setNotes} placeholder="Optional: energy, sleep, shoulder…" class="input-like" />
+        <AutoText value={notes} onInput={setNotes} placeholder="Optional: energy, sleep, anything worth remembering" class="input-like" />
       </label>
     </Sheet>
   )

@@ -7,13 +7,14 @@ import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { createMcpHandler } from './mcp.mjs'
+import { createPush } from './push.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, '..', 'data'))
 const DIST = path.resolve(process.env.DIST_DIR || path.join(ROOT, '..', 'dist'))
 const TOKEN = process.env.APP_TOKEN || ''
-const STORES = new Set(['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts'])
+const STORES = new Set(['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings'])
 const MAX_BODY = 20 * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -168,11 +169,35 @@ function serveStatic(req, res, pathname) {
 }
 
 const mcp = createMcpHandler({ db, q, rootDir: ROOT })
+const push = createPush(db, { subject: process.env.PUSH_CONTACT || 'mailto:reps@localhost' })
+
+// ---- nightly backups: /data/backups/reps-YYYY-MM-DD.db, newest BACKUP_DAYS kept ----
+const BACKUP_DIR = path.join(DATA_DIR, 'backups')
+const BACKUP_DAYS = Number(process.env.BACKUP_DAYS || 14)
+function backup() {
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true })
+    const file = path.join(BACKUP_DIR, `reps-${new Date().toISOString().slice(0, 10)}.db`)
+    if (!fs.existsSync(file)) {
+      db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`)
+      console.log('backup written', file)
+    }
+    const old = fs.readdirSync(BACKUP_DIR).filter((f) => /^reps-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort().reverse().slice(BACKUP_DAYS)
+    for (const f of old) fs.rmSync(path.join(BACKUP_DIR, f))
+  } catch (e) {
+    console.error('backup failed', e)
+  }
+}
+if (BACKUP_DAYS > 0) {
+  backup()
+  setInterval(backup, 3600000).unref() // checks hourly, writes once per day
+}
 
 const server = http.createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://localhost')
   try {
     if (pathname === '/api/health') return send(res, 200, { ok: true, auth: !!TOKEN })
+    if (pathname === '/api/push/inbox' && req.method === 'POST') return send(res, 200, { messages: push.take((await readBody(req)).endpoint) })
     // MCP for assistants. The token can be in the path (/mcp/<token>) for clients that can't send headers.
     if (pathname === '/mcp' || pathname.startsWith('/mcp/')) {
       const pathToken = pathname.slice(5)
@@ -189,6 +214,11 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/')) {
       if (!authorized(req)) return send(res, 401, { error: 'Unauthorized' })
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(await readBody(req)))
+      if (pathname === '/api/push/key') return send(res, 200, { key: push.publicKey })
+      if (pathname === '/api/push/subscribe' && req.method === 'POST') return push.subscribe((await readBody(req)).endpoint), send(res, 200, { ok: true })
+      if (pathname === '/api/push/unsubscribe' && req.method === 'POST') return push.unsubscribe((await readBody(req)).endpoint), send(res, 200, { ok: true })
+      if (pathname === '/api/push/schedule' && req.method === 'POST') return push.schedule(await readBody(req)), send(res, 200, { ok: true })
+      if (pathname === '/api/push/cancel' && req.method === 'POST') return push.cancel((await readBody(req)).key), send(res, 200, { ok: true })
       if (pathname === '/api/export' && req.method === 'GET') {
         const data = q.all.all().map((r) => ({ store: r.store, id: r.id, updatedAt: r.updated_at, data: JSON.parse(r.data) }))
         return send(res, 200, { exportedAt: new Date().toISOString(), records: data }, {

@@ -1,11 +1,12 @@
 // Starting, finishing and timing workouts.
 import { signal } from '@preact/signals'
-import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap } from './store'
+import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap, workouts } from './store'
 import type { Routine, Workout, WExercise } from './types'
 import { uid, clone } from './util'
 import { navigate } from './router'
 import { confirmDialog } from './ui/overlay'
 import { planStatus } from './plan'
+import { cancelPush, schedulePush } from './push'
 
 export function partOfDay(t = Date.now()) {
   const h = new Date(t).getHours()
@@ -56,6 +57,9 @@ export async function startRoutine(r: Routine) {
     end: null,
     notes: '',
     exercises: planSets(r, fromTemplate(r.exercises)),
+    warmup: r.warmup?.length ? [...r.warmup] : undefined,
+    cooldown: r.cooldown?.length ? [...r.cooldown] : undefined,
+    checks: {},
     updatedAt: 0,
   })
   navigate('/live')
@@ -108,16 +112,17 @@ export async function discardActive() {
 }
 
 /** Save the active workout. Unchecked sets are dropped. */
-export async function finishActive(name: string, notes: string): Promise<Workout | null> {
+export async function finishActive(name: string, notes: string, extra: Partial<Workout> = {}): Promise<Workout | null> {
   const w = active.value
   if (!w) return null
   const exercises = w.exercises
     .map((e) => ({ ...e, sets: e.sets.filter((s) => s.done).map(({ tw: _tw, tr: _tr, ts: _ts, ...s }) => s) }))
     .filter((e) => e.sets.length)
-  const saved = await saveWorkout({ ...w, name: name.trim() || w.name, notes, end: Date.now(), exercises })
+  const saved = await saveWorkout({ ...w, ...extra, name: name.trim() || w.name, notes, end: Date.now(), exercises })
   setActive(null)
-  restTimer.value = null
+  stopRest()
   await flushActive()
+  scheduleTrainingReminder()
   return saved
 }
 
@@ -225,6 +230,14 @@ export function startRest(seconds: number, label: string) {
   if (!seconds) return
   restTimer.value = { end: Date.now() + seconds * 1000, total: seconds, label }
   armRest()
+  pushRest()
+}
+
+// The server sends "rest is over" a moment after the end, so it only shows if the app didn't beep itself.
+function pushRest() {
+  const r = restTimer.value
+  if (r) schedulePush('rest', r.end + 2500, 'Rest is over', `Next: ${r.label}`)
+  else cancelPush('rest')
 }
 
 export function adjustRest(delta: number) {
@@ -234,9 +247,11 @@ export function adjustRest(delta: number) {
   if (end <= Date.now()) return stopRest()
   restTimer.value = { ...r, end, total: Math.max(r.total + delta, 1) }
   armRest()
+  pushRest()
 }
 
 export function stopRest() {
+  if (restTimer.value) cancelPush('rest')
   restTimer.value = null
   if (restTick) clearTimeout(restTick)
 }
@@ -254,11 +269,31 @@ export function armRest() {
     } catch {
       /* no vibration */
     }
-    if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
-      navigator.serviceWorker?.controller?.postMessage({ type: 'rest-done', body: `Next up: ${r.label}` })
-    }
+    // We're on screen and already beeped, so the server's notification isn't needed.
+    if (document.visibilityState === 'visible') cancelPush('rest')
   }, Math.max(0, r.end - Date.now()))
 }
 
 // A rest timer restored after a reload still needs to fire, whichever screen opens first.
 if (restTimer.value) armRest()
+
+// ---- training-day reminder ---------------------------------------------------------
+
+/** Schedule the next "training day" notification (every other day on the plan, else daily). */
+export function scheduleTrainingReminder() {
+  const time = settings.value.reminderTime
+  if (!time) return cancelPush('train')
+  const [h, m] = time.split(':').map(Number)
+  const p = planStatus.value
+  const now = new Date()
+  const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m)
+  const lastPlan = p?.started ? workouts.value.find((w) => w.routineId?.startsWith('r-comeback-')) : null
+  if (lastPlan) {
+    const last = new Date(lastPlan.start)
+    const nextDay = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 2, h, m)
+    if (nextDay > at) at.setTime(nextDay.getTime())
+  }
+  while (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1)
+  const body = p?.routine ? `${p.routine.name} is up next.` : 'Time to train.'
+  schedulePush('train', at.getTime(), 'Training day', body)
+}

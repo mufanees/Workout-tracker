@@ -2,7 +2,7 @@ import type { ComponentChildren } from 'preact'
 import { useRef, useState } from 'preact/hooks'
 import { signal } from '@preact/signals'
 import { exMap, settings, unit } from '../store'
-import { matchPrevious, previousSets } from '../stats'
+import { matchPrevious, previousSets, stalledAt } from '../stats'
 import { navigate } from '../router'
 import type { Exercise, SetKind, WExercise, WSet } from '../types'
 import { clone, fmtNum, fmtRest, fromDisplay, haptic, newSet, newWExercise, supersetColor, targetTop, toDisplay, uid, youtubeUrl } from '../util'
@@ -305,6 +305,30 @@ function ExerciseCard({
     prevWork.length > 0 &&
     prevWork.every((s) => (s.reps || 0) >= top && s.weight != null)
 
+  // The plan's rule: same weight three sessions running → one lighter week (~70%, 2 sets).
+  const stall = mode === 'live' && ex.type === 'weight_reps' && !goHeavier ? stalledAt(we.exerciseId, workoutId, before) : null
+  const deloadW = stall ? Math.max(0.5, Math.round(stall * 0.7 * 2) / 2) : 0
+  const deloaded = stall != null && we.sets.some((s) => s.weight != null && s.weight < stall)
+  const stallMenu = () =>
+    actionSheet({
+      title: `Same weight for 3 sessions`,
+      message: `You’ve been at ${fmtNum(toDisplay(stall!, u))} ${u} without adding reps. The plan says: one lighter week, about 70% of the weight and 2 sets, then carry on.`,
+      actions: [
+        {
+          label: `Go lighter today: ${fmtNum(toDisplay(deloadW, u))} ${u}, 2 sets`,
+          icon: 'downArrow',
+          onSelect: () =>
+            mut((w) => {
+              const work = w.sets.filter((x) => x.kind !== 'warmup')
+              const keep = new Set(work.filter((x) => x.done).map((x) => x.id))
+              for (const x of work) if (!x.done && keep.size < 2) (keep.add(x.id), (x.weight = deloadW))
+              w.sets = w.sets.filter((x) => x.kind === 'warmup' || keep.has(x.id))
+            }),
+        },
+        { label: 'Keep going as planned', icon: 'check', onSelect: () => {} },
+      ],
+    })
+
   let n = 0
   const labels = we.sets.map((s) => (s.kind === 'warmup' ? 'W' : String(++n)))
 
@@ -430,6 +454,11 @@ function ExerciseCard({
                 <Icon name="target" size={13} /> {we.target}
               </span>
             ) : null}
+            {stall != null && !deloaded && (
+              <button class="tag tag-btn tag-stall" onClick={stallMenu}>
+                <Icon name="minus" size={13} /> Stalled
+              </button>
+            )}
             {goHeavier && (
               <span class="tag tag-up" title={`You hit ${top}+ reps on every set last time`}>
                 <Icon name="up" size={13} /> Go heavier

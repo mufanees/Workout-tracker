@@ -56,17 +56,31 @@ self.addEventListener('fetch', (event) => {
   )
 })
 
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'rest-done') {
-    self.registration.showNotification('Rest is over', {
-      body: event.data.body || 'Time for your next set.',
-      tag: 'rest-timer',
-      renotify: true,
-      icon: 'icon-192.png',
-      badge: 'icon-192.png',
-      silent: false,
-    })
-  }
+// Pushes arrive empty; ask the server what to show (the subscription endpoint identifies this device).
+self.addEventListener('push', (event) => {
+  event.waitUntil(
+    (async () => {
+      let messages = []
+      try {
+        const sub = await self.registration.pushManager.getSubscription()
+        const res = await fetch('/api/push/inbox', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: sub && sub.endpoint }) })
+        messages = (await res.json()).messages || []
+      } catch {
+        /* offline: fall through to a generic notice */
+      }
+      if (!messages.length) messages = [{ title: 'Reps', body: 'Open the app for details.', tag: 'reps' }]
+      for (const m of messages) {
+        await self.registration.showNotification(m.title, {
+          body: m.body,
+          tag: m.tag || undefined,
+          renotify: true,
+          icon: 'icon-192.png',
+          badge: 'icon-192.png',
+          vibrate: [200, 100, 200],
+        })
+      }
+    })(),
+  )
 })
 
 self.addEventListener('notificationclick', (event) => {

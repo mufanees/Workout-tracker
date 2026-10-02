@@ -8,6 +8,8 @@ import { Segmented, Toggle } from '../ui/inputs'
 import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { REST_OPTIONS } from '../ui/WorkoutEditor'
 import { fmtRest } from '../util'
+import { disablePush, enablePush, pushOn, pushSupported } from '../push'
+import { scheduleTrainingReminder } from '../workout'
 import { connectHR, disconnectHR, hrName, hrStatus, hrSupported, ZONE_COLORS, ZONE_NAMES, zoneRange } from '../hr'
 import type { StoreName } from '../types'
 import { sanitize } from '../validate'
@@ -94,7 +96,7 @@ export function Settings() {
       let data = json?.data as Record<StoreName, { id: string }[]> | undefined
       // Also accept the server's /api/export format: { records: [{ store, id, data }] }
       if (!data && Array.isArray(json?.records)) {
-        data = { exercises: [], routines: [], workouts: [], settings: [], body: [], fasts: [] }
+        data = { exercises: [], routines: [], workouts: [], settings: [], body: [], fasts: [], readings: [] }
         for (const r of json.records) if (r && data[r.store as StoreName]) data[r.store as StoreName].push({ ...r.data, id: r.id })
       }
       if (!data || typeof data !== 'object') throw new Error('bad file')
@@ -107,7 +109,7 @@ export function Settings() {
       if (!ok) return
       const now = Date.now()
       const items: { store: db.Store; key: string; value: unknown }[] = []
-      for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts'] as StoreName[]) {
+      for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings'] as StoreName[]) {
         for (const raw of Array.isArray(data[s]) ? data[s] : []) {
           const r = sanitize(s, raw)
           if (!r || r.deleted) continue
@@ -167,22 +169,47 @@ export function Settings() {
           <span>Show Comeback plan card</span>
           <Toggle label="Show Comeback plan card" checked={st.showPlan} onChange={(v) => saveSettings({ showPlan: v })} />
         </div>
-        {'Notification' in window && (
-          <div class="setting">
-            <span>
-              Rest notifications
-              <small>When the app is in the background</small>
-            </span>
-            <Toggle
-              label="Rest notifications"
-              checked={Notification.permission === 'granted'}
-              onChange={async () => {
-                if (Notification.permission === 'granted') return toast('Turn notifications off in your phone’s settings')
-                const p = await Notification.requestPermission()
-                toast(p === 'granted' ? 'Notifications on' : 'Notifications are blocked for this app')
-              }}
-            />
-          </div>
+        <div class="setting">
+          <span>
+            Shoulder check-in
+            <small>Rate stiffness 0–10 when you finish</small>
+          </span>
+          <Toggle label="Shoulder check-in" checked={st.askShoulder} onChange={(v) => saveSettings({ askShoulder: v })} />
+        </div>
+      </div>
+
+      <h2 class="section-title">Notifications</h2>
+      <div class="settings-group">
+        {pushSupported ? (
+          <>
+            <div class="setting">
+              <span>
+                Notifications
+                <small>Rest over, fast complete and training days, even with the app closed</small>
+              </span>
+              <Toggle label="Notifications" checked={pushOn.value} onChange={async (v) => (v ? toast(await enablePush()) : void disablePush())} />
+            </div>
+            <div class="setting">
+              <span>
+                Training-day reminder
+                <small>{st.reminderTime ? 'Every other day on the plan, otherwise daily' : 'Off'}</small>
+              </span>
+              <input
+                id="reminder-time"
+                class="time-input"
+                type="time"
+                value={st.reminderTime || ''}
+                disabled={!pushOn.value}
+                aria-label="Reminder time"
+                onChange={async (e) => {
+                  await saveSettings({ reminderTime: e.currentTarget.value || null })
+                  scheduleTrainingReminder()
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <p class="setting-note">Notifications work in the installed app from your server (Chrome on Android, or Safari on iPhone after Add to Home Screen).</p>
         )}
       </div>
 
@@ -306,7 +333,7 @@ export function Settings() {
 
 async function buildBackup(): Promise<string> {
   const data: Record<string, unknown[]> = {}
-  for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
+  for (const s of ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
   return JSON.stringify({ app: 'reps', version: 1, exportedAt: new Date().toISOString(), data })
 }
 

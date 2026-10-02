@@ -15,7 +15,9 @@ export const PLAN_FORMAT = `{
   "routines": [
     {
       "name": "Phase 1 · Workout A",
-      "notes": "Warm-up, schedule, cues for the whole session (optional)",
+      "notes": "Schedule or cues for the whole session (optional)",
+      "warmup": ["Cat-cow x 8", "Scap push-ups x 10"],     // checklist ticked off at the start (optional)
+      "cooldown": ["Hamstring stretch 30 s / side"],       // checklist at the end (optional)
       "exercises": [
         {
           "name": "Goblet Squat",          // use a name from the exercise list when one fits
@@ -48,7 +50,7 @@ Rules:
 - Use the closest name from the exercise list below. Put variations ("1 s pause", "neutral grip", "heavy") in "notes" rather than in the name, so progress carries across phases.
 - Always include "equipment" (what the plan uses: a dumbbell plan means Dumbbell, even when the plan just says "row"). It picks the right variant.
 - Only invent a new exercise when nothing in the list fits; then also include type and muscle.
-- Warm-ups and cool-downs that are mobility drills belong in the routine "notes", not as exercises, unless they are tracked with sets.
+- Warm-up and cool-down drills go in the routine's "warmup" and "cooldown" lists (one short line each), not as exercises.
 - If the plan gives a set count that changes by week, use the most common one and mention the rest in the routine notes.
 
 Exercise list:
@@ -187,6 +189,8 @@ export function resolvePlan(plan, library, makeId, now = Date.now()) {
       name: String(r.name || `Workout ${ri + 1}`).trim(),
       folder,
       notes: String(r.notes || ''),
+      warmup: Array.isArray(r.warmup) ? r.warmup.map(String).filter((x) => x.trim()) : [],
+      cooldown: Array.isArray(r.cooldown) ? r.cooldown.map(String).filter((x) => x.trim()) : [],
       order: now / 1e9 + ri, // after existing routines, in plan order
       exercises,
     }

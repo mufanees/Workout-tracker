@@ -157,7 +157,7 @@ export function createMcpHandler({ db, q, rootDir }) {
     },
     {
       name: 'body_stats',
-      description: 'Recent body weight entries and fasts.',
+      description: 'Recent body weight, fasts, morning resting heart rate / HRV readings and shoulder stiffness ratings.',
       inputSchema: { type: 'object', properties: {} },
       run: () => {
         const weights = rows('body')
@@ -168,7 +168,16 @@ export function createMcpHandler({ db, q, rootDir }) {
           .sort((a, b) => b.start - a.start)
           .slice(0, 14)
           .map((f) => `${new Date(f.start).toISOString().slice(0, 16).replace('T', ' ')} ${f.end ? ((f.end - f.start) / 3600000).toFixed(1) + ' h' : 'in progress'} (goal ${f.goal} h)`)
-        return `Weight (newest first):\n${weights.join('\n') || 'none'}\n\nFasts:\n${fasts.join('\n') || 'none'}`
+        const reads = rows('readings')
+          .sort((a, b) => b.date - a.date)
+          .slice(0, 30)
+          .map((r) => `${new Date(r.date).toISOString().slice(0, 10)} resting ${r.rhr} bpm${r.hrv ? `, HRV ${r.hrv} ms` : ''}`)
+        const shoulder = rows('workouts')
+          .filter((w) => w.shoulder != null)
+          .sort((a, b) => b.start - a.start)
+          .slice(0, 20)
+          .map((w) => `${new Date(w.start).toISOString().slice(0, 10)} ${w.shoulder}/10`)
+        return `Weight (newest first):\n${weights.join('\n') || 'none'}\n\nFasts:\n${fasts.join('\n') || 'none'}\n\nMorning readings:\n${reads.join('\n') || 'none'}\n\nShoulder stiffness after workouts (0-10):\n${shoulder.join('\n') || 'none'}`
       },
     },
   ]

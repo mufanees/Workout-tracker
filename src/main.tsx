@@ -3,6 +3,7 @@ import { App } from './App'
 import { init } from './store'
 import { startAutoSync } from './sync'
 import { reconnectSaved } from './hr'
+import { scheduleTrainingReminder } from './workout'
 import '@fontsource-variable/space-grotesk/wght.css'
 import './styles.css'
 
@@ -12,6 +13,7 @@ init()
   .then(() => {
     startAutoSync()
     void reconnectSaved()
+    scheduleTrainingReminder()
   })
   .catch((e) => {
     console.error(e)

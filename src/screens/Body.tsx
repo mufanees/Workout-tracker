@@ -3,10 +3,16 @@ import { activeFast, bodyWeights, fasts, remove, saveBodyWeight, saveFast, setti
 import type { BodyWeight, Fast } from '../types'
 import { fmtDay, fmtNum, fmtTime, LB, startOfDay, uid } from '../util'
 import { LineChart } from '../ui/Chart'
+import { MorningCheck, ShoulderCard, Zone2Week } from './BodyCards'
 import { Icon } from '../ui/icons'
 import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
+import { cancelPush, schedulePush } from '../push'
 
 const HOUR = 3600000
+
+function pushFast(f: Fast) {
+  schedulePush('fast', f.start + f.goal * HOUR, 'Fast complete', `You reached ${f.goal} hours. End it in Reps whenever you eat.`)
+}
 const GOALS = [12, 14, 16, 18, 20, 24]
 
 function useNow(ms = 1000) {
@@ -32,8 +38,11 @@ export function Body() {
       <header class="page-head">
         <h1>Body</h1>
       </header>
+      <MorningCheck />
+      <Zone2Week />
       <FastingCard />
       <WeightCard />
+      <ShoulderCard />
     </div>
   )
 }
@@ -49,12 +58,14 @@ function FastingCard() {
   const last = done[0]
 
   const start = async () => {
-    await saveFast({ id: uid('f'), start: Date.now(), end: null, goal, updatedAt: 0 })
+    const f = await saveFast({ id: uid('f'), start: Date.now(), end: null, goal, updatedAt: 0 })
+    pushFast(f)
   }
   const end = async () => {
     if (!f) return
     const hours = (Date.now() - f.start) / HOUR
     await saveFast({ ...f, end: Date.now() })
+    cancelPush('fast')
     toast(hours >= f.goal ? `${hm(Date.now() - f.start)} fast. Goal reached.` : `Fast ended at ${hm(Date.now() - f.start)}`)
   }
 
@@ -179,7 +190,8 @@ function FastEditor({ fast, onClose }: { fast: Fast | null; onClose: () => void 
     const e = end ? new Date(end).getTime() : null
     if (!Number.isFinite(s) || (e != null && (!Number.isFinite(e) || e <= s))) return toast('The end has to be after the start')
     if (s > Date.now()) return toast('The start can’t be in the future')
-    await saveFast({ ...fast, start: s, end: fast.end == null ? null : e })
+    const saved = await saveFast({ ...fast, start: s, end: fast.end == null ? null : e })
+    if (saved.end == null) pushFast(saved)
     onClose()
   }
   return (
@@ -208,6 +220,7 @@ function FastEditor({ fast, onClose }: { fast: Fast | null; onClose: () => void 
         onClick={async () => {
           if (!(await confirmDialog({ title: 'Delete this fast?', confirm: 'Delete', danger: true }))) return
           await remove('fasts', fast.id)
+          if (fast.end == null) cancelPush('fast')
           onClose()
           toast('Fast deleted', { label: 'Undo', run: () => void saveFast(fast) })
         }}
@@ -341,7 +354,7 @@ function WeightCard() {
           {todays ? 'Update' : 'Log'}
         </button>
       </div>
-      {points.length > 0 && <LineChart points={points} format={(v) => `${fmtNum(v, 1)} ${u}`} />}
+      {points.length > 0 && <LineChart points={points} format={(v) => `${fmtNum(v, 1)} ${u}`} best={null} />}
       {list.length > 0 && (
         <ul class="weight-list">
           {(all ? list : list.slice(0, 5)).map((b, i) => {

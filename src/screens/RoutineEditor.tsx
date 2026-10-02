@@ -33,7 +33,8 @@ export function RoutineEditor({ id }: { id: string }) {
       ;(document.querySelector('.routine-name-input') as HTMLInputElement | null)?.focus()
       return
     }
-    const saved = await saveRoutine({ ...draft, name: draft.name.trim(), folder: draft.folder.trim() })
+    const clean = (l?: string[]) => (l || []).map((x) => x.trim()).filter(Boolean)
+    const saved = await saveRoutine({ ...draft, name: draft.name.trim(), folder: draft.folder.trim(), warmup: clean(draft.warmup), cooldown: clean(draft.cooldown) })
     if (andStart) return startRoutine(saved)
     toast(isNew ? 'Routine created' : 'Routine saved')
     back('/train')
@@ -78,6 +79,24 @@ export function RoutineEditor({ id }: { id: string }) {
       <label class="field">
         <span>Notes</span>
         <AutoText value={draft.notes} onInput={(v) => setDraft({ ...draft, notes: v })} placeholder="Warm-up, cues, anything to remember" class="input-like" />
+      </label>
+      <label class="field">
+        <span>Warm-up checklist (one per line)</span>
+        <AutoText
+          value={(draft.warmup || []).join('\n')}
+          onInput={(v) => setDraft({ ...draft, warmup: v.split('\n').filter((x, i, a) => x.trim() || i === a.length - 1) })}
+          placeholder="Cat–cow × 8"
+          class="input-like"
+        />
+      </label>
+      <label class="field">
+        <span>Cool-down checklist (one per line)</span>
+        <AutoText
+          value={(draft.cooldown || []).join('\n')}
+          onInput={(v) => setDraft({ ...draft, cooldown: v.split('\n').filter((x, i, a) => x.trim() || i === a.length - 1) })}
+          placeholder="Hamstring stretch · 30 s / side"
+          class="input-like"
+        />
       </label>
       <p class="field-hint">Weights and reps here are starting suggestions. Once you’ve logged a workout, your last numbers are shown instead.</p>
 

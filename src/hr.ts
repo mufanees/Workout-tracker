@@ -63,19 +63,45 @@ export const zone = computed(() => (bpm.value ? zoneOf(bpm.value) : null))
 
 // ---- connection ---------------------------------------------------------------
 
-function parse(v: DataView): number {
+/** Heart Rate Measurement: flags, bpm (8 or 16 bit), optional energy, optional R-R intervals (1/1024 s). */
+export function parseMeasurement(v: DataView): { hr: number; rr: number[] } {
   const flags = v.getUint8(0)
-  return flags & 0x01 ? v.getUint16(1, true) : v.getUint8(1)
+  let i = 1
+  const hr = flags & 0x01 ? v.getUint16(i, true) : v.getUint8(i)
+  i += flags & 0x01 ? 2 : 1
+  if (flags & 0x08) i += 2 // energy expended
+  const rr: number[] = []
+  if (flags & 0x10) for (; i + 1 < v.byteLength; i += 2) rr.push((v.getUint16(i, true) / 1024) * 1000)
+  return { hr, rr }
 }
+
+/** Listeners for raw beat-to-beat intervals (ms), used by the morning HRV reading. */
+export const rrListeners = new Set<(rr: number[], hr: number) => void>()
 
 function onMeasurement(e: Event) {
   const v = (e.target as BTChar).value
   if (!v) return
-  const hr = parse(v)
+  const { hr, rr } = parseMeasurement(v)
   if (hr > 0 && hr < 250) {
     bpm.value = hr
     lastBeatAt = Date.now()
+    for (const fn of rrListeners) fn(rr, hr)
   }
+}
+
+/** RMSSD in ms from R-R intervals, dropping artefacts (implausible or >20% jumps). */
+export function rmssd(rr: number[]): number | null {
+  const clean: number[] = []
+  for (const x of rr) {
+    if (x < 300 || x > 2000) continue
+    const prev = clean[clean.length - 1]
+    if (prev && Math.abs(x - prev) / prev > 0.2) continue
+    clean.push(x)
+  }
+  if (clean.length < 20) return null
+  let sum = 0
+  for (let k = 1; k < clean.length; k++) sum += (clean[k] - clean[k - 1]) ** 2
+  return Math.round(Math.sqrt(sum / (clean.length - 1)))
 }
 
 async function attach(d: BTDevice) {

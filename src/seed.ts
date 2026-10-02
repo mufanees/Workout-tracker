@@ -110,9 +110,26 @@ const PLAN: Record<string, Day> = {
 
 export const planRoutineId = (phase: number, day: 'A' | 'B') => `r-comeback-${phase}${day.toLowerCase()}`
 
-const WARMUP_NOTE =
-  'Warm-up (6 min): cat–cow, thread the needle, floor angels, scap push-ups, world’s greatest stretch, glute bridge + squat, ramp-up set. ' +
-  'Superset pairs: do 1a then 1b, then rest. Cool down with 6 min of stretching.'
+const PLAN_NOTE = 'Superset pairs: do 1a, then 1b, then rest. Finish all sets of a pair before the next pair.'
+
+export const PLAN_WARMUP = [
+  'Cat–cow × 8',
+  'Thread the needle × 6 / side',
+  'Floor angels × 10',
+  'Scap push-ups × 10',
+  'World’s greatest stretch × 4 / side',
+  'Glute bridge + bodyweight squat × 10 each',
+  'Ramp-up set: first exercise at half weight × 8',
+]
+
+export const PLAN_COOLDOWN = [
+  'Child’s pose with side reach · 30 s / side',
+  'Prone chest stretch · 30 s / side',
+  'Cross-body shoulder stretch · 30 s / side',
+  'Half-kneeling hip flexor · 30 s / side',
+  '90/90 hip stretch · 30 s / side',
+  'Supine hamstring stretch · 30 s / side',
+]
 
 function emptySets(n: number, id: string): WSet[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -145,7 +162,9 @@ export function seedRoutines(): Routine[] {
         id: rid,
         name: `Phase ${phase.n} · Workout ${day}`,
         folder: PLAN_FOLDER,
-        notes: WARMUP_NOTE,
+        notes: PLAN_NOTE,
+        warmup: PLAN_WARMUP,
+        cooldown: PLAN_COOLDOWN,
         order: order++,
         exercises,
         updatedAt: SEED_TIME,

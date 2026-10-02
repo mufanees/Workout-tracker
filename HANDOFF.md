@@ -31,6 +31,13 @@ A PWA replacing Hevy for one person. Offline-first, self-hosted sync.
 - **Exercises:** ~930 exercises (75 curated + free-exercise-db), detail page with records and a progress chart, custom exercises.
 - **Heart rate:** Web Bluetooth (standard Heart Rate Service), live zone display on every workout, optional target zone with a 15 s out-of-zone buzz, "Zone 2 cardio" quick start, HR stored with the workout, summary card (chart with zone bands, time in each zone), 12-week zone trends on History, editable zones.
 - **Body tab:** body weight log (7-day average, week/month change, chart) and intermittent fasting timer (goal presets, ring, history bars, streak).
+- **Morning check:** 60 s reading with the strap → resting HR + HRV (RMSSD from R-R intervals), 30-day baseline verdict, trend chart; manual entry fallback. Store `readings`.
+- **Zone 2 weekly goal** ring on Body (setting `zone2Goal`, minutes).
+- **Shoulder check-in** (0–10) in the finish sheet (`Workout.shoulder`), trend card on Body that flags a rise of ≥1 point vs the previous two weeks.
+- **Stall detection** (`stats.ts stalledAt`): same top weight 3 sessions with no rep gain → "Stalled" tag → one-tap 70% / 2 sets.
+- **Warm-up / cool-down checklists:** `Routine.warmup/cooldown` (string lists, editable in the routine editor, part of plan import); copied into the workout with tick state in `Workout.checks`. Seed version 3 refreshes unedited built-in routines.
+- **Push notifications** (`server/push.mjs`, `src/push.ts`): dependency-free web push. VAPID keys generated once and kept in SQLite; jobs scheduled by key (`rest`, `fast`, `train`); the server sends an empty push and the service worker fetches the text from `/api/push/inbox` using its endpoint URL. Rest pushes are sent 2.5 s after the end and cancelled if the app beeped on screen.
+- **Nightly backups:** `VACUUM INTO /data/backups/reps-YYYY-MM-DD.db`, newest 14 kept (`BACKUP_DAYS`).
 - **Plan import:** in-app (copy a prompt for Claude, paste the JSON back, preview, add) or via the MCP endpoint (`import_plan` tool).
 - **Data:** Copy/Paste backup (clipboard), Export/Import backup file, server export at `GET /api/export`.
 
@@ -72,6 +79,9 @@ Phone (PWA)                                      Coolify container
 | `src/sw.js` | Service worker template; `vite.config.js` fills in the precache list at build time |
 | `server/server.mjs` | HTTP server, auth, sync, export, static files |
 | `server/mcp.mjs` | MCP (JSON-RPC over HTTP, JSON responses, no SSE) |
+| `server/push.mjs` | Web push: VAPID signing, job scheduler, inbox for the service worker |
+| `src/push.ts` | Subscribe/unsubscribe, schedule/cancel notifications |
+| `src/screens/BodyCards.tsx` | Morning check (HR/HRV), zone 2 goal, shoulder trend |
 | `scripts/artifact.mjs` | Bundles `dist/` into one HTML file (used for the Claude-hosted copy) |
 | `scripts/library.mjs` | Rebuilds `src/data/library.json` from free-exercise-db JSON |
 | `scripts/icons.mjs` | Renders PNG icons from `public/favicon.svg` with Playwright |
@@ -79,7 +89,7 @@ Phone (PWA)                                      Coolify container
 
 ### Data model (see `src/types.ts`)
 
-Synced stores: `exercises`, `routines`, `workouts`, `settings` (single record id `settings`), `body`, `fasts`. Every record has `id` and `updatedAt`; deletes are tombstones `{id, deleted: true, updatedAt}`.
+Synced stores: `exercises`, `routines`, `workouts`, `settings` (single record id `settings`), `body`, `fasts`, `readings`. Server-only tables: `push_subs`, `push_jobs`, `push_inbox`, `meta` (dbId, VAPID key). Every record has `id` and `updatedAt`; deletes are tombstones `{id, deleted: true, updatedAt}`.
 
 - Weights are always stored in **kg**; lb is display-only (rounded to 0.5 lb).
 - Dumbbell exercises log the weight of one dumbbell.
@@ -115,6 +125,8 @@ node qa/seed.cjs        # 17 past Comeback workouts via the sync API
 node qa/seed2.cjs       # body weights, fasts, cardio workouts with HR
 node qa/walk4.cjs       # superset logging, undo, warm-up, finish sheet (SCHEME=light for light mode)
 node qa/walk5.cjs       # simulated Bluetooth strap, zone 2 cardio, HR summary, Body tab
+node qa/seed3.cjs       # stalled Hammer Curl, rising shoulder ratings, morning readings
+node qa/walk7.cjs       # warm-up checklist, stall nudge, shoulder check-in, 60 s HRV reading, settings
 node qa/walk6.cjs       # MCP-imported folder, paste import, library search (run the MCP import in qa/ notes below first)
 ```
 
@@ -146,7 +158,7 @@ Because the owner wanted to train before the server was deployed, the app is als
 
 ## Known gaps and ideas
 
-- **Unverified:** Docker build, a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
+- **Unverified:** whether the HRM-Dual sends R-R intervals over Bluetooth (if not, the morning check gives resting HR only), real push delivery through Google's push service (signing verified locally), Docker build, a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
 - Bluetooth stops when Android turns the screen off; the app keeps the screen awake by default during workouts.
 - iPhone: no Web Bluetooth (Bluefy browser would work). Rest-timer sound can't fire while iOS has the app backgrounded.
 - From the UX review, not done: "add to routine?" wording when an exercise was replaced; equipment filter / dumbbell-first ordering in the exercise picker; plan card hides during an active workout; a bare "Squat" matches "Box Squat" in plan import.
@@ -161,5 +173,6 @@ Because the owner wanted to train before the server was deployed, the app is als
 4. Published the Claude-hosted copy so the owner could train immediately; made active-workout saves immediate; added Copy/Paste backup.
 5. Added Bluetooth HR, zones and trends, body weight, fasting.
 6. Added the ~930-exercise library, in-app plan import and the MCP endpoint.
+7. Added nightly backups, push notifications, shoulder check-in, stall detection, morning HR/HRV, zone 2 goal, warm-up/cool-down checklists.
 
 Commit history on the branch tells the same story in more detail (`git log`).

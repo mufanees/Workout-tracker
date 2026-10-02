@@ -2854,3 +2854,226 @@ label.setting:active {
   max-height: 300px;
   overflow: auto;
 }
+.time-input {
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 0 10px;
+  font-weight: 650;
+}
+.time-input:disabled {
+  opacity: 0.4;
+}
+.scale-row {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 4px;
+}
+.scale-btn {
+  height: 44px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.sheet .scale-btn {
+  background: var(--surface-3);
+}
+.scale-btn.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.scale-btn.on.mid {
+  background: #ffd23f;
+}
+.scale-btn.on.high {
+  background: #ff7a5a;
+}
+.tag-stall {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+/* ---------- warm-up / cool-down checklist ---------- */
+.checklist {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px 12px;
+}
+.checklist-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  text-align: left;
+}
+.checklist-head b {
+  flex: 1;
+  font-size: 16px;
+}
+.cl-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.cl-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 99px;
+  border: 2px solid var(--surface-3);
+  display: grid;
+  place-items: center;
+}
+.cl-dot.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.checklist ul {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.cl-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  text-align: left;
+  font-size: 15px;
+  border-top: 1px solid var(--line);
+}
+.cl-item.on span:last-child {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+.cl-box {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+}
+.cl-item.on .cl-box {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ---------- body: morning check, zone 2 goal, shoulder ---------- */
+.body-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 28px;
+  padding: 18px;
+}
+.body-card .eyebrow {
+  color: var(--accent-text);
+}
+.reading-now {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.reading-now div {
+  display: flex;
+  flex-direction: column;
+}
+.reading-now b {
+  font-size: 34px;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.reading-now span {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.verdict {
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 15px;
+  background: var(--surface-2);
+}
+.verdict.good {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.verdict.easy {
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+  color: var(--warn);
+}
+.reading-ring .ring-bg {
+  stroke: var(--surface-2);
+}
+.reading-ring .ring-fg {
+  stroke: #ff5a5a;
+}
+.center-text {
+  text-align: center;
+}
+.zone2-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+.z2-ring {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex: none;
+}
+.z2-ring svg {
+  width: 100%;
+  height: 100%;
+}
+.z2-ring span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.z2-bg {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 9;
+}
+.z2-fg {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 9;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s ease;
+}
+.z2-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.z2-text b {
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.z2-text b small {
+  font-size: 15px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0;
+}

@@ -45,6 +45,13 @@ export interface Workout extends Rec {
   hr?: [number, number][]
   /** Heart rate zone to hold (1-5), e.g. 2 for a zone 2 session. */
   targetZone?: number | null
+  /** Shoulder stiffness after the session, 0 (none) to 10. */
+  shoulder?: number | null
+  /** Warm-up / cool-down items ticked off, keyed "w0", "c2"… */
+  checks?: Record<string, boolean>
+  /** Copied from the routine when the workout started. */
+  warmup?: string[]
+  cooldown?: string[]
   routineId: string | null
   start: number
   end: number | null
@@ -58,6 +65,8 @@ export interface Routine extends Rec {
   notes: string
   order: number
   exercises: WExercise[]
+  warmup?: string[]
+  cooldown?: string[]
 }
 
 export interface Settings extends Rec {
@@ -73,6 +82,16 @@ export interface Settings extends Rec {
   hrZones: [number, number, number, number]
   targetZone: number | null
   fastGoal: number // hours
+  askShoulder: boolean
+  zone2Goal: number // minutes per week
+  reminderTime: string | null // "07:00" for a training-day notification, null = off
+}
+
+/** A morning resting heart rate / HRV reading. */
+export interface Reading extends Rec {
+  date: number
+  rhr: number // bpm
+  hrv: number | null // RMSSD, ms
 }
 
 export interface BodyWeight extends Rec {
@@ -86,4 +105,4 @@ export interface Fast extends Rec {
   goal: number // hours
 }
 
-export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts'
+export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts' | 'readings'

@@ -8,6 +8,13 @@ It also does:
 - **Body weight** with a 7-day average, weekly and monthly change, and a chart.
 - **Intermittent fasting**: start/end a fast, live progress toward your goal (16:8, 18:6…), history and streak.
 - **A library of about 930 exercises**, so you can build your own routines.
+- **Morning check**: a one-minute resting heart rate and HRV (RMSSD) reading with the strap, compared with your 30-day baseline ("keep today easy" / "recovered").
+- **Weekly zone 2 goal** (default 150 min) as a progress ring.
+- **Shoulder check-in**: rate stiffness 0–10 when you finish; the Body tab flags it if it trends up.
+- **Stall detection**: same weight for three sessions without more reps suggests the plan's lighter week (about 70%, 2 sets).
+- **Warm-up and cool-down checklists** per routine (the Comeback plan's are built in).
+- **Notifications** from your server: rest over, fast complete, training-day reminder, even with the app closed.
+- **Nightly server backups**, 14 days kept.
 - **Plan import**: give Claude a plan (a sheet like the Comeback plan, a screenshot, text) and get routines back, either by pasting its answer into the app or through MCP.
 
 - **Offline-first.** Everything is saved on the phone (IndexedDB) the moment you type it, so a dead gym signal never loses a set.
@@ -36,6 +43,7 @@ You can use the app before connecting; anything logged so far syncs as soon as y
 
 ### Backups
 
+- On the server: a copy of the database is written to `/data/backups/reps-YYYY-MM-DD.db` once a day and the newest 14 are kept (`BACKUP_DAYS` changes that; `0` turns it off). Restore by stopping the app and copying one over `/data/reps.db`.
 - In the app: **Settings → Export backup** downloads a JSON file. **Import backup** merges one back in.
 - On the server: `GET /api/export` with `Authorization: Bearer <APP_TOKEN>` returns everything. Or back up the `/data` volume (it's one SQLite file plus its WAL).
 
@@ -55,6 +63,10 @@ Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rat
 - Claude Code: `claude mcp add --transport http reps https://reps.yourdomain.com/mcp/<APP_TOKEN>`
 
 Then ask, for example, "import this plan into Reps" with the plan attached. Tools: `get_plan_format`, `search_exercises`, `import_plan`, `list_routines`, `recent_workouts`, `exercise_progress`, `body_stats`. The read tools let you ask things like "how has my floor press progressed?" The URL contains your sync key, so treat it like a password.
+
+## Notifications
+
+Settings → Notifications turns them on for that phone (installed app, Chrome on Android or Safari on iPhone 16.4+ after Add to Home Screen). The server schedules them and sends a standard web push, so they arrive with the app closed: rest over (only if the app didn't already beep), fast complete, and an optional training-day reminder at a time you choose (every other day on the plan, otherwise daily). Optional env: `PUSH_CONTACT=mailto:you@example.com`.
 
 ## How sync works
 

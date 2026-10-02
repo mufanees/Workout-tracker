@@ -12,6 +12,8 @@ export interface ResolvedRoutine {
   name: string
   folder: string
   notes: string
+  warmup: string[]
+  cooldown: string[]
   order: number
   exercises: {
     id: string

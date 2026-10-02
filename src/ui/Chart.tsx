@@ -9,7 +9,8 @@ export interface Point {
 const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 
 /** Minimal line chart: one series, tap a point to read it. */
-export function LineChart({ points, format }: { points: Point[]; format: (v: number) => string }) {
+/** `best` says which direction is good ('low' for stiffness or resting HR); null hides the label. */
+export function LineChart({ points, format, best = 'high' }: { points: Point[]; format: (v: number) => string; best?: 'high' | 'low' | null }) {
   const [sel, setSel] = useState<number | null>(null)
   if (points.length < 2) {
     return <div class="chart-empty">{points.length ? 'Log this exercise once more to see a trend.' : 'No data yet.'}</div>
@@ -33,14 +34,14 @@ export function LineChart({ points, format }: { points: Point[]; format: (v: num
   const area = `${d} L${x(points.length - 1).toFixed(1)},${H - pad.b} L${x(0).toFixed(1)},${H - pad.b} Z`
   const active = sel ?? points.length - 1
   const ap = points[active]
-  const maxV = Math.max(...vs)
+  const bestV = best === 'low' ? Math.min(...vs) : Math.max(...vs)
   return (
     <div class="chart">
       <div class="chart-readout">
         <b>{format(ap.v)}</b>
         <span>
           {dateFmt.format(new Date(ap.t))}
-          {ap.v === maxV ? ' · best' : ''}
+          {best && ap.v === bestV ? (best === 'low' ? ' · lowest' : ' · best') : ''}
         </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Trend from ${format(points[0].v)} to ${format(points[points.length - 1].v)}`}>

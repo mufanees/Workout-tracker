@@ -1,7 +1,7 @@
 // Tiny promise wrapper around IndexedDB. Everything lives on the device first.
 const DB_NAME = 'reps'
-const VERSION = 2
-export const STORES = ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'meta', 'dirty'] as const
+const VERSION = 3
+export const STORES = ['exercises', 'routines', 'workouts', 'settings', 'body', 'fasts', 'readings', 'meta', 'dirty'] as const
 export type Store = (typeof STORES)[number]
 
 let dbp: Promise<IDBDatabase> | null = null
