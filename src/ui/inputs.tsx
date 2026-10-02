@@ -45,7 +45,14 @@ export function NumInput(props: {
       onFocus={(e) => {
         focused.current = true
         const el = e.currentTarget
-        requestAnimationFrame(() => el.select())
+        // setSelectionRange is more reliable than select() on iOS Safari.
+        requestAnimationFrame(() => {
+          try {
+            el.setSelectionRange(0, el.value.length)
+          } catch {
+            el.select()
+          }
+        })
       }}
       onBlur={() => {
         focused.current = false

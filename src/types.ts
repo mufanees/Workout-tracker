@@ -64,6 +64,7 @@ export interface Settings extends Rec {
   theme: 'system' | 'light' | 'dark'
   showPlan: boolean
   planStart: number | null // start of week 1 of the Comeback plan; null = infer
+  ft?: Record<string, number> // when each field was last changed, for per-field sync merging
 }
 
 export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings'

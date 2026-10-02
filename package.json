@@ -10,8 +10,11 @@
     "start": "node --disable-warning=ExperimentalWarning server/server.mjs",
     "icons": "node scripts/icons.mjs"
   },
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "devDependencies": {
+    "@fontsource-variable/space-grotesk": "^5.3.0",
     "@preact/preset-vite": "^2.10.2",
     "@preact/signals": "^2.3.1",
     "preact": "^10.27.0",

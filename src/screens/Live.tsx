@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate } from '../router'
 import { adjustRest, armRest, discardActive, finishActive, restTimer, startRest, stopRest, unlockAudio } from '../workout'
-import { WorkoutEditor } from '../ui/WorkoutEditor'
+import { WorkoutEditor, completeSet, placeholderFor } from '../ui/WorkoutEditor'
 import { Icon } from '../ui/icons'
 import { actionSheet, AutoText, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { doneSets, fmtClock, fmtNum, fmtWeight, toDisplay, totalSets, workoutVolume, haptic } from '../util'
@@ -63,10 +63,11 @@ export function Live() {
   const done = doneSets(w)
   const total = totalSets(w)
 
-  const onSetDone = (i: number) => {
+  const onSetDone = (weId: string) => {
     unlockAudio()
     const list = active.value!.exercises
-    const we = list[i]
+    const we = list.find((e) => e.id === weId)
+    if (!we) return
     const name = (id: string) => exMap.value.get(id)?.name || 'next set'
     let rest = we.rest
     let nextLabel = name(we.exerciseId)
@@ -119,16 +120,13 @@ export function Live() {
     let skipped = 0
     updateActive((x) => {
       for (const we of x.exercises) {
-        const type = exMap.value.get(we.exerciseId)?.type || 'weight_reps'
+        const ex = exMap.value.get(we.exerciseId)
+        if (!ex) continue
         const matched = matchPrevious(we.sets, previousSets(we.exerciseId, x.id))
         we.sets.forEach((s, i) => {
           if (s.done) return
-          const p = matched[i]
-          const above = we.sets[i - 1]
-          if (type === 'weight_reps' && s.weight == null) s.weight = p?.weight ?? s.tw ?? above?.weight ?? null
-          if (type !== 'duration' && s.reps == null) s.reps = p?.reps ?? s.tr ?? above?.reps ?? null
-          if (type === 'duration' && s.seconds == null) s.seconds = p?.seconds ?? s.ts ?? above?.seconds ?? null
-          if ((type === 'duration' ? s.seconds : s.reps) != null) s.done = true
+          const { set } = completeSet(s, placeholderFor(we.sets, i, matched), ex)
+          if (set) we.sets[i] = set
           else skipped++
         })
       }
@@ -200,7 +198,7 @@ export function Live() {
           mode="live"
           exercises={w.exercises}
           workoutId={w.id}
-          onChange={(next) => updateActive((x) => void (x.exercises = next))}
+          onChange={(fn) => updateActive((x) => void (x.exercises = fn(x.exercises)))}
           onSetDone={onSetDone}
         />
         <button class="btn btn-ghost-danger btn-block" onClick={discard}>

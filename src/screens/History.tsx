@@ -378,7 +378,13 @@ export function EditWorkout({ id }: { id: string }) {
         <textarea rows={2} value={draft.notes} onInput={(e) => setDraft({ ...draft, notes: e.currentTarget.value })} />
       </label>
       <p class="field-hint">Unchecked sets are removed when you save.</p>
-      <WorkoutEditor mode="edit" exercises={draft.exercises} workoutId={draft.id} onChange={(exercises) => setDraft({ ...draft, exercises })} />
+      <WorkoutEditor
+        mode="edit"
+        exercises={draft.exercises}
+        workoutId={draft.id}
+        before={draft.start}
+        onChange={(fn) => setDraft((d) => d && { ...d, exercises: fn(d.exercises) })}
+      />
     </div>
   )
 }

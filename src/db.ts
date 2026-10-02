@@ -75,3 +75,19 @@ export async function clearAll(): Promise<void> {
     tx.onerror = () => reject(tx.error)
   })
 }
+
+/** Run several reads/writes atomically. Only await IDB requests (via `req`) inside `fn`. */
+export async function transaction<T>(stores: Store[], fn: (tx: IDBTransaction) => Promise<T>): Promise<T> {
+  const db = await open()
+  const tx = db.transaction(stores, 'readwrite')
+  const done = new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error)
+  })
+  const result = await fn(tx)
+  await done
+  return result
+}
+
+export const req = wrap

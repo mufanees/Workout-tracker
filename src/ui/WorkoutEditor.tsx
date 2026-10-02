@@ -22,22 +22,29 @@ export function WorkoutEditor({
   exercises,
   onChange,
   workoutId,
+  before,
   onSetDone,
 }: {
   mode: Mode
   exercises: WExercise[]
-  onChange: (next: WExercise[]) => void
+  /** Receives an updater so edits always apply to the latest state (undo can't clobber newer edits). */
+  onChange: (update: (current: WExercise[]) => WExercise[]) => void
   workoutId?: string
-  onSetDone?: (exerciseIndex: number) => void
+  /** When editing a past workout, only sessions before this time count as "previous". */
+  before?: number
+  onSetDone?: (exerciseId: string) => void
 }) {
-  const [picker, setPicker] = useState<{ open: boolean; replace?: number }>({ open: false })
+  const [picker, setPicker] = useState<{ open: boolean; replace?: string }>({ open: false })
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set())
 
-  const mut = (fn: (list: WExercise[]) => void) => {
-    const next = clone(exercises)
-    fn(next)
-    onChange(next)
-  }
+  const mut = (fn: (list: WExercise[]) => void) =>
+    onChange((current) => {
+      const next = clone(current)
+      fn(next)
+      return next
+    })
+  const at = (list: WExercise[], id: string) => list.findIndex((e) => e.id === id)
+  const nameOf = (we: WExercise) => exMap.value.get(we.exerciseId)?.name || 'Exercise'
 
   const addExercises = (ids: string[], asSuperset: boolean) => {
     const group = asSuperset && ids.length > 1 ? uid('ss') : null
@@ -45,9 +52,10 @@ export function WorkoutEditor({
       for (const id of ids) {
         const we = newWExercise(id, settings.value.defaultRest)
         we.superset = group
-        const prev = previousSets(id, workoutId)
+        const prev = previousSets(id, workoutId, before)
         const n = mode === 'routine' ? 3 : Math.min(Math.max(prev.length, 1), 6)
         we.sets = prev.length && mode !== 'routine' ? prev.slice(0, n).map((p) => newSet(p.kind)) : Array.from({ length: n }, () => newSet())
+        if (mode === 'edit') for (const st of we.sets) st.done = false
         list.push(we)
       }
     })
@@ -60,9 +68,10 @@ export function WorkoutEditor({
     }
   }
 
-  const replaceExercise = (index: number, id: string) => {
+  const replaceExercise = (weId: string, id: string) => {
     mut((list) => {
-      const we = list[index]
+      const we = list[at(list, weId)]
+      if (!we) return
       we.exerciseId = id
       for (const s of we.sets) {
         s.tw = s.tr = s.ts = null
@@ -71,10 +80,17 @@ export function WorkoutEditor({
     setPicker({ open: false })
   }
 
-  const exerciseMenu = (i: number) => {
-    const we = exercises[i]
+  const leaveSuperset = (list: WExercise[], i: number) => {
+    const g = list[i].superset
+    list[i].superset = null
+    const rest = list.filter((e) => g && e.superset === g)
+    if (rest.length === 1) rest[0].superset = null
+  }
+
+  const exerciseMenu = (we: WExercise) => {
+    const i = exercises.indexOf(we)
     const ex = exMap.value.get(we.exerciseId)
-    const others = exercises.map((e, j) => ({ e, j })).filter(({ j }) => j !== i)
+    const others = exercises.filter((e) => e.id !== we.id)
     actionSheet({
       title: ex?.name || 'Exercise',
       actions: [
@@ -86,27 +102,25 @@ export function WorkoutEditor({
             requestAnimationFrame(() => (document.querySelector(`[data-note="${we.id}"] textarea`) as HTMLTextAreaElement | null)?.focus())
           },
         },
-        ...(mode !== 'edit' ? [{ label: 'Rest timer', icon: 'timer', hint: fmtRest(we.rest), onSelect: () => restMenu(i) }] : []),
+        ...(mode !== 'edit' ? [{ label: 'Rest timer', icon: 'timer', hint: fmtRest(we.rest), onSelect: () => restMenu(we) }] : []),
         we.superset
           ? {
               label: 'Remove from superset',
               icon: 'unlink',
               onSelect: () =>
                 mut((list) => {
-                  const g = list[i].superset
-                  list[i].superset = null
-                  const rest = list.filter((e) => e.superset === g)
-                  if (rest.length === 1) rest[0].superset = null
+                  const k = at(list, we.id)
+                  if (k >= 0) leaveSuperset(list, k)
                 }),
             }
           : {
               label: 'Superset with…',
               icon: 'link',
-              onSelect: () => supersetMenu(i, others),
+              onSelect: () => supersetMenu(we, others),
             },
-        { label: 'Replace exercise', icon: 'swap', onSelect: () => setPicker({ open: true, replace: i }) },
-        ...(i > 0 ? [{ label: 'Move up', icon: 'up', onSelect: () => move(i, -1) }] : []),
-        ...(i < exercises.length - 1 ? [{ label: 'Move down', icon: 'downArrow', onSelect: () => move(i, 1) }] : []),
+        { label: 'Replace exercise', icon: 'swap', onSelect: () => setPicker({ open: true, replace: we.id }) },
+        ...(i > 0 ? [{ label: 'Move up', icon: 'up', onSelect: () => move(we.id, -1) }] : []),
+        ...(i < exercises.length - 1 ? [{ label: 'Move down', icon: 'downArrow', onSelect: () => move(we.id, 1) }] : []),
         ...(ex ? [{ label: 'Watch form video', icon: 'video', onSelect: () => window.open(youtubeUrl(ex), '_blank', 'noopener') }] : []),
         ...(ex && mode !== 'routine' ? [{ label: 'Exercise history', icon: 'chart', onSelect: () => navigate('/exercises/' + ex.id) }] : []),
         {
@@ -114,29 +128,44 @@ export function WorkoutEditor({
           icon: 'trash',
           danger: true,
           onSelect: () => {
-            const before = exercises
+            let removed: WExercise | null = null
+            let index = 0
             mut((list) => {
-              const g = list[i].superset
-              list.splice(i, 1)
-              const rest = list.filter((e) => g && e.superset === g)
-              if (rest.length === 1) rest[0].superset = null
+              index = at(list, we.id)
+              if (index < 0) return
+              removed = clone(list[index])
+              leaveSuperset(list, index)
+              list.splice(index, 1)
             })
-            toast(`Removed ${ex?.name || 'exercise'}`, { label: 'Undo', run: () => onChange(before) })
+            toast(`Removed ${nameOf(we)}`, {
+              label: 'Undo',
+              run: () =>
+                mut((list) => {
+                  if (!removed || at(list, removed.id) >= 0) return
+                  const r = removed as WExercise
+                  // Only rejoin the superset if its partner is still there.
+                  if (r.superset && !list.some((e) => e.superset === r.superset)) r.superset = null
+                  list.splice(Math.min(index, list.length), 0, r)
+                }),
+            })
           },
         },
       ],
     })
   }
 
-  const supersetMenu = (i: number, others: { e: WExercise; j: number }[]) => {
+  const supersetMenu = (we: WExercise, others: WExercise[]) => {
     if (!others.length) return toast('Add another exercise first')
     actionSheet({
       title: 'Superset with',
       message: 'Supersets alternate between exercises, resting after the last one.',
-      actions: others.map(({ e, j }) => ({
-        label: exMap.value.get(e.exerciseId)?.name || 'Exercise',
+      actions: others.map((other) => ({
+        label: nameOf(other),
         onSelect: () =>
           mut((list) => {
+            const i = at(list, we.id)
+            const j = at(list, other.id)
+            if (i < 0 || j < 0) return
             const me = list[i]
             const target = list[j]
             const group = target.superset || uid('ss')
@@ -151,39 +180,50 @@ export function WorkoutEditor({
     })
   }
 
-  const restMenu = (i: number) => {
-    const current = exercises[i].rest
+  const restMenu = (we: WExercise) => {
     actionSheet({
       title: 'Rest timer',
-      message: exMap.value.get(exercises[i].exerciseId)?.name,
+      message: nameOf(we),
       actions: REST_OPTIONS.map((r) => ({
         label: fmtRest(r),
-        selected: r === current,
-        onSelect: () => mut((list) => void (list[i].rest = r)),
+        selected: r === we.rest,
+        onSelect: () =>
+          mut((list) => {
+            const k = at(list, we.id)
+            if (k >= 0) list[k].rest = r
+          }),
       })),
     })
   }
 
-  const move = (i: number, d: number) =>
+  const move = (id: string, d: number) =>
     mut((list) => {
+      const i = at(list, id)
+      if (i < 0 || i + d < 0 || i + d >= list.length) return
       const [x] = list.splice(i, 1)
       list.splice(i + d, 0, x)
     })
 
   return (
     <div class="editor">
-      {exercises.map((we, i) => (
+      {exercises.map((we) => (
         <ExerciseCard
           key={we.id}
           we={we}
           all={exercises}
           mode={mode}
           workoutId={workoutId}
+          before={before}
           noteOpen={openNotes.has(we.id)}
-          onMenu={() => exerciseMenu(i)}
-          onRest={() => restMenu(i)}
-          mut={(fn) => mut((list) => fn(list[i]))}
-          onSetDone={() => onSetDone?.(i)}
+          onMenu={() => exerciseMenu(we)}
+          onRest={() => restMenu(we)}
+          mut={(fn) =>
+            mut((list) => {
+              const k = at(list, we.id)
+              if (k >= 0) fn(list[k])
+            })
+          }
+          onSetDone={() => onSetDone?.(we.id)}
         />
       ))}
       {!exercises.length && (
@@ -210,6 +250,7 @@ function ExerciseCard({
   all,
   mode,
   workoutId,
+  before,
   noteOpen,
   onMenu,
   onRest,
@@ -220,6 +261,7 @@ function ExerciseCard({
   all: WExercise[]
   mode: Mode
   workoutId?: string
+  before?: number
   noteOpen: boolean
   onMenu: () => void
   onRest: () => void
@@ -228,7 +270,7 @@ function ExerciseCard({
 }) {
   const ex: Exercise = exMap.value.get(we.exerciseId) || { id: we.exerciseId, name: 'Unknown exercise', muscle: '', equipment: '', type: 'weight_reps', updatedAt: 0 }
   const u = unit.value
-  const prev = mode === 'routine' ? [] : previousSets(we.exerciseId, workoutId)
+  const prev = mode === 'routine' ? [] : previousSets(we.exerciseId, workoutId, before)
   const matched = matchPrevious(we.sets, prev)
   const color = supersetColor(we.superset, all)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -248,29 +290,20 @@ function ExerciseCard({
   let n = 0
   const labels = we.sets.map((s) => (s.kind === 'warmup' ? 'W' : String(++n)))
 
-  const placeholder = (i: number) => {
-    const s = we.sets[i]
-    const p = matched[i]
-    const above = i > 0 ? we.sets[i - 1] : undefined
-    return {
-      weight: p?.weight ?? s.tw ?? above?.weight ?? above?.tw ?? null,
-      reps: p?.reps ?? s.tr ?? above?.reps ?? above?.tr ?? null,
-      seconds: p?.seconds ?? s.ts ?? above?.seconds ?? above?.ts ?? null,
-    }
-  }
+  const placeholder = (i: number) => placeholderFor(we.sets, i, matched)
+
+  // Set edits look sets up by id, so they stay correct if the list changed in between.
+  const mutSet = (id: string, fn: (s: WSet, w: WExercise) => void) =>
+    mut((w) => {
+      const t = w.sets.find((x) => x.id === id)
+      if (t) fn(t, w)
+    })
 
   const toggleDone = (i: number) => {
     const s = we.sets[i]
-    if (s.done) return mut((w) => void (w.sets[i].done = false))
-    const ph = placeholder(i)
-    const next: WSet = { ...s }
-    if (ex.type === 'weight_reps' && next.weight == null && ph.weight != null) next.weight = ph.weight
-    if (ex.type !== 'duration' && next.reps == null) next.reps = ph.reps
-    if (ex.type === 'duration' && next.seconds == null) next.seconds = ph.seconds
-    const needsWeight = ex.type === 'weight_reps' && !bodyweight && next.weight == null
-    const missing = needsWeight || (ex.type === 'duration' ? next.seconds == null : next.reps == null)
-    if (missing) {
-      const field = needsWeight ? 'weight' : ex.type === 'duration' ? 'seconds' : 'reps'
+    if (s.done) return mutSet(s.id, (t) => void (t.done = false))
+    const { set: next, missing: field } = completeSet(s, placeholder(i), ex)
+    if (!next) {
       const input = cardRef.current?.querySelectorAll<HTMLInputElement>(`input[data-f="${field}"]`)[i]
       if (input) {
         input.classList.remove('nudge')
@@ -281,9 +314,8 @@ function ExerciseCard({
       haptic(30)
       return
     }
-    next.done = true
     haptic(12)
-    mut((w) => void (w.sets[i] = next))
+    mutSet(s.id, (t) => Object.assign(t, next))
     onSetDone()
   }
 
@@ -296,7 +328,7 @@ function ExerciseCard({
           label: KIND_LABEL[k],
           hint: KIND_SHORT[k],
           selected: s.kind === k,
-          onSelect: () => mut((w) => void (w.sets[i].kind = k)),
+          onSelect: () => mutSet(s.id, (t) => void (t.kind = k)),
         })),
         { label: 'Delete set', icon: 'trash', danger: true, onSelect: () => deleteSet(i) },
       ],
@@ -305,8 +337,19 @@ function ExerciseCard({
 
   const deleteSet = (i: number) => {
     const removed = we.sets[i]
-    mut((w) => void w.sets.splice(i, 1))
-    toast('Set deleted', { label: 'Undo', run: () => mut((w) => void w.sets.splice(i, 0, removed)) })
+    let index = i
+    mut((w) => {
+      index = w.sets.findIndex((x) => x.id === removed.id)
+      if (index >= 0) w.sets.splice(index, 1)
+    })
+    toast('Set deleted', {
+      label: 'Undo',
+      run: () =>
+        mut((w) => {
+          if (index < 0 || w.sets.some((x) => x.id === removed.id)) return
+          w.sets.splice(Math.min(index, w.sets.length), 0, removed)
+        }),
+    })
   }
 
   const addSet = () =>
@@ -413,8 +456,7 @@ function ExerciseCard({
                   aria-label={p ? `Previous: ${prevText}. Copy` : 'No previous set'}
                   onClick={() =>
                     p &&
-                    mut((w) => {
-                      const t = w.sets[i]
+                    mutSet(s.id, (t) => {
                       t.weight = p.weight
                       t.reps = p.reps
                       t.seconds = p.seconds
@@ -431,7 +473,7 @@ function ExerciseCard({
                   label={`Set ${labels[i]} weight in ${u}`}
                   value={s.weight == null ? null : toDisplay(s.weight, u)}
                   placeholder={ph.weight != null ? fmtNum(toDisplay(ph.weight, u)) : bodyweight && mode !== 'routine' ? 'BW' : '–'}
-                  onChange={(v) => mut((w) => void (w.sets[i].weight = v == null ? null : fromDisplay(v, u)))}
+                  onChange={(v) => mutSet(s.id, (t) => void (t.weight = v == null ? null : fromDisplay(v, u)))}
                 />
               )}
               {ex.type !== 'duration' ? (
@@ -440,7 +482,7 @@ function ExerciseCard({
                   label={`Set ${labels[i]} reps`}
                   value={s.reps}
                   placeholder={ph.reps != null ? String(ph.reps) : '–'}
-                  onChange={(v) => mut((w) => void (w.sets[i].reps = v == null ? null : Math.round(v)))}
+                  onChange={(v) => mutSet(s.id, (t) => void (t.reps = v == null ? null : Math.round(v)))}
                 />
               ) : (
                 <NumInput
@@ -449,7 +491,7 @@ function ExerciseCard({
                   label={`Set ${labels[i]} seconds`}
                   value={s.seconds}
                   placeholder={ph.seconds != null ? String(ph.seconds) : '–'}
-                  onChange={(v) => mut((w) => void (w.sets[i].seconds = v))}
+                  onChange={(v) => mutSet(s.id, (t) => void (t.seconds = v))}
                 />
               )}
               {mode !== 'routine' && (
@@ -471,6 +513,30 @@ function ExerciseCard({
       </button>
     </div>
   )
+}
+
+/** The grey value shown in an empty input: last session's set, else the routine's plan, else the set above. */
+export function placeholderFor(sets: WSet[], i: number, matched: (WSet | undefined)[]) {
+  const s = sets[i]
+  const p = matched[i]
+  const above = i > 0 ? sets[i - 1] : undefined
+  return {
+    weight: p?.weight ?? s.tw ?? above?.weight ?? above?.tw ?? null,
+    reps: p?.reps ?? s.tr ?? above?.reps ?? above?.tr ?? null,
+    seconds: p?.seconds ?? s.ts ?? above?.seconds ?? above?.ts ?? null,
+  }
+}
+
+/** Fill a set from its grey values. Returns null if it still can't be completed (and which field is missing). */
+export function completeSet(s: WSet, ph: ReturnType<typeof placeholderFor>, ex: Exercise): { set: WSet | null; missing?: 'weight' | 'reps' | 'seconds' } {
+  const next: WSet = { ...s }
+  if (ex.type === 'weight_reps' && next.weight == null && ph.weight != null) next.weight = ph.weight
+  if (ex.type !== 'duration' && next.reps == null) next.reps = ph.reps
+  if (ex.type === 'duration' && next.seconds == null) next.seconds = ph.seconds
+  if (ex.type === 'weight_reps' && ex.equipment !== 'Bodyweight' && next.weight == null) return { set: null, missing: 'weight' }
+  if (ex.type === 'duration' ? next.seconds == null : next.reps == null) return { set: null, missing: ex.type === 'duration' ? 'seconds' : 'reps' }
+  next.done = true
+  return { set: next }
 }
 
 /** A set row you can swipe left to delete. */

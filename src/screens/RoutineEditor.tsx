@@ -81,7 +81,7 @@ export function RoutineEditor({ id }: { id: string }) {
       </label>
       <p class="field-hint">Weights and reps here are starting suggestions. Once you’ve logged a workout, your last numbers are shown instead.</p>
 
-      <WorkoutEditor mode="routine" exercises={draft.exercises} onChange={(exercises) => setDraft({ ...draft, exercises })} />
+      <WorkoutEditor mode="routine" exercises={draft.exercises} onChange={(fn) => setDraft((d) => d && { ...d, exercises: fn(d.exercises) })} />
 
       {!isNew && (
         <div class="stack">

@@ -27,9 +27,9 @@ export const sessionsByExercise = computed(() => {
   return map
 })
 
-export function previousSets(exerciseId: string, excludeWorkoutId?: string): WSet[] {
+export function previousSets(exerciseId: string, excludeWorkoutId?: string, before?: number): WSet[] {
   const list = sessionsByExercise.value.get(exerciseId) || []
-  const s = list.find((x) => x.workout.id !== excludeWorkoutId)
+  const s = list.find((x) => x.workout.id !== excludeWorkoutId && (before == null || x.workout.start < before))
   return s ? s.sets : []
 }
 

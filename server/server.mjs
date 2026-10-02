@@ -30,11 +30,16 @@ db.exec(`
     PRIMARY KEY (store, id)
   );
   CREATE INDEX IF NOT EXISTS records_seq ON records (seq);
+  CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `)
+// A random id for this database, so clients notice if it's been replaced or reset and re-upload.
+db.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run('dbId', crypto.randomUUID())
+const DB_ID = db.prepare('SELECT value FROM meta WHERE key = ?').get('dbId').value
 
 const q = {
   maxSeq: db.prepare('SELECT COALESCE(MAX(seq), 0) AS seq FROM records'),
   get: db.prepare('SELECT updated_at FROM records WHERE store = ? AND id = ?'),
+  row: db.prepare('SELECT store, id, updated_at, deleted, data, seq FROM records WHERE store = ? AND id = ?'),
   upsert: db.prepare(`
     INSERT INTO records (store, id, updated_at, deleted, data, seq) VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT (store, id) DO UPDATE SET
@@ -86,13 +91,17 @@ function sync(body) {
   const since = Number(body.since) || 0
   const changes = Array.isArray(body.changes) ? body.changes : []
   let seq = q.maxSeq.get().seq
+  const rejected = []
   db.exec('BEGIN')
   try {
     for (const c of changes) {
       if (!c || !STORES.has(c.store) || typeof c.id !== 'string' || !c.id || c.id.length > 200) continue
       const updatedAt = Number(c.updatedAt) || 0
       const existing = q.get.get(c.store, c.id)
-      if (existing && existing.updated_at > updatedAt) continue
+      if (existing && existing.updated_at > updatedAt) {
+        rejected.push([c.store, c.id])
+        continue
+      }
       q.upsert.run(c.store, c.id, updatedAt, c.deleted ? 1 : 0, JSON.stringify(c.data ?? null), ++seq)
     }
     db.exec('COMMIT')
@@ -101,8 +110,12 @@ function sync(body) {
     throw e
   }
   const rows = q.since.all(since)
+  // Send back the winning version of anything we refused, so the client converges.
+  const included = new Set(rows.map((r) => r.store + ':' + r.id))
+  for (const [store, id] of rejected) if (!included.has(store + ':' + id)) rows.push(q.row.get(store, id))
   return {
     seq,
+    dbId: DB_ID,
     changes: rows.map((r) => ({
       store: r.store,
       id: r.id,
@@ -127,7 +140,12 @@ const TYPES = {
 }
 
 function serveStatic(req, res, pathname) {
-  let rel = decodeURIComponent(pathname)
+  let rel
+  try {
+    rel = decodeURIComponent(pathname)
+  } catch {
+    return send(res, 400, { error: 'Bad request' })
+  }
   if (rel.endsWith('/')) rel += 'index.html'
   const file = path.join(DIST, path.normalize(rel))
   const inside = file.startsWith(DIST + path.sep)

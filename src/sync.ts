@@ -2,11 +2,14 @@ import { signal } from '@preact/signals'
 import * as db from './db'
 import type { Rec, StoreName } from './types'
 import { reloadFromDb } from './store'
+import { sanitize } from './validate'
 
 export type SyncStatus = 'checking' | 'syncing' | 'synced' | 'offline' | 'locked' | 'local' | 'error'
 export const syncState = signal<{ status: SyncStatus; at?: number; message?: string }>({ status: 'checking' })
 
 const TOKEN_KEY = 'reps-token'
+const SYNCED: StoreName[] = ['exercises', 'routines', 'workouts', 'settings']
+
 export const getToken = () => {
   try {
     return localStorage.getItem(TOKEN_KEY) || ''
@@ -32,10 +35,11 @@ export function scheduleSync(delay = 1200) {
   timer = setTimeout(() => void syncNow(), delay)
 }
 
+/** Sync now. If a sync is already running, another one runs right after it (and this resolves then). */
 export function syncNow(): Promise<void> {
   if (running) {
     again = true
-    return running
+    return running.then(() => running || undefined)
   }
   running = run()
     .catch((e) => {
@@ -45,7 +49,7 @@ export function syncNow(): Promise<void> {
       running = null
       if (again) {
         again = false
-        scheduleSync(300)
+        void syncNow()
       }
     })
   return running
@@ -59,12 +63,41 @@ interface Change {
   data: unknown
 }
 
+type SettingsRec = Rec & { ft?: Record<string, number>; [k: string]: unknown }
+
+/** Field-by-field merge so a change on one device doesn't reset unrelated settings from another. */
+function mergeSettings(local: SettingsRec, remote: SettingsRec): { value: SettingsRec; localWins: boolean } {
+  const lt = local.ft || {}
+  const rt = remote.ft || {}
+  const value: SettingsRec = { ...remote, ft: { ...rt } }
+  let localWins = false
+  for (const k of new Set([...Object.keys(lt), ...Object.keys(rt)])) {
+    if ((lt[k] || 0) > (rt[k] || 0)) {
+      value[k] = local[k]
+      value.ft![k] = lt[k]
+      localWins = true
+    }
+  }
+  value.updatedAt = localWins ? Math.max(local.updatedAt, remote.updatedAt) + 1 : remote.updatedAt
+  return { value, localWins }
+}
+
+async function markAllDirty() {
+  await db.transaction([...SYNCED, 'dirty', 'meta'], async (tx) => {
+    for (const store of SYNCED) {
+      const keys = (await db.req(tx.objectStore(store).getAllKeys())) as string[]
+      for (const id of keys) tx.objectStore('dirty').put({ store, id }, `${store}:${id}`)
+    }
+    tx.objectStore('meta').put(0, 'syncSeq')
+  })
+}
+
 async function run() {
   if (!navigator.onLine) {
     syncState.value = { ...syncState.value, status: 'offline' }
     return
   }
-  syncState.value = { ...syncState.value, status: 'syncing' }
+  if (syncState.value.status !== 'synced') syncState.value = { ...syncState.value, status: 'syncing' }
 
   const dirty = await db.getAll<{ store: StoreName; id: string }>('dirty')
   const changes: Change[] = []
@@ -74,6 +107,7 @@ async function run() {
     changes.push({ store: d.store, id: d.id, updatedAt: rec.updatedAt, deleted: !!rec.deleted, data: rec.deleted ? null : rec })
   }
   const since = (await db.get<number>('meta', 'syncSeq')) || 0
+  const knownDb = await db.get<string>('meta', 'serverId')
 
   let res: Response
   try {
@@ -97,31 +131,63 @@ async function run() {
     return
   }
   if (!res.ok) throw new Error(`Sync failed (${res.status})`)
-  const body = (await res.json()) as { seq: number; changes: Change[] }
+  const body = (await res.json()) as { seq: number; dbId?: string; changes: Change[] }
 
-  // Clear dirty flags for records that haven't changed again since we sent them.
+  // The server's database was replaced (restored, or a container lost its volume):
+  // re-upload everything so nothing on this device is silently missing there.
+  if ((knownDb && body.dbId && knownDb !== body.dbId) || body.seq < since) {
+    await markAllDirty()
+    await db.put('meta', 'serverId', body.dbId || '')
+    again = true
+    return
+  }
+
   const sent = new Map(changes.map((c) => [`${c.store}:${c.id}`, c.updatedAt]))
-  const stillDirty = new Set<string>()
-  for (const [key, at] of sent) {
-    const [store, id] = splitKey(key)
-    const rec = await db.get<Rec>(store, id)
-    if (rec && rec.updatedAt !== at) stillDirty.add(key)
-    else await db.del('dirty', key)
-  }
+  let applied = 0
+  let pushBack = false
 
-  // Apply remote changes, last write wins.
-  const writes: { store: db.Store; key: string; value: unknown }[] = []
-  for (const c of body.changes) {
-    const key = `${c.store}:${c.id}`
-    if (stillDirty.has(key)) continue
-    const local = await db.get<Rec>(c.store, c.id)
-    if (local && local.updatedAt >= c.updatedAt) continue
-    const value = c.deleted ? { id: c.id, deleted: true, updatedAt: c.updatedAt } : { ...(c.data as object), id: c.id, updatedAt: c.updatedAt }
-    writes.push({ store: c.store, key: c.id, value })
-  }
-  writes.push({ store: 'meta', key: 'syncSeq', value: body.seq })
-  await db.putMany(writes)
-  if (writes.length > 1) await reloadFromDb()
+  // One transaction: clearing dirty flags and applying remote changes can't interleave with local edits.
+  await db.transaction([...SYNCED, 'dirty', 'meta'], async (tx) => {
+    const dirtyStore = tx.objectStore('dirty')
+    for (const [key, at] of sent) {
+      const [store, id] = splitKey(key)
+      const rec = (await db.req(tx.objectStore(store).get(id))) as Rec | undefined
+      if (!rec || rec.updatedAt === at) dirtyStore.delete(key)
+    }
+    for (const c of body.changes) {
+      if (!SYNCED.includes(c.store)) continue
+      const key = `${c.store}:${c.id}`
+      const os = tx.objectStore(c.store)
+      const local = (await db.req(os.get(c.id))) as Rec | undefined
+      const remote = sanitize(c.store, c.deleted ? { id: c.id, deleted: true, updatedAt: c.updatedAt } : { ...(c.data as object), id: c.id, updatedAt: c.updatedAt })
+      if (!remote) continue
+      if (c.store === 'settings' && local && !local.deleted && !remote.deleted) {
+        const { value, localWins } = mergeSettings(local as SettingsRec, remote as SettingsRec)
+        os.put(value, c.id)
+        applied++
+        if (localWins) {
+          dirtyStore.put({ store: c.store, id: c.id }, key)
+          pushBack = true
+        }
+        continue
+      }
+      if (local && local.updatedAt >= c.updatedAt) {
+        // Ours is newer: make sure it gets (re)sent rather than silently diverging.
+        if (local.updatedAt > c.updatedAt) {
+          dirtyStore.put({ store: c.store, id: c.id }, key)
+          pushBack = true
+        }
+        continue
+      }
+      os.put(remote, c.id)
+      dirtyStore.delete(key)
+      applied++
+    }
+    tx.objectStore('meta').put(body.seq, 'syncSeq')
+    if (body.dbId) tx.objectStore('meta').put(body.dbId, 'serverId')
+  })
+  if (applied) await reloadFromDb()
+  if (pushBack) again = true
   syncState.value = { status: 'synced', at: Date.now() }
 }
 

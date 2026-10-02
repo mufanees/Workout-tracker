@@ -2,6 +2,7 @@ import { render } from 'preact'
 import { App } from './App'
 import { init } from './store'
 import { startAutoSync } from './sync'
+import '@fontsource-variable/space-grotesk/wght.css'
 import './styles.css'
 
 render(<App />, document.getElementById('app')!)

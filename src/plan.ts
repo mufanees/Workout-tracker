@@ -14,7 +14,9 @@ export const planStatus = computed(() => {
   const first = done[done.length - 1]
   const today = startOfDay(new Date())
   const start = settings.value.planStart ?? (first ? startOfWeek(first.start) : startOfWeek(Date.now()))
-  const week = Math.max(1, Math.floor((today - startOfWeek(start)) / (7 * DAY)) + 1)
+  // Count calendar days (rounding absorbs daylight-saving shifts), then whole weeks.
+  const days = Math.round((today - startOfWeek(start)) / DAY)
+  const week = Math.max(1, Math.floor(days / 7) + 1)
   const phaseWeek = Math.min(week, 12)
   const phase = PLAN_PHASES.find((p) => phaseWeek >= p.weeks[0] && phaseWeek <= p.weeks[1])!
   const lastDay = last ? (last.routineId!.endsWith('a') ? 'A' : 'B') : null

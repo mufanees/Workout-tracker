@@ -134,11 +134,14 @@ function PlanCard() {
         label: `Week ${n}`,
         hint: n <= 3 ? 'Rebuild' : n <= 6 ? 'Build' : n <= 9 ? 'Strength' : 'Peak',
         selected: n === Math.min(p.week, 12),
-        onSelect: () => void saveSettings({ planStart: startOfWeek(Date.now()) - (n - 1) * 7 * 86400000 }),
+        onSelect: () => {
+          const monday = new Date(startOfWeek(Date.now()))
+          void saveSettings({ planStart: new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7 * (n - 1)).getTime() })
+        },
       })),
     })
   return (
-    <section class="plan-card">
+    <section class={'plan-card' + (p.restDay ? ' rest' : '')}>
       <div class="plan-top">
         <button class="plan-eyebrow" onClick={pickWeek} aria-label={`Week ${Math.min(p.week, 12)} of 12. Change week`}>
           Week {Math.min(p.week, 12)} of 12 <Icon name="down" size={14} />
@@ -155,7 +158,7 @@ function PlanCard() {
       </p>
       <p class="plan-note">{p.setsHint || p.phase.note}</p>
       <p class={'plan-status' + (p.restDay ? ' rest' : '')}>{p.finished ? 'You’ve finished the 12 weeks. Keep running Phase 4 or start over.' : p.status}</p>
-      <button class={'btn btn-block btn-lg ' + (p.restDay ? 'btn-secondary' : 'btn-primary')} onClick={() => startRoutine(p.routine!)}>
+      <button class="btn btn-block btn-lg" onClick={() => startRoutine(p.routine!)}>
         <Icon name="play" size={18} /> Start Workout {p.day}
       </button>
     </section>

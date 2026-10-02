@@ -3,6 +3,7 @@ import * as db from './db'
 import type { Exercise, Rec, Routine, Settings, StoreName, Workout } from './types'
 import { seedExercises, seedRoutines } from './seed'
 import { scheduleSync } from './sync'
+import { sanitize } from './validate'
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 'settings',
@@ -28,28 +29,34 @@ export const unit = computed(() => settings.value.unit)
 
 const SEED_VERSION = 1
 let lastStamp = 0
-function stamp() {
-  const now = Date.now()
-  lastStamp = now > lastStamp ? now : lastStamp + 1
+/** A timestamp newer than the clock, our last write, and the record being replaced (guards against clock skew). */
+export function stamp(after = 0) {
+  lastStamp = Math.max(Date.now(), lastStamp + 1, after + 1)
   return lastStamp
 }
+
+// Bumped on every local write so a slow reload can't overwrite newer in-memory state.
+let writeVersion = 0
 
 const live = <T extends Rec>(list: T[]) => list.filter((r) => !r.deleted)
 const byName = (a: Exercise, b: Exercise) => a.name.localeCompare(b.name)
 const byOrder = (a: Routine, b: Routine) => a.order - b.order || a.name.localeCompare(b.name)
 const byStartDesc = (a: Workout, b: Workout) => b.start - a.start
 
-export async function reloadFromDb() {
+export async function reloadFromDb(): Promise<void> {
+  const version = writeVersion
   const [ex, ro, wo, st] = await Promise.all([
     db.getAll<Exercise>('exercises'),
     db.getAll<Routine>('routines'),
     db.getAll<Workout>('workouts'),
     db.get<Settings>('settings', 'settings'),
   ])
+  if (version !== writeVersion) return reloadFromDb()
+  const ok = <T,>(store: StoreName, list: T[]) => list.map((r) => sanitize(store, r) as T | null).filter((r): r is T => r != null)
   batch(() => {
-    exercises.value = live(ex).sort(byName)
-    routines.value = live(ro).sort(byOrder)
-    workouts.value = live(wo).sort(byStartDesc)
+    exercises.value = live(ok('exercises', ex)).sort(byName)
+    routines.value = live(ok('routines', ro)).sort(byOrder)
+    workouts.value = live(ok('workouts', wo)).sort(byStartDesc)
     settings.value = { ...DEFAULT_SETTINGS, ...(st && !st.deleted ? st : {}) }
   })
 }
@@ -75,7 +82,8 @@ export async function init() {
 // ---- writes -----------------------------------------------------------------
 
 async function write<T extends Rec>(store: StoreName, rec: T): Promise<T> {
-  rec = { ...rec, updatedAt: stamp() }
+  writeVersion++
+  rec = { ...rec, updatedAt: stamp(rec.updatedAt) }
   await db.putMany([
     { store, key: rec.id, value: rec },
     { store: 'dirty', key: `${store}:${rec.id}`, value: { store, id: rec.id } },
@@ -108,14 +116,19 @@ export async function saveWorkout(w: Workout) {
   return rec
 }
 
+/** Settings sync per field (see sync.ts), so each change records when that field changed. */
 export async function saveSettings(patch: Partial<Settings>) {
-  const rec = await write('settings', { ...settings.value, ...patch, id: 'settings' })
+  const t = stamp(settings.value.updatedAt)
+  const ft = { ...(settings.value.ft || {}) }
+  for (const k of Object.keys(patch)) ft[k] = t
+  const rec = await write('settings', { ...settings.value, ...patch, ft, id: 'settings' })
   settings.value = rec
 }
 
 /** Deletes leave a tombstone so the deletion syncs to other devices. */
 export async function remove(store: 'exercises' | 'routines' | 'workouts', id: string) {
-  const tomb = await write(store, { id, deleted: true, updatedAt: 0 })
+  const list: Rec[] = store === 'exercises' ? exercises.value : store === 'routines' ? routines.value : workouts.value
+  const tomb = await write(store, { id, deleted: true, updatedAt: list.find((r) => r.id === id)?.updatedAt || 0 })
   if (store === 'exercises') exercises.value = upsert(exercises.value, tomb as Exercise, byName)
   if (store === 'routines') routines.value = upsert(routines.value, tomb as Routine, byOrder)
   if (store === 'workouts') workouts.value = upsert(workouts.value, tomb as Workout, byStartDesc)

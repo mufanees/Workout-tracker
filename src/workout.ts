@@ -180,7 +180,8 @@ export function unlockAudio() {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     audio ||= new AC()
-    if (audio.state === 'suspended') void audio.resume()
+    // iOS reports 'interrupted' after the phone locks, not just 'suspended'.
+    if (audio.state !== 'running') void audio.resume()
   } catch {
     /* no audio */
   }
@@ -188,6 +189,7 @@ export function unlockAudio() {
 
 function beep() {
   if (!audio || !settings.value.sound) return
+  if (audio.state !== 'running') void audio.resume()
   const t = audio.currentTime
   for (const [i, f] of [880, 880, 1320].entries()) {
     const o = audio.createOscillator()
@@ -242,3 +244,6 @@ export function armRest() {
     }
   }, Math.max(0, r.end - Date.now()))
 }
+
+// A rest timer restored after a reload still needs to fire, whichever screen opens first.
+if (restTimer.value) armRest()

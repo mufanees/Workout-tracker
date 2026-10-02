@@ -9,6 +9,7 @@ import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import { REST_OPTIONS } from '../ui/WorkoutEditor'
 import { fmtRest } from '../util'
 import type { StoreName } from '../types'
+import { sanitize } from '../validate'
 
 const STATUS: Record<string, [string, string]> = {
   checking: ['Connecting…', 'muted'],
@@ -39,7 +40,7 @@ export function Settings() {
   const connect = async () => {
     setChecking(true)
     setToken(key.trim())
-    await syncNow()
+    await syncNow() // waits for any sync already in flight, then one with the new key
     setChecking(false)
     if (syncState.value.status === 'synced') {
       setKey('')
@@ -50,10 +51,22 @@ export function Settings() {
   const exportData = async () => {
     const data: Record<string, unknown[]> = {}
     for (const s of ['exercises', 'routines', 'workouts', 'settings'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
-    const blob = new Blob([JSON.stringify({ app: 'reps', version: 1, exportedAt: new Date().toISOString(), data }, null, 2)], { type: 'application/json' })
+    const name = `reps-backup-${new Date().toISOString().slice(0, 10)}.json`
+    const json = JSON.stringify({ app: 'reps', version: 1, exportedAt: new Date().toISOString(), data }, null, 2)
+    // Installed iOS apps can't download blobs; the share sheet lets you save to Files instead.
+    const file = new File([json], name, { type: 'application/json' })
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Reps backup' })
+        return
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return
+      }
+    }
+    const blob = new Blob([json], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `reps-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = name
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }
@@ -61,7 +74,12 @@ export function Settings() {
   const importData = async (file: File) => {
     try {
       const json = JSON.parse(await file.text())
-      const data = json?.data as Record<StoreName, { id: string }[]> | undefined
+      let data = json?.data as Record<StoreName, { id: string }[]> | undefined
+      // Also accept the server's /api/export format: { records: [{ store, id, data }] }
+      if (!data && Array.isArray(json?.records)) {
+        data = { exercises: [], routines: [], workouts: [], settings: [] }
+        for (const r of json.records) if (r && data[r.store as StoreName]) data[r.store as StoreName].push({ ...r.data, id: r.id })
+      }
       if (!data || typeof data !== 'object') throw new Error('bad file')
       const n = (data.workouts || []).length
       const ok = await confirmDialog({
@@ -73,10 +91,11 @@ export function Settings() {
       const now = Date.now()
       const items: { store: db.Store; key: string; value: unknown }[] = []
       for (const s of ['exercises', 'routines', 'workouts', 'settings'] as StoreName[]) {
-        for (const r of data[s] || []) {
-          if (!r || typeof r.id !== 'string') continue
-          items.push({ store: s, key: r.id, value: { ...r, updatedAt: now } })
-          items.push({ store: 'dirty', key: `${s}:${r.id}`, value: { store: s, id: r.id } })
+        for (const raw of Array.isArray(data[s]) ? data[s] : []) {
+          const r = sanitize(s, raw)
+          if (!r || r.deleted) continue
+          items.push({ store: s, key: r.id as string, value: { ...r, updatedAt: now } })
+          items.push({ store: 'dirty', key: `${s}:${r.id as string}`, value: { store: s, id: r.id } })
         }
       }
       await db.putMany(items)
