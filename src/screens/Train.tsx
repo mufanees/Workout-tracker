@@ -13,6 +13,7 @@ import { recentWin } from '../stats'
 import { workouts, unit } from '../store'
 import { fmtDay as fmtDayU, fmtNum, fmtSeconds, toDisplay } from '../util'
 import { Elapsed } from './Live'
+import { TodayRings } from '../ui/Rings'
 
 export function Train() {
   const groups = new Map<string, Routine[]>()
@@ -33,6 +34,7 @@ export function Train() {
         </button>
       </header>
 
+      <TodayRings />
       <HeroQuote tag={daysSinceLast() >= 3 ? 'Action & Consistency' : undefined} />
       {!active.value && <PlanCard />}
       <WinCard />

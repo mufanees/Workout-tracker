@@ -138,6 +138,7 @@ node qa/seed3.cjs       # stalled Hammer Curl, rising shoulder ratings, morning 
 node qa/walk7.cjs       # warm-up checklist, stall nudge, shoulder check-in, 60 s HRV reading, settings
 node qa/walk8.cjs       # quotes, progress card, coach chat, coach review after a workout (needs a coach backend; see below)
 node qa/walk9.cjs       # hero quote rotation (dark + light), coach
+node qa/walk12.cjs      # home rings, fast-done and workout-done celebrations, showed-up credit (run on fresh seeded data)
 node qa/walk11.cjs      # fasting screen, plans, back-dated start, past fast, target weight, calendar, day journal
 node qa/walk10.cjs      # coach memory, tool calls, proposals, weekly review, pre-workout targets, takeaway (needs a function-calling stand-in)
 node qa/walk6.cjs       # MCP-imported folder, paste import, library search (run the MCP import in qa/ notes below first)
@@ -173,7 +174,7 @@ Because the owner wanted to train before the server was deployed, the app is als
 
 ## Known gaps and ideas
 
-- **Unverified:** the coach against the real Gemini API (Google's docs and API were unreachable from the build sandbox; the request follows the long-standing v1beta REST format and was tested with a stand-in, so if Gemini 3.5 changed something, the server shows Google's error message), whether the HRM-Dual sends R-R intervals over Bluetooth (if not, the morning check gives resting HR only), real push delivery through Google's push service (signing verified locally), Docker build, a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
+- **Unverified:** the coach against the real Gemini API (Google's docs and API were unreachable from the build sandbox; the request follows the long-standing v1beta REST format and was tested with a stand-in, so if Gemini 3.5 changed something, the server shows Google's error message), whether the HRM-Dual sends R-R intervals over Bluetooth (if not, the morning check gives resting HR only), real push delivery through Google's push service (signing verified locally), a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
 - Bluetooth stops when Android turns the screen off; the app keeps the screen awake by default during workouts.
 - iPhone: no Web Bluetooth (Bluefy browser would work). Rest-timer sound can't fire while iOS has the app backgrounded.
 - From the UX review, not done: "add to routine?" wording when an exercise was replaced; equipment filter / dumbbell-first ordering in the exercise picker; plan card hides during an active workout; a bare "Squat" matches "Box Squat" in plan import.
@@ -192,5 +193,6 @@ Because the owner wanted to train before the server was deployed, the app is als
 8. Added the AI coach and motivation (quotes, progress card).
 9. Made the coach stateful: memory (profile + notes), commitments checked after workouts, pre-workout targets, post-workout takeaways, Sunday weekly review with push, Gemini function calling (look-ups, memory writes, approval-gated proposals), condensing long chats. The app sends its routines with each request (`routines` field) because built-in routines only reach the server once edited.
 10. Fuller fasting (stages, plans, back-dating, stats, past fasts, notes, eating-window reminder), target weight, History calendar with a day journal and day notes, muscle split on workouts. Owner's references: Easy Fast (fasting, journal, calendar) and Hevy (calendar, workout detail).
+11. Daily rings on Train (`src/rings.ts`, `src/ui/Rings.tsx`): Fast, Move (`Settings.moveGoal`, default 30 min; any workout sets `showedUp`, shown as a check), Zone 2 weekly. Celebration screens: `/fast/done/<id>` (`src/screens/FastDone.tsx`) after ending a fast, and the workout summary (`WorkoutCelebration` in History.tsx) with confetti, rings and milestones (`src/milestones.ts`, each tied to the workout or fast that earned it). Warm-up/cool-down items link to a YouTube search (`movementVideoUrl`). Docker image built and run in the sandbox: health check passes, data survives a restart in a named volume; a root-owned bind mount fails with a clear message.
 
 Commit history on the branch tells the same story in more detail (`git log`).

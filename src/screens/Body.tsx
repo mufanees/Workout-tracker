@@ -43,8 +43,7 @@ function FastingCard() {
     stop(e)
     if (!f) return
     const saved = await endFast(f)
-    const len = saved.end! - saved.start
-    toast(len >= saved.goal * HOUR ? `${hm(len)} fast. Goal reached.` : `Fast ended at ${hm(len)}`)
+    navigate(`/fast/done/${saved.id}`)
   }
   const start = (e: Event) => {
     stop(e)

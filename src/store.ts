@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fastGoal: 16,
   weightGoal: null,
   fastRemind: true,
+  moveGoal: 30,
   askShoulder: true,
   zone2Goal: 150,
   reminderTime: null,

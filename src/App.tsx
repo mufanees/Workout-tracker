@@ -12,6 +12,7 @@ import { ImportPlan } from './screens/ImportPlan'
 import { Coach } from './screens/Coach'
 import { CoachMemory } from './screens/CoachMemory'
 import { Fast } from './screens/Fast'
+import { FastDone } from './screens/FastDone'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
@@ -37,7 +38,7 @@ export function App() {
   if (!ready.value) return <div class="boot" />
 
   const r = route.value
-  const [a, b] = r.parts
+  const [a, b, c] = r.parts
   let screen
   let tab: string | null = null
   if (a === 'live') screen = <Live />
@@ -52,12 +53,13 @@ export function App() {
   else if (a === 'coach' && b === 'memory') screen = <CoachMemory />
   else if (a === 'coach') (screen = <Coach />), (tab = '/coach')
   else if (a === 'body') (screen = <Body />), (tab = '/body')
+  else if (a === 'fast' && b === 'done' && c) screen = <FastDone id={c} key={c} />
   else if (a === 'fast') screen = <Fast />
   else if (a === 'day' && b && /^\d{4}-\d{2}-\d{2}$/.test(b)) screen = <DayView id={b} key={b} />
   else (screen = <Train />), (tab = '/train')
 
   const isLive = a === 'live'
-  const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings', 'import'].includes(a))
+  const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings', 'import'].includes(a) && !(a === 'fast' && b === 'done'))
 
   return (
     <div class={'app' + (showTabs ? ' has-tabs' : '') + (active.value && !isLive && showTabs ? ' has-mini' : '')}>

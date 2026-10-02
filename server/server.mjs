@@ -19,6 +19,17 @@ const STORES = new Set(['exercises', 'routines', 'workouts', 'settings', 'body',
 const MAX_BODY = 20 * 1024 * 1024
 
 fs.mkdirSync(DATA_DIR, { recursive: true })
+try {
+  fs.accessSync(DATA_DIR, fs.constants.W_OK)
+} catch {
+  const uid = process.getuid?.()
+  console.error(
+    `\nReps can't write to ${DATA_DIR}, so it can't save your data.\n` +
+      `The app runs as user ${uid ?? 'node'}. In Coolify, attach a Volume Mount (not a Directory/bind mount) at ${DATA_DIR}.\n` +
+      `If you must use a host directory, run on the server: sudo chown -R ${uid ?? 1000}:${uid ?? 1000} <that directory>\n`,
+  )
+  process.exit(1)
+}
 const db = new DatabaseSync(path.join(DATA_DIR, 'reps.db'))
 db.exec(`
   PRAGMA journal_mode = WAL;

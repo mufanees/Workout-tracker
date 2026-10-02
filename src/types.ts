@@ -95,6 +95,7 @@ export interface Settings extends Rec {
   showQuotes: boolean
   weightGoal?: number | null // kg
   fastRemind?: boolean // notify when the eating window is about to close
+  moveGoal?: number // daily Move ring, minutes of any workout
 }
 
 export interface Quote {

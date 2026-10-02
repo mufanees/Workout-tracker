@@ -9,7 +9,7 @@ import { WorkoutEditor, completeSet, placeholderFor, nextUp } from '../ui/Workou
 import type { WExercise, WSet } from '../types'
 import { Icon } from '../ui/icons'
 import { AutoText, confirmDialog, Sheet, toast } from '../ui/overlay'
-import { doneSets, fmtClock, fmtNum, fmtVolume, toDisplay, workoutVolume, haptic } from '../util'
+import { doneSets, fmtClock, fmtNum, fmtVolume, toDisplay, workoutVolume, haptic, movementVideoUrl } from '../util'
 import { matchPrevious, previousSets } from '../stats'
 
 function useNow(ms = 1000) {
@@ -369,6 +369,11 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
                   <span class="cl-box">{on && <Icon name="check" size={14} stroke={3} />}</span>
                   <span>{it}</span>
                 </button>
+                {movementVideoUrl(it) && (
+                  <a class="icon-btn sm cl-video" href={movementVideoUrl(it)!} target="_blank" rel="noopener" aria-label={`How-to video: ${it}`}>
+                    <Icon name="video" size={18} />
+                  </a>
+                )}
               </li>
             )
           })}

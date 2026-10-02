@@ -5,7 +5,6 @@ import type { Fast as FastT } from '../types'
 import { DAY, HOUR, STAGES, dayKey, endFast, fastStats, fastsByDay, hShort, hm, nextStage, protocolLabel, saveFastEdit, stageAt, startFast } from '../fasting'
 import { FastEditor, FastRow, ProtocolSheet, StageRing, TimeSheet, draftPastFast, useNow, whenLabel } from '../ui/Fasting'
 import { Icon } from '../ui/icons'
-import { toast } from '../ui/overlay'
 import { Toggle } from '../ui/inputs'
 import { startOfDay } from '../util'
 
@@ -37,8 +36,7 @@ export function Fast() {
   const finish = async (at = Date.now()) => {
     if (!f) return
     const saved = await endFast(f, at)
-    const len = saved.end! - saved.start
-    toast(len >= saved.goal * HOUR ? `${hm(len)} fast. Goal reached.` : `Fast ended at ${hm(len)}`)
+    navigate(`/fast/done/${saved.id}`)
   }
 
   // eating window (idle)

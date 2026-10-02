@@ -7,6 +7,9 @@ It also does:
 - **Heart rate** from a Bluetooth strap (Garmin HRM-Dual or any standard one) during any workout, with live zones, an optional target zone that buzzes when you drift out, time in each zone per workout, and weekly zone trends. Zone 2 cardio has its own quick start.
 - **Body weight** with a 7-day average, weekly and monthly change, and a chart.
 - **Intermittent fasting**: plans from 13:11 to OMAD and 36 h, a live ring with the metabolic stages (digesting, blood sugar falling, fat burning, ketosis…), back-dated start and end, past fasts with notes, streaks and stats, and a reminder before your eating window closes.
+- **Daily rings** on the Train screen: Fast (hours toward your plan), Move (minutes of any workout, strength or cardio, toward 30) and Zone 2 (minutes this week). Any workout earns the day, even five minutes when you have to stop early, and the week strip shows a check for every day you showed up.
+- **Celebrations** when you finish a workout or a fast: rings, streaks, personal bests and milestones (first fast at goal, 25 workouts, a 4-week streak, your first 20-hour fast…).
+- **How-to videos** for every exercise and every warm-up and cool-down movement (opens a YouTube search).
 - **Calendar**: History → calendar shows every month at a glance: workout days filled in with the workout name, hours fasted, weigh-ins and notes. Tap a day for its journal: workouts, fasts, weight, morning check and a note for the day.
 - **Target weight** with start → target progress.
 - **A library of about 930 exercises**, so you can build your own routines.
@@ -27,13 +30,23 @@ It also does:
 
 ## Deploy on Coolify
 
-1. **New resource → Public/Private repository** → pick this repo and branch.
-2. **Build pack: Dockerfile.** Port: **3000**.
-3. **Environment variables:** add `APP_TOKEN` set to a long random string (e.g. `openssl rand -hex 24`). This is your sync key.
-4. **Persistent storage:** add a volume mounted at **`/data`**. The database is `/data/reps.db`. Without the volume, your synced data is wiped on every redeploy.
-5. Add your domain (HTTPS is required for installing the app and for the service worker), then deploy.
+You need: a Coolify server, a domain (or subdomain) pointed at it, and this repo on GitHub.
 
-Health check: `GET /api/health`. The Dockerfile already declares one.
+1. **DNS.** At your domain registrar, add an `A` record such as `reps.yourdomain.com` pointing to your Coolify server's IP. Wait until it resolves.
+2. **Create the app.** In Coolify: **Projects → (your project) → + New → Private Repository (with GitHub App)**, or **Public Repository** if the repo is public. Pick `mufanees/workout-tracker` and the branch you deploy from.
+3. **Build settings.** Build pack **Dockerfile** (Coolify finds `Dockerfile` in the root). **Ports Exposes: `3000`**.
+4. **Domain.** In **Domains**, enter `https://reps.yourdomain.com`. Coolify gets the HTTPS certificate for you. HTTPS is required for installing the app, notifications and Bluetooth.
+5. **Environment variables** (Configuration → Environment Variables):
+   - `APP_TOKEN` = a long random string. This is your sync key, like a password. Generate one with `openssl rand -hex 24`.
+   - `GEMINI_API_KEY` = your free key from aistudio.google.com → Get API key (optional, turns on the AI coach).
+   - `TZ` = your time zone, e.g. `America/Toronto` (optional, used for reminders and the Sunday review until the app tells the server).
+6. **Storage.** Configuration → **Persistent Storage → + Add → Volume Mount**. Name: `reps-data`, Destination path: **`/data`**. Use a *Volume* mount, not a *Directory* mount. Without it your data is wiped on every redeploy.
+7. **Deploy.** Click **Deploy** and wait for the build (about 2 minutes). The status turns green when the health check (`/api/health`) passes.
+8. **Check it.** Open `https://reps.yourdomain.com/api/health`. You should see `{"ok":true,"auth":true}`. Then open `https://reps.yourdomain.com`.
+
+To update later: push to the branch and click **Redeploy** (or turn on **Auto Deploy** in Coolify so every push deploys). Your data stays in the volume.
+
+If the logs say "Reps can't write to /data", the storage is a Directory mount owned by root; switch it to a Volume Mount (step 6).
 
 If you'd rather use Docker Compose (Coolify supports that too): `APP_TOKEN=… docker compose up -d`.
 
@@ -42,6 +55,8 @@ If you'd rather use Docker Compose (Coolify supports that too): `APP_TOKEN=… d
 1. Open your domain in Safari (iOS) or Chrome (Android).
 2. **Share → Add to Home Screen** (iOS) or **Install app** (Android).
 3. Open the app → **Settings** (sliders icon on Train) → paste your `APP_TOKEN` under **Sync key** → **Connect**.
+4. Optional: **Settings → Notifications**, flip the switch on, for fast complete, eating window, rest timer and weekly review notifications.
+5. If you used the Claude-hosted copy first: there, **Settings → Copy backup**; in the installed app, **Settings → Paste a backup**.
 
 You can use the app before connecting; anything logged so far syncs as soon as you connect.
 
