@@ -8,6 +8,7 @@ import { Segmented, Toggle } from '../ui/inputs'
 import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { REST_OPTIONS } from '../ui/WorkoutEditor'
 import { fmtRest } from '../util'
+import { QuoteText } from '../ui/Quote'
 import { disablePush, enablePush, pushOn, pushSupported } from '../push'
 import { scheduleTrainingReminder } from '../workout'
 import { connectHR, disconnectHR, hrName, hrStatus, hrSupported, ZONE_COLORS, ZONE_NAMES, zoneRange } from '../hr'
@@ -177,6 +178,9 @@ export function Settings() {
           <Toggle label="Shoulder check-in" checked={st.askShoulder} onChange={(v) => saveSettings({ askShoulder: v })} />
         </div>
       </div>
+
+      <h2 class="section-title">Motivation</h2>
+      <QuoteSettings />
 
       <h2 class="section-title">Notifications</h2>
       <div class="settings-group">
@@ -427,6 +431,85 @@ function HRSettings() {
           {st.targetZone ? `Zone ${st.targetZone}` : 'None'} <Icon name="right" size={16} />
         </span>
       </button>
+    </div>
+  )
+}
+
+function QuoteSettings() {
+  const st = settings.value
+  const [adding, setAdding] = useState(false)
+  const [text, setText] = useState('')
+  const [author, setAuthor] = useState('')
+  const [open, setOpen] = useState(false)
+  const quotes = st.quotes || []
+  const save = async () => {
+    const t = text.trim()
+    if (!t) return
+    await saveSettings({ quotes: [...quotes, { text: t, author: author.trim() || undefined, tag: 'Mine' }] })
+    setText('')
+    setAuthor('')
+    setAdding(false)
+    toast('Quote added')
+  }
+  return (
+    <div class="settings-group">
+      <div class="setting">
+        <span>
+          Show quotes
+          <small>On Train, after workouts and in reminders</small>
+        </span>
+        <Toggle label="Show quotes" checked={st.showQuotes} onChange={(v) => saveSettings({ showQuotes: v })} />
+      </div>
+      <button class="setting" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span>Your quotes</span>
+        <span class="setting-value">
+          {quotes.length} <Icon name="down" size={16} class={'chev' + (open ? ' open' : '')} />
+        </span>
+      </button>
+      {open && (
+        <div class="setting column">
+          <p class="field-hint">Write a word in CAPITALS to make it stand out.</p>
+          <ul class="quote-list">
+            {quotes.map((q, i) => (
+              <li>
+                <span>
+                  <QuoteText text={q.text} />
+                  {q.author && <small> — {q.author}</small>}
+                </span>
+                <button
+                  class="icon-btn sm"
+                  aria-label="Delete quote"
+                  onClick={async () => {
+                    const next = quotes.filter((_, j) => j !== i)
+                    await saveSettings({ quotes: next })
+                    toast('Quote removed', { label: 'Undo', run: () => void saveSettings({ quotes }) })
+                  }}
+                >
+                  <Icon name="trash" size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {adding ? (
+            <div class="stack">
+              <textarea id="new-quote" rows={3} value={text} placeholder="KEEP SHOWING UP!" onInput={(e) => setText(e.currentTarget.value)} class="input-like autotext" />
+              <input id="new-quote-author" type="text" value={author} placeholder="Who said it (optional)" onInput={(e) => setAuthor(e.currentTarget.value)} class="plain-input" />
+              <div class="row gap">
+                <button class="btn btn-secondary grow" onClick={() => setAdding(false)}>
+                  Cancel
+                </button>
+                <button class="btn btn-primary grow" onClick={save} disabled={!text.trim()}>
+                  Add quote
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button class="btn btn-secondary btn-block" onClick={() => setAdding(true)}>
+              <Icon name="plus" size={18} /> Add a quote
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

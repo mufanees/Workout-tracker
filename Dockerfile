@@ -10,11 +10,12 @@ RUN npm run build
 FROM node:22-alpine
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data
 WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY shared ./shared
 COPY src/data ./src/data
-COPY package.json ./
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]

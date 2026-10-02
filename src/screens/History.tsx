@@ -8,6 +8,7 @@ import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import { WorkoutEditor } from '../ui/WorkoutEditor'
 import { HRSummaryCard, hrLine, ZoneTrends } from '../ui/HR'
 import { summarizeHR } from '../hr'
+import { QuoteCard } from '../ui/Quote'
 import type { Workout } from '../types'
 import { counts, doneSets, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
 
@@ -228,6 +229,7 @@ export function WorkoutDetail({ id }: { id: string }) {
           </div>
           <h1>Workout #{number} done</h1>
           <p>{prCount ? `You set ${prCount} personal record${prCount > 1 ? 's' : ''}. Nice.` : 'Logged and saved. Rest well.'}</p>
+          <QuoteCard compact seed={3} />
         </section>
       )}
 
@@ -340,9 +342,14 @@ export function WorkoutDetail({ id }: { id: string }) {
         })}
       </div>
       {celebrate && (
-        <button class="btn btn-primary btn-block btn-lg" onClick={() => navigate('/train', { replace: true })}>
-          Done
-        </button>
+        <div class="stack">
+          <button class="btn btn-secondary btn-block" onClick={() => navigate('/coach?review=' + w.id)}>
+            <Icon name="coach" size={18} /> Ask your coach about it
+          </button>
+          <button class="btn btn-primary btn-block btn-lg" onClick={() => navigate('/train', { replace: true })}>
+            Done
+          </button>
+        </div>
       )}
     </div>
   )

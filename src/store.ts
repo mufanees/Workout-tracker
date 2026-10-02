@@ -1,6 +1,7 @@
 import { signal, computed, batch } from '@preact/signals'
 import * as db from './db'
-import type { BodyWeight, Exercise, Fast, Reading, Rec, Routine, Settings, StoreName, Workout } from './types'
+import type { BodyWeight, Exercise, Fast, Quote, Reading, Rec, Routine, Settings, StoreName, Workout } from './types'
+import QUOTES from './data/quotes.json'
 import { seedExercises, seedRoutines } from './seed'
 import { scheduleSync } from './sync'
 import { sanitize } from './validate'
@@ -21,6 +22,8 @@ export const DEFAULT_SETTINGS: Settings = {
   askShoulder: true,
   zone2Goal: 150,
   reminderTime: null,
+  quotes: QUOTES as Quote[],
+  showQuotes: true,
 }
 
 export const ready = signal(false)

@@ -85,6 +85,14 @@ export interface Settings extends Rec {
   askShoulder: boolean
   zone2Goal: number // minutes per week
   reminderTime: string | null // "07:00" for a training-day notification, null = off
+  quotes: Quote[]
+  showQuotes: boolean
+}
+
+export interface Quote {
+  text: string // words in CAPITALS are shown emphasised
+  author?: string
+  tag?: string
 }
 
 /** A morning resting heart rate / HRV reading. */

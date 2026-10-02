@@ -38,6 +38,8 @@ A PWA replacing Hevy for one person. Offline-first, self-hosted sync.
 - **Warm-up / cool-down checklists:** `Routine.warmup/cooldown` (string lists, editable in the routine editor, part of plan import); copied into the workout with tick state in `Workout.checks`. Seed version 3 refreshes unedited built-in routines.
 - **Push notifications** (`server/push.mjs`, `src/push.ts`): dependency-free web push. VAPID keys generated once and kept in SQLite; jobs scheduled by key (`rest`, `fast`, `train`); the server sends an empty push and the service worker fetches the text from `/api/push/inbox` using its endpoint URL. Rest pushes are sent 2.5 s after the end and cancelled if the app beeped on screen.
 - **Nightly backups:** `VACUUM INTO /data/backups/reps-YYYY-MM-DD.db`, newest 14 kept (`BACKUP_DAYS`).
+- **AI coach** (`src/screens/Coach.tsx`, `src/coachContext.ts`, `server/coach.mjs`): the phone builds a text summary of the training data and sends it with the chat; the server adds the coach system prompt and streams Claude's reply over SSE using `@anthropic-ai/sdk` (`claude-opus-5-5`, adaptive thinking, effort medium, `fallbacks: "default"` with beta `server-side-fallback-2026-07-01`, training data in a cached system block). Needs `ANTHROPIC_API_KEY` on the server; without it, tapping a question copies question + summary for pasting into Claude. "Ask your coach about it" on the post-workout screen opens `/coach?review=<id>`.
+- **Motivation:** `Settings.quotes` (seeded from `src/data/quotes.json`, the owner's list), shown on Train (consistency quotes after 3+ days off), the post-workout screen, Coach, and training-day notifications; capitalised words are highlighted. Progress card on Train (`stats.ts recentWin`).
 - **Plan import:** in-app (copy a prompt for Claude, paste the JSON back, preview, add) or via the MCP endpoint (`import_plan` tool).
 - **Data:** Copy/Paste backup (clipboard), Export/Import backup file, server export at `GET /api/export`.
 
@@ -82,6 +84,9 @@ Phone (PWA)                                      Coolify container
 | `server/push.mjs` | Web push: VAPID signing, job scheduler, inbox for the service worker |
 | `src/push.ts` | Subscribe/unsubscribe, schedule/cancel notifications |
 | `src/screens/BodyCards.tsx` | Morning check (HR/HRV), zone 2 goal, shoulder trend |
+| `server/coach.mjs` | AI coach endpoint (system prompt, streaming, error mapping) |
+| `src/coachContext.ts` | Plain-text training summary sent to the coach |
+| `src/ui/Quote.tsx`, `src/data/quotes.json` | Quotes and their display |
 | `scripts/artifact.mjs` | Bundles `dist/` into one HTML file (used for the Claude-hosted copy) |
 | `scripts/library.mjs` | Rebuilds `src/data/library.json` from free-exercise-db JSON |
 | `scripts/icons.mjs` | Renders PNG icons from `public/favicon.svg` with Playwright |
@@ -127,10 +132,13 @@ node qa/walk4.cjs       # superset logging, undo, warm-up, finish sheet (SCHEME=
 node qa/walk5.cjs       # simulated Bluetooth strap, zone 2 cardio, HR summary, Body tab
 node qa/seed3.cjs       # stalled Hammer Curl, rising shoulder ratings, morning readings
 node qa/walk7.cjs       # warm-up checklist, stall nudge, shoulder check-in, 60 s HRV reading, settings
+node qa/walk8.cjs       # quotes, progress card, coach chat, coach review after a workout (needs a coach backend; see below)
 node qa/walk6.cjs       # MCP-imported folder, paste import, library search (run the MCP import in qa/ notes below first)
 ```
 
 Scripts write screenshots to `qa/shots*/` (git-ignored). They default to `/opt/node22/lib/node_modules/playwright` and `/opt/pw-browsers/chromium`; override with `PLAYWRIGHT=` and `CHROMIUM=`. All use 390×844 at 2× with touch; `walk3.cjs` uses 360×760 light mode. `walk5.cjs` mocks `navigator.bluetooth` with a fake strap sending 8-bit HR values.
+
+The coach can be tested without an API key by pointing the server at a stand-in for the Anthropic API that streams a canned reply in the real event format: start one on a port and run the server with `ANTHROPIC_API_KEY=fake ANTHROPIC_BASE_URL=http://localhost:<port>`. The stand-in used in this session also saved the request body, which confirmed the model, beta header, fallbacks, thinking, effort and cache settings.
 
 To exercise MCP import by hand:
 
@@ -158,7 +166,7 @@ Because the owner wanted to train before the server was deployed, the app is als
 
 ## Known gaps and ideas
 
-- **Unverified:** whether the HRM-Dual sends R-R intervals over Bluetooth (if not, the morning check gives resting HR only), real push delivery through Google's push service (signing verified locally), Docker build, a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
+- **Unverified:** the coach against the real Claude API (no key in the build sandbox; tested with a stand-in that checks the request shape), whether the HRM-Dual sends R-R intervals over Bluetooth (if not, the morning check gives resting HR only), real push delivery through Google's push service (signing verified locally), Docker build, a real HRM-Dual pairing, behaviour inside the Claude Android app's webview, `navigator.bluetooth.getDevices()` auto-reconnect after a page reload (Chrome may require re-picking the strap).
 - Bluetooth stops when Android turns the screen off; the app keeps the screen awake by default during workouts.
 - iPhone: no Web Bluetooth (Bluefy browser would work). Rest-timer sound can't fire while iOS has the app backgrounded.
 - From the UX review, not done: "add to routine?" wording when an exercise was replaced; equipment filter / dumbbell-first ordering in the exercise picker; plan card hides during an active workout; a bare "Squat" matches "Box Squat" in plan import.
@@ -173,6 +181,7 @@ Because the owner wanted to train before the server was deployed, the app is als
 4. Published the Claude-hosted copy so the owner could train immediately; made active-workout saves immediate; added Copy/Paste backup.
 5. Added Bluetooth HR, zones and trends, body weight, fasting.
 6. Added the ~930-exercise library, in-app plan import and the MCP endpoint.
+8. Added the AI coach and motivation (quotes, progress card).
 7. Added nightly backups, push notifications, shoulder check-in, stall detection, morning HR/HRV, zone 2 goal, warm-up/cool-down checklists.
 
 Commit history on the branch tells the same story in more detail (`git log`).

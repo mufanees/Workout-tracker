@@ -7,6 +7,7 @@ import { navigate } from './router'
 import { confirmDialog } from './ui/overlay'
 import { planStatus } from './plan'
 import { cancelPush, schedulePush } from './push'
+import { quoteOfTheDay } from './ui/Quote'
 
 export function partOfDay(t = Date.now()) {
   const h = new Date(t).getHours()
@@ -294,6 +295,8 @@ export function scheduleTrainingReminder() {
     if (nextDay > at) at.setTime(nextDay.getTime())
   }
   while (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1)
-  const body = p?.routine ? `${p.routine.name} is up next.` : 'Time to train.'
+  const q = quoteOfTheDay(at.getDate())
+  const quote = q && settings.value.showQuotes ? ` “${q.text}”` : ''
+  const body = (p?.routine ? `${p.routine.name} is up next.` : 'Time to train.') + quote
   schedulePush('train', at.getTime(), 'Training day', body)
 }

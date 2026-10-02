@@ -8,6 +8,10 @@ import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import type { Routine } from '../types'
 import { uid, startOfWeek } from '../util'
 import { SyncBadge } from './Settings'
+import { QuoteCard } from '../ui/Quote'
+import { recentWin } from '../stats'
+import { workouts, unit } from '../store'
+import { fmtDay as fmtDayU, fmtNum, fmtSeconds, toDisplay } from '../util'
 import { Elapsed } from './Live'
 
 export function Train() {
@@ -29,7 +33,9 @@ export function Train() {
         </button>
       </header>
 
+      <QuoteCard tag={daysSinceLast() >= 3 ? 'Action & Consistency' : undefined} />
       {!active.value && <PlanCard />}
+      <WinCard />
 
       <div class="quick-starts">
         <button class="btn btn-secondary btn-lg grow" onClick={startEmpty}>
@@ -188,6 +194,34 @@ export function MiniBar() {
         </small>
       </span>
       <Icon name="up" size={18} />
+    </button>
+  )
+}
+
+function daysSinceLast() {
+  const last = workouts.value[0]
+  return last ? Math.floor((Date.now() - last.start) / 86400000) : 0
+}
+
+/** "Two weeks ago your body couldn't do what it just did." */
+function WinCard() {
+  const win = recentWin()
+  if (!win) return null
+  const ex = exMap.value.get(win.exerciseId)
+  const u = unit.value
+  const fmt = (v: number) => (win.unit === 'weight' ? `${fmtNum(toDisplay(v, u))} ${u}` : win.unit === 'time' ? fmtSeconds(v) : `${v} reps`)
+  return (
+    <button class="win-card" onClick={() => navigate('/exercises/' + win.exerciseId)}>
+      <span class="eyebrow">
+        <Icon name="up" size={14} /> Progress
+      </span>
+      <span class="win-line">
+        <b>{ex?.name}</b>
+        <span>
+          {fmt(win.from)} <Icon name="right" size={14} /> <b class="win-to">{fmt(win.to)}</b>
+        </span>
+      </span>
+      <span class="win-sub">Since {fmtDayU(win.since)}. Your body couldn’t do this back then.</span>
     </button>
   )
 }

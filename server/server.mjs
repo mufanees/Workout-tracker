@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { createMcpHandler } from './mcp.mjs'
 import { createPush } from './push.mjs'
+import { coachEnabled, streamCoach } from './coach.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT || 3000)
@@ -214,6 +215,11 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/')) {
       if (!authorized(req)) return send(res, 401, { error: 'Unauthorized' })
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(await readBody(req)))
+      if (pathname === '/api/coach/status') return send(res, 200, { enabled: coachEnabled() })
+      if (pathname === '/api/coach' && req.method === 'POST') {
+        if (!coachEnabled()) return send(res, 503, { error: 'Set ANTHROPIC_API_KEY on the server to turn on the coach.' })
+        return streamCoach(await readBody(req), res)
+      }
       if (pathname === '/api/push/key') return send(res, 200, { key: push.publicKey })
       if (pathname === '/api/push/subscribe' && req.method === 'POST') return push.subscribe((await readBody(req)).endpoint), send(res, 200, { ok: true })
       if (pathname === '/api/push/unsubscribe' && req.method === 'POST') return push.unsubscribe((await readBody(req)).endpoint), send(res, 200, { ok: true })

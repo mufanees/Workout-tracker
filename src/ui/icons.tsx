@@ -2,6 +2,7 @@
 import {
   ArrowDown,
   Bluetooth,
+  MessageCircle,
   Heart,
   Scale,
   Hourglass,
@@ -79,6 +80,7 @@ const ICONS = {
   minus: Minus,
   target: Target,
   bluetooth: Bluetooth,
+  coach: MessageCircle,
   heart: Heart,
   scale: Scale,
   fast: Hourglass,

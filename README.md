@@ -15,6 +15,8 @@ It also does:
 - **Warm-up and cool-down checklists** per routine (the Comeback plan's are built in).
 - **Notifications** from your server: rest over, fast complete, training-day reminder, even with the app closed.
 - **Nightly server backups**, 14 days kept.
+- **AI coach** (Claude) that reads your training and answers like a personal trainer: weekly reviews, what to change next session, recovery, progress on a lift, and a push when you don't feel like training.
+- **Motivation**: your own quotes (editable, capitals are highlighted) on Train, after workouts and in reminders, plus a progress card showing what you can do now that you couldn't a few weeks ago.
 - **Plan import**: give Claude a plan (a sheet like the Comeback plan, a screenshot, text) and get routines back, either by pasting its answer into the app or through MCP.
 
 - **Offline-first.** Everything is saved on the phone (IndexedDB) the moment you type it, so a dead gym signal never loses a set.
@@ -63,6 +65,15 @@ Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rat
 - Claude Code: `claude mcp add --transport http reps https://reps.yourdomain.com/mcp/<APP_TOKEN>`
 
 Then ask, for example, "import this plan into Reps" with the plan attached. Tools: `get_plan_format`, `search_exercises`, `import_plan`, `list_routines`, `recent_workouts`, `exercise_progress`, `body_stats`. The read tools let you ask things like "how has my floor press progressed?" The URL contains your sync key, so treat it like a password.
+
+## AI coach
+
+The Coach tab sends your question plus a text summary of your training (the last 8 weeks of totals, 4 weeks of workouts, progression per exercise, heart rate zones, morning readings, shoulder ratings, weight and fasts) to your server, which asks Claude (Claude Opus 5.5) and streams the answer back. To turn it on, add an Anthropic API key to the server's environment:
+
+- `ANTHROPIC_API_KEY=sk-ant-...` (from console.anthropic.com; usage is billed to that account; each question costs a few cents)
+- Optional `COACH_MODEL` to use a different model.
+
+Without a key the Coach tab still works: tapping a question copies it with your training summary so you can paste it into the Claude app. Conversations are kept on the phone.
 
 ## Notifications
 

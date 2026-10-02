@@ -154,3 +154,39 @@ export function stalledAt(exerciseId: string, excludeWorkoutId?: string, before?
   if (!tops.every((t) => t!.w === newest.w)) return null
   return newest.reps <= oldest.reps ? newest.w : null
 }
+
+/**
+ * The most motivating recent win: an exercise done in the last 10 days whose top set beats
+ * what you managed 2+ weeks ago. "Two weeks ago your body couldn't do what it just did."
+ */
+export function recentWin(): { exerciseId: string; from: number; to: number; unit: 'weight' | 'reps' | 'time'; since: number } | null {
+  const now = Date.now()
+  let best: ReturnType<typeof recentWin> = null
+  let bestGain = 0
+  for (const [exerciseId, list] of sessionsByExercise.value) {
+    const recent = list.filter((s) => s.workout.start > now - 10 * 86400000)
+    const older = list.filter((s) => s.workout.start <= now - 14 * 86400000)
+    if (!recent.length || !older.length) continue
+    const type = exMap.value.get(exerciseId)?.type || 'weight_reps'
+    const top = (sets: WSet[]) => {
+      const work = sets.filter(counts)
+      if (type === 'duration') return Math.max(0, ...work.map((s) => s.seconds || 0))
+      if (type === 'reps' || work.every((s) => s.weight == null)) return Math.max(0, ...work.map((s) => s.reps || 0))
+      return Math.max(0, ...work.map((s) => s.weight || 0))
+    }
+    const to = Math.max(...recent.map((s) => top(s.sets)))
+    const oldest = older[older.length - 1]
+    // Compare with where you were back then (the earliest of the older sessions, within ~8 weeks).
+    const ref = older.filter((s) => s.workout.start > now - 60 * 86400000)
+    const base = ref.length ? ref[ref.length - 1] : oldest
+    const from = top(base.sets)
+    if (!from || to <= from) continue
+    const gain = (to - from) / from
+    if (gain > bestGain) {
+      bestGain = gain
+      const unit = type === 'duration' ? 'time' : type === 'reps' || base.sets.every((s) => s.weight == null) ? 'reps' : 'weight'
+      best = { exerciseId, from, to, unit, since: base.workout.start }
+    }
+  }
+  return best
+}
