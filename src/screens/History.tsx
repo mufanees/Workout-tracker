@@ -13,6 +13,7 @@ import { coachItems } from '../store'
 import { useRef } from 'preact/hooks'
 import { Markdown } from './Coach'
 import { CalendarView } from './Calendar'
+import { FeedbackCard } from '../ui/Feedback'
 import { CelebrationHero, Confetti, MilestoneList } from '../ui/Rings'
 import { ringsFor } from '../rings'
 import { milestonesFor, nextWorkoutMilestone } from '../milestones'
@@ -329,6 +330,7 @@ export function WorkoutDetail({ id }: { id: string }) {
 
       {w.notes && <p class="detail-notes">{w.notes}</p>}
 
+      <FeedbackCard w={w} open={celebrate} />
       <CoachTakeaway w={w} celebrate={celebrate} />
       <HRSummaryCard w={w} />
       <MuscleSplit w={w} />

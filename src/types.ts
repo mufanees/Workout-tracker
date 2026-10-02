@@ -52,6 +52,8 @@ export interface Workout extends Rec {
   shoulder?: number | null
   /** Warm-up / cool-down items ticked off, keyed "w0", "c2"… */
   checks?: Record<string, boolean>
+  checkAt?: Record<string, number> // when each warm-up / cool-down item was ticked
+  feedback?: Feedback
   /** Copied from the routine when the workout started. */
   warmup?: string[]
   cooldown?: string[]
@@ -154,3 +156,13 @@ export interface DayNote extends Rec {
 }
 
 export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts' | 'readings' | 'coach' | 'days'
+
+/** How a workout felt, for the coach. Exercise ratings are keyed by the workout exercise's id. */
+export interface Feedback {
+  length?: 'short' | 'right' | 'long'
+  warmup?: 'right' | 'long'
+  cooldown?: 'right' | 'long'
+  ex?: Record<string, 'easy' | 'right' | 'hard' | 'pain'>
+  note?: string
+  at?: number
+}

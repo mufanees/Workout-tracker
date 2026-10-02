@@ -7,6 +7,7 @@ It also does:
 - **Heart rate** from a Bluetooth strap (Garmin HRM-Dual or any standard one) during any workout, with live zones, an optional target zone that buzzes when you drift out, time in each zone per workout, and weekly zone trends. Zone 2 cardio has its own quick start.
 - **Body weight** with a 7-day average, weekly and monthly change, and a chart.
 - **Intermittent fasting**: plans from 13:11 to OMAD and 36 h, a live ring with the metabolic stages (digesting, blood sugar falling, fat burning, ketosis…), back-dated start and end, past fasts with notes, streaks and stats, and a reminder before your eating window closes.
+- **Workout feedback**: after a workout, rate the session length, the warm-up and cool-down (their actual minutes are logged as you tick them) and each exercise (easy, right, hard, hurt), add a note, and tap **Ask coach to adjust**. The coach proposes a reworked routine (shorter warm-up, swaps for what hurt, new targets) that you approve with one tap, and remembers what matters.
 - **Daily rings** on the Train screen: Fast (hours toward your plan), Move (minutes of any workout, strength or cardio, toward 30) and Zone 2 (minutes this week). Any workout earns the day, even five minutes when you have to stop early, and the week strip shows a check for every day you showed up.
 - **Celebrations** when you finish a workout or a fast: rings, streaks, personal bests and milestones (first fast at goal, 25 workouts, a 4-week streak, your first 20-hour fast…).
 - **How-to videos** for every exercise and every warm-up and cool-down movement (opens a YouTube search).
@@ -84,6 +85,8 @@ Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rat
 Then ask, for example, "import this plan into Reps" with the plan attached. Tools: `get_plan_format`, `search_exercises`, `import_plan`, `list_routines`, `recent_workouts`, `exercise_progress`, `body_stats`. The read tools let you ask things like "how has my floor press progressed?" The URL contains your sync key, so treat it like a password.
 
 ## AI coach
+
+In the Claude-hosted copy the coach runs on Claude (your Claude usage; the page asks once for permission) and your data is saved to your Claude account, so closing the page loses nothing. On your own server it runs on Gemini as below.
 
 The Coach tab sends your question plus a text summary of your training (the last 8 weeks of totals, 4 weeks of workouts, progression per exercise, heart rate zones, morning readings, shoulder ratings, weight and fasts) to your server, which asks Google's Gemini (`gemini-3.5-flash` by default) and streams the answer back. To turn it on:
 

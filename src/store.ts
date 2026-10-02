@@ -5,6 +5,7 @@ import QUOTES from './data/quotes.json'
 import { seedExercises, seedRoutines } from './seed'
 import { scheduleSync } from './sync'
 import { sanitize } from './validate'
+import { cloudSaveActive } from './cloud'
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 'settings',
@@ -221,9 +222,10 @@ export function setActive(w: Workout | null) {
   queueMicrotask(() => void flushActive())
 }
 
-export function flushActive() {
+export function flushActive(now = false) {
   activeQueued = false
   const w = active.value
+  cloudSaveActive(w, now)
   return w ? db.put('meta', 'active', w) : db.del('meta', 'active')
 }
 
@@ -237,7 +239,7 @@ export function updateActive(fn: (w: Workout) => void) {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushActive()
+    if (document.visibilityState === 'hidden') flushActive(true)
   })
-  window.addEventListener('pagehide', () => flushActive())
+  window.addEventListener('pagehide', () => flushActive(true))
 }

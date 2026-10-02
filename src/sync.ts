@@ -3,8 +3,11 @@ import * as db from './db'
 import type { Rec, StoreName } from './types'
 import { reloadFromDb } from './store'
 import { sanitize } from './validate'
+import { cloudPush, cloudReady, cloudState, initCloud } from './cloud'
+import { active, setActive } from './store'
+import type { Workout } from './types'
 
-export type SyncStatus = 'checking' | 'syncing' | 'synced' | 'offline' | 'locked' | 'local' | 'error'
+export type SyncStatus = 'checking' | 'syncing' | 'synced' | 'offline' | 'locked' | 'local' | 'error' | 'cloud'
 export const syncState = signal<{ status: SyncStatus; at?: number; message?: string }>({ status: 'checking' })
 
 const TOKEN_KEY = 'reps-token'
@@ -93,19 +96,14 @@ async function markAllDirty() {
 }
 
 async function run() {
+  if (cloudState.value !== 'off' && !getToken()) return runCloud()
   if (!navigator.onLine) {
     syncState.value = { ...syncState.value, status: 'offline' }
     return
   }
   if (syncState.value.status !== 'synced') syncState.value = { ...syncState.value, status: 'syncing' }
 
-  const dirty = await db.getAll<{ store: StoreName; id: string }>('dirty')
-  const changes: Change[] = []
-  for (const d of dirty) {
-    const rec = await db.get<Rec>(d.store, d.id)
-    if (!rec) continue
-    changes.push({ store: d.store, id: d.id, updatedAt: rec.updatedAt, deleted: !!rec.deleted, data: rec.deleted ? null : rec })
-  }
+  const changes = await collectDirty()
   const since = (await db.get<number>('meta', 'syncSeq')) || 0
   const knownDb = await db.get<string>('meta', 'serverId')
 
@@ -143,9 +141,34 @@ async function run() {
   }
 
   const sent = new Map(changes.map((c) => [`${c.store}:${c.id}`, c.updatedAt]))
+  await applyChanges(body.changes, sent, body.seq, body.dbId)
+  syncState.value = { status: 'synced', at: Date.now() }
+}
+
+/** Saves to the Claude account (artifact copy): push what changed here; remote changes arrive by subscription. */
+async function runCloud() {
+  if (!cloudReady()) return // still connecting; the first snapshot triggers a sync
+  const changes = await collectDirty()
+  if (changes.length) await cloudPush(changes)
+  await applyChanges([], new Map(changes.map((c) => [`${c.store}:${c.id}`, c.updatedAt])))
+  syncState.value = { status: 'cloud', at: Date.now() }
+}
+
+async function collectDirty(): Promise<Change[]> {
+  const dirty = await db.getAll<{ store: StoreName; id: string }>('dirty')
+  const changes: Change[] = []
+  for (const d of dirty) {
+    const rec = await db.get<Rec>(d.store, d.id)
+    if (!rec) continue
+    changes.push({ store: d.store, id: d.id, updatedAt: rec.updatedAt, deleted: !!rec.deleted, data: rec.deleted ? null : rec })
+  }
+  return changes
+}
+
+/** Applies remote records (last write wins, settings merged per field) and clears dirty flags for what was sent. */
+async function applyChanges(remoteChanges: Change[], sent: Map<string, number>, seq?: number, dbId?: string) {
   let applied = 0
   let pushBack = false
-
   // One transaction: clearing dirty flags and applying remote changes can't interleave with local edits.
   await db.transaction([...SYNCED, 'dirty', 'meta'], async (tx) => {
     const dirtyStore = tx.objectStore('dirty')
@@ -154,7 +177,7 @@ async function run() {
       const rec = (await db.req(tx.objectStore(store).get(id))) as Rec | undefined
       if (!rec || rec.updatedAt === at) dirtyStore.delete(key)
     }
-    for (const c of body.changes) {
+    for (const c of remoteChanges) {
       if (!SYNCED.includes(c.store)) continue
       const key = `${c.store}:${c.id}`
       const os = tx.objectStore(c.store)
@@ -183,13 +206,13 @@ async function run() {
       dirtyStore.delete(key)
       applied++
     }
-    tx.objectStore('meta').put(body.seq, 'syncSeq')
-    if (body.dbId) tx.objectStore('meta').put(body.dbId, 'serverId')
+    if (seq != null) tx.objectStore('meta').put(seq, 'syncSeq')
+    if (dbId) tx.objectStore('meta').put(dbId, 'serverId')
   })
   if (applied) await reloadFromDb()
   if (pushBack) again = true
-  syncState.value = { status: 'synced', at: Date.now() }
 }
+
 
 function splitKey(key: string): [StoreName, string] {
   const i = key.indexOf(':')
@@ -197,6 +220,16 @@ function splitKey(key: string): [StoreName, string] {
 }
 
 export function startAutoSync() {
+  void initCloud(
+    async (remote) => {
+      await applyChanges(remote, new Map())
+      void syncNow() // push anything changed here, including what was made before the account answered
+    },
+    (w: Workout | null) => {
+      // Restore a workout in progress after the page was closed; keep a live one on this device.
+      if (w && !active.value) setActive(w)
+    },
+  )
   void syncNow()
   window.addEventListener('online', () => void syncNow())
   document.addEventListener('visibilitychange', () => {

@@ -4,7 +4,7 @@ import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, work
 import { prIndex, sessionsByExercise, stalledAt } from './stats'
 import { planStatus } from './plan'
 import { summarizeHR, zoneRange } from './hr'
-import { counts, e1rm, startOfWeek } from './util'
+import { counts, e1rm, phaseMinutes, startOfWeek } from './util'
 import type { Workout, WSet } from './types'
 
 const DAY = 86400000
@@ -18,7 +18,7 @@ function fmtSet(s: WSet, type: string) {
   return `${tag}${r1(s.weight)}×${s.reps ?? '?'}`
 }
 
-function workoutLine(w: Workout) {
+export function workoutLine(w: Workout) {
   const mins = w.end ? Math.round((w.end - w.start) / 60000) : '?'
   const hr = summarizeHR(w.hr)
   const bits = [`${date(w.start)} ${w.name} (${mins} min`]
@@ -33,6 +33,23 @@ function workoutLine(w: Workout) {
     lines.push(`  ${ex?.name || e.exerciseId}${e.target ? ` [target ${e.target}]` : ''}: ${e.sets.map((s) => fmtSet(s, ex?.type || 'weight_reps')).join(', ')}${e.notes ? ` (note: ${e.notes})` : ''}`)
   }
   if (w.notes) lines.push(`  Session notes: ${w.notes}`)
+  const ph = phaseMinutes(w)
+  if (ph.warmup != null || ph.cooldown != null) lines.push(`  Time: warm-up ${ph.warmup ?? '?'} min, cool-down ${ph.cooldown ?? '?'} min`)
+  const fb = w.feedback
+  if (fb) {
+    const felt: string[] = []
+    if (fb.length) felt.push(`session felt ${fb.length === 'long' ? 'too long' : fb.length === 'short' ? 'too short' : 'about right'}`)
+    if (fb.warmup === 'long') felt.push('warm-up took too long')
+    if (fb.cooldown === 'long') felt.push('cool-down took too long')
+    for (const [id, v] of Object.entries(fb.ex || {})) {
+      if (v === 'right') continue
+      const we = w.exercises.find((e) => e.id === id)
+      const name = (we && exMap.value.get(we.exerciseId)?.name) || 'an exercise'
+      felt.push(`${name} ${v === 'pain' ? 'HURT' : `felt too ${v}`}`)
+    }
+    if (felt.length) lines.push(`  Athlete feedback: ${felt.join('; ')}`)
+    if (fb.note) lines.push(`  Athlete said: ${fb.note}`)
+  }
   return lines.join('\n')
 }
 
@@ -127,7 +144,8 @@ export function routinesText() {
         const reps = s.find((x) => x.reps != null)?.reps
         return `${name(e.exerciseId)} ${s.length}×${e.target || reps || ''}${w != null ? ` @ ${w} kg` : ''}`
       })
-      return `${r.folder ? r.folder + ' / ' : ''}${r.name}: ${ex.join(', ')}`
+      const extra = [r.warmup?.length ? `\n    warm-up: ${r.warmup.join('; ')}` : '', r.cooldown?.length ? `\n    cool-down: ${r.cooldown.join('; ')}` : ''].join('')
+      return `${r.folder ? r.folder + ' / ' : ''}${r.name}: ${ex.join(', ')}${extra}`
     })
     .join('\n')
 }

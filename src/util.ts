@@ -190,3 +190,15 @@ export function haptic(ms = 10) {
     /* not supported */
   }
 }
+
+/** Minutes spent on the warm-up and cool-down checklists, from when items were ticked. */
+export function phaseMinutes(w: Pick<Workout, 'start' | 'end' | 'checkAt'>): { warmup: number | null; cooldown: number | null } {
+  const at = w.checkAt || {}
+  const warm = Object.entries(at).filter(([k]) => /^w\d/.test(k)).map(([, t]) => t)
+  const cool = Object.entries(at).filter(([k]) => /^c\d/.test(k)).map(([, t]) => t)
+  const end = w.end ?? Date.now()
+  return {
+    warmup: warm.length ? Math.max(1, Math.round((Math.max(...warm) - w.start) / 60000)) : null,
+    cooldown: cool.length > 1 ? Math.max(1, Math.round((Math.max(end, ...cool) - Math.min(...cool)) / 60000)) : null,
+  }
+}

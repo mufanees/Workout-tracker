@@ -3716,7 +3716,6 @@ label.setting:active {
   stroke-width: 16;
   stroke-linecap: round;
   transition: stroke-dashoffset 1s linear;
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 40%, transparent));
 }
 .sr-mark {
   position: absolute;
@@ -4573,24 +4572,24 @@ label.setting:active {
 }
 .rs-track {
   fill: none;
-  opacity: 0.16;
 }
 .rs-fill {
   fill: none;
   stroke-linecap: round;
   transition: stroke-dashoffset 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.rs.r-fast circle {
+.rs.r-fast .rs-fill {
   stroke: var(--ring-fast);
 }
-.rs.r-move circle {
+.rs.r-move .rs-fill {
   stroke: var(--ring-move);
 }
-.rs.r-z2 circle {
+.rs.r-z2 .rs-fill {
   stroke: var(--ring-z2);
 }
-.rs.closed .rs-fill {
-  filter: drop-shadow(0 0 5px currentColor);
+/* one solid neutral track for every ring: no tint, no glow */
+.rs-track {
+  stroke: var(--surface-3);
 }
 .rs.r-fast.closed {
   color: var(--ring-fast);
@@ -5006,4 +5005,87 @@ label.setting:active {
 }
 .celebrate .cel-hero + * {
   margin-top: 2px;
+}
+
+/* ---------- workout feedback ---------- */
+
+.fb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fb-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fb-card .eyebrow {
+  color: var(--accent-text);
+}
+.fb-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fb-label {
+  font-size: 15px;
+  font-weight: 650;
+}
+.fb-label small {
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 4px;
+}
+.fb-choice {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 3px;
+}
+.fb-opt {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.fb-opt.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.fb-opt.on.long,
+.fb-opt.on.hard {
+  background: color-mix(in srgb, var(--warn) 22%, var(--surface));
+  color: var(--warn);
+}
+.fb-opt.on.pain {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.fb-opt.on.easy,
+.fb-opt.on.short {
+  background: color-mix(in srgb, var(--blue) 18%, var(--surface));
+  color: var(--blue);
+}
+.fb-opt.on.right {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.fb-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  font-weight: 600;
+}
+.fb-collapsed > span {
+  flex: 1;
+}
+.fb-collapsed .icon:first-child {
+  color: var(--accent-text);
 }

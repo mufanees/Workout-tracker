@@ -23,6 +23,7 @@ const STATUS: Record<string, [string, string]> = {
   locked: ['Sync key needed', 'warn'],
   local: ['This device only', 'muted'],
   error: ['Sync problem', 'warn'],
+  cloud: ['Saved to your Claude account', 'good'],
 }
 
 export function SyncBadge() {

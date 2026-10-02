@@ -363,6 +363,7 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
                     haptic(8)
                     updateActive((x) => {
                       x.checks = { ...(x.checks || {}), [kind + i]: !on }
+                      if (!on) x.checkAt = { ...(x.checkAt || {}), [kind + i]: Date.now() }
                     })
                   }}
                 >

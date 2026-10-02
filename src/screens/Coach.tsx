@@ -5,10 +5,12 @@ import { getToken, syncNow } from '../sync'
 import { exMap, workouts } from '../store'
 import { sessionsByExercise } from '../stats'
 import { buildCoachContext, coachPasteText, routinesText } from '../coachContext'
-import { applyProposal, checkCoach, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal } from '../coach'
+import { claudeChat } from '../coachClaude'
+import { applyProposal, checkCoach, coachMode, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal } from '../coach'
 import { Icon } from '../ui/icons'
 import { confirmDialog, toast } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
+import { adjustMessage } from '../ui/Feedback'
 import { fmtDay } from '../util'
 
 interface Msg {
@@ -45,6 +47,8 @@ const TOOL_LABEL: Record<string, string> = {
   set_commitment: 'Noting a commitment',
   resolve_commitment: 'Updating a commitment',
   propose_routine_targets: 'Preparing a routine change',
+  propose_routine_changes: 'Reworking your routine',
+  search_exercises: 'Finding alternatives',
   propose_goal: 'Preparing a goal',
   propose_profile_update: 'Preparing a profile update',
 }
@@ -85,13 +89,16 @@ export function Coach() {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [msgs.length, busy])
 
-  // Deep link from a finished workout: /coach?review=<workoutId>
+  // Deep links from a finished workout: /coach?review=<workoutId> and /coach?adjust=<workoutId>
   useEffect(() => {
     const id = route.value.query.get('review')
-    if (id && coachOn.value) {
-      navigate('/coach', { replace: true })
-      void ask('Review this workout: what went well, what to adjust next time, and one thing to focus on.', id)
-    }
+    const adj = route.value.query.get('adjust')
+    if (!coachOn.value || (!id && !adj)) return
+    navigate('/coach', { replace: true })
+    if (adj) {
+      const w = workouts.value.find((x) => x.id === adj)
+      if (w) void ask(adjustMessage(w), adj)
+    } else void ask('Review this workout: what went well, what to adjust next time, and one thing to focus on.', id!)
   }, [coachOn.value])
 
   const save = (m: Msg[]) => {
@@ -125,6 +132,32 @@ export function Coach() {
     const ctrl = new AbortController()
     abort.current = ctrl
     try {
+      if (coachMode.value === 'claude') {
+        const text = await claudeChat(history.map(({ role, content }) => ({ role, content })), focusWorkoutId, {
+          signal: ctrl.signal,
+          onText: (t) => {
+            reply.content = t
+            setStatus('')
+            show()
+          },
+          onTool: (name) => {
+            setStatus(TOOL_LABEL[name] || 'Working on it')
+            show()
+          },
+          onMemory: (m) => {
+            reply.memory!.push(m)
+            show()
+          },
+          onProposal: (p) => {
+            reply.proposals!.push(p)
+            show()
+          },
+        })
+        reply.content = text || reply.content
+        if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : '…'
+        save(await condense([...history, reply]))
+        return
+      }
       await syncNow() // the coach reads your profile and memory from the server
       const res = await fetch('/api/coach', {
         method: 'POST',
