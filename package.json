@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "start": "node --disable-warning=ExperimentalWarning server/server.mjs",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "single": "vite build && node scripts/artifact.mjs"
   },
   "engines": {
     "node": ">=22.13"

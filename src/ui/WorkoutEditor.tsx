@@ -128,7 +128,7 @@ export function WorkoutEditor({
         { label: 'Replace exercise', icon: 'swap', onSelect: () => setPicker({ open: true, replace: we.id }) },
         ...(i > 0 ? [{ label: 'Move up', icon: 'up', onSelect: () => move(we.id, -1) }] : []),
         ...(i < exercises.length - 1 ? [{ label: 'Move down', icon: 'downArrow', onSelect: () => move(we.id, 1) }] : []),
-        ...(ex ? [{ label: 'Watch form video', icon: 'video', onSelect: () => window.open(youtubeUrl(ex), '_blank', 'noopener') }] : []),
+        ...(ex ? [{ label: 'Watch form video', icon: 'video', onSelect: () => openLink(youtubeUrl(ex)) }] : []),
         ...(ex && mode !== 'routine' ? [{ label: 'Exercise history', icon: 'chart', onSelect: () => navigate('/exercises/' + ex.id) }] : []),
         {
           label: 'Remove exercise',
@@ -569,6 +569,17 @@ function ExerciseCard({
 }
 
 /** The grey value shown in an empty input: last session's set, else the routine's plan, else the set above. */
+/** Open a link in a new tab with a real anchor (works inside embedded frames where window.open is blocked). */
+function openLink(href: string) {
+  const a = document.createElement('a')
+  a.href = href
+  a.target = '_blank'
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
 export function placeholderFor(sets: WSet[], i: number, matched: (WSet | undefined)[]) {
   const s = sets[i]
   const p = matched[i]

@@ -136,16 +136,17 @@ export async function remove(store: 'exercises' | 'routines' | 'workouts', id: s
 
 // ---- active workout (device only, saved continuously) ----------------------
 
-let activeTimer: ReturnType<typeof setTimeout> | null = null
+// Saved right away (coalesced within the same tick) so a set is safe the moment it's checked.
+let activeQueued = false
 export function setActive(w: Workout | null) {
   active.value = w
-  if (activeTimer) clearTimeout(activeTimer)
-  activeTimer = setTimeout(flushActive, 150)
+  if (activeQueued) return
+  activeQueued = true
+  queueMicrotask(() => void flushActive())
 }
 
 export function flushActive() {
-  if (activeTimer) clearTimeout(activeTimer)
-  activeTimer = null
+  activeQueued = false
   const w = active.value
   return w ? db.put('meta', 'active', w) : db.del('meta', 'active')
 }

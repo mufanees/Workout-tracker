@@ -1,11 +1,11 @@
-import { useState } from 'preact/hooks'
-import { settings, saveSettings, reloadFromDb } from '../store'
+import { useEffect, useState } from 'preact/hooks'
+import { settings, saveSettings, reloadFromDb, workouts, routines, exercises } from '../store'
 import { back } from '../router'
 import { syncState, syncNow, getToken, setToken } from '../sync'
 import * as db from '../db'
 import { Icon } from '../ui/icons'
 import { Segmented, Toggle } from '../ui/inputs'
-import { actionSheet, confirmDialog, toast } from '../ui/overlay'
+import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { REST_OPTIONS } from '../ui/WorkoutEditor'
 import { fmtRest } from '../util'
 import type { StoreName } from '../types'
@@ -48,11 +48,25 @@ export function Settings() {
     } else if (syncState.value.status === 'locked') toast('That key didn’t work')
   }
 
+  // Built ahead of time so "Copy backup" can write to the clipboard inside the tap itself (Safari requires it).
+  const [backup, setBackup] = useState('')
+  const [pasting, setPasting] = useState(false)
+  const [pasted, setPasted] = useState('')
+  useEffect(() => {
+    void buildBackup().then(setBackup)
+  }, [workouts.value, routines.value, exercises.value])
+
+  const copyBackup = () => {
+    if (!backup) return
+    navigator.clipboard
+      .writeText(backup)
+      .then(() => toast('Backup copied. Paste it into a note to keep it safe.'))
+      .catch(() => toast('Couldn’t copy. Use Export backup instead.'))
+  }
+
   const exportData = async () => {
-    const data: Record<string, unknown[]> = {}
-    for (const s of ['exercises', 'routines', 'workouts', 'settings'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
     const name = `reps-backup-${new Date().toISOString().slice(0, 10)}.json`
-    const json = JSON.stringify({ app: 'reps', version: 1, exportedAt: new Date().toISOString(), data }, null, 2)
+    const json = await buildBackup()
     // Installed iOS apps can't download blobs; the share sheet lets you save to Files instead.
     const file = new File([json], name, { type: 'application/json' })
     if (navigator.canShare?.({ files: [file] })) {
@@ -71,9 +85,11 @@ export function Settings() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }
 
-  const importData = async (file: File) => {
+  const importData = async (file: File) => importText(await file.text())
+
+  const importText = async (text: string) => {
     try {
-      const json = JSON.parse(await file.text())
+      const json = JSON.parse(text)
       let data = json?.data as Record<StoreName, { id: string }[]> | undefined
       // Also accept the server's /api/export format: { records: [{ store, id, data }] }
       if (!data && Array.isArray(json?.records)) {
@@ -231,8 +247,19 @@ export function Settings() {
           <span>Export backup</span>
           <Icon name="download" size={18} />
         </button>
+        <button class="setting" onClick={copyBackup} disabled={!backup}>
+          <span>
+            Copy backup
+            <small>Paste it into a note or message to keep it</small>
+          </span>
+          <Icon name="copy" size={18} />
+        </button>
+        <button class="setting" onClick={() => (setPasted(''), setPasting(true))}>
+          <span>Paste a backup</span>
+          <Icon name="note" size={18} />
+        </button>
         <label class="setting">
-          <span>Import backup</span>
+          <span>Import backup file</span>
           <Icon name="upload" size={18} />
           <input
             type="file"
@@ -246,7 +273,35 @@ export function Settings() {
           />
         </label>
       </div>
+      <Sheet
+        open={pasting}
+        onClose={() => setPasting(false)}
+        title="Paste a backup"
+        footer={
+          <button
+            class="btn btn-primary btn-block"
+            disabled={!pasted.trim()}
+            onClick={() => {
+              setPasting(false)
+              void importText(pasted)
+            }}
+          >
+            Import
+          </button>
+        }
+      >
+        <label class="field">
+          <span>Backup text (from Copy backup)</span>
+          <textarea id="paste-backup" rows={8} value={pasted} onInput={(e) => setPasted(e.currentTarget.value)} placeholder='{"app":"reps", ...}' />
+        </label>
+      </Sheet>
       <p class="about">Reps · your data lives on this device{sync.status === 'synced' ? ' and your server' : ''}.</p>
     </div>
   )
+}
+
+async function buildBackup(): Promise<string> {
+  const data: Record<string, unknown[]> = {}
+  for (const s of ['exercises', 'routines', 'workouts', 'settings'] as StoreName[]) data[s] = (await db.getAll(s)).filter((r) => !(r as { deleted?: boolean }).deleted)
+  return JSON.stringify({ app: 'reps', version: 1, exportedAt: new Date().toISOString(), data })
 }
