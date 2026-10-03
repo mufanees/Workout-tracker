@@ -37,7 +37,6 @@ const index = computed(() => {
 const addDays = (d: number, n: number) => startOfDay(new Date(d + n * DAY + DAY / 2))
 const monthStart = (t: number) => new Date(new Date(t).getFullYear(), new Date(t).getMonth(), 1).getTime()
 const monthLabel = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-const shortName = (s: string) => s.replace(/^Phase \d+\s*·\s*/i, '')
 
 // ---- calendar ------------------------------------------------------------------
 
@@ -82,7 +81,10 @@ export function CalendarView() {
       </div>
       <div class="cal-legend" aria-hidden="true">
         <span>
-          <i class="lg-workout" /> Workout
+          <i class="lg-workout" /> Strength
+        </span>
+        <span>
+          <i class="lg-cardio" /> Cardio
         </span>
         <span>
           <i class="lg-fast" /> Fast
@@ -139,8 +141,7 @@ export function CalendarView() {
                   .join(', ')
                 return (
                   <button class={'cal-day' + (d === today ? ' today' : '') + (future ? ' future' : '')} disabled={future} onClick={() => navigate(`/day/${dayKey(d)}`)} aria-label={label}>
-                    <span class={'cal-num' + (ws ? ' trained' : '')}>{new Date(d).getDate()}</span>
-                    <span class="cal-name">{ws ? shortName(ws[0].name) + (ws.length > 1 ? ` +${ws.length - 1}` : '') : ''}</span>
+                    <DayRing day={new Date(d).getDate()} ws={ws} fastPct={f ? f.ms / (Math.max(...f.list.map((x) => x.goal)) * HOUR) : 0} />
                     {f ? <span class={'cal-fast' + (f.hit ? ' hit' : '') + (f.live ? ' live' : '')}>{hShort(f.ms)}</span> : <span class="cal-fast none" />}
                     <span class="cal-dots">
                       {b.has(d) && <i class="lg-weight" />}
@@ -429,4 +430,29 @@ function useRefValue<T>(v: T) {
   const [box] = useState(() => ({ v }))
   box.v = v
   return box
+}
+
+/**
+ * One calendar day: the date in a disc (lime for strength, orange for cardio, split for both)
+ * inside a blue ring that fills with that day's fasting.
+ */
+function DayRing({ day, ws, fastPct }: { day: number; ws?: Workout[]; fastPct: number }) {
+  const kinds = new Set((ws || []).map((x) => activityOf(x).kind))
+  const disc = kinds.has('strength') && kinds.has('cardio') ? 'both' : kinds.has('strength') ? 'strength' : kinds.has('cardio') ? 'cardio' : ''
+  const size = 44
+  const stroke = 4
+  const r = size / 2 - stroke / 2
+  const len = 2 * Math.PI * r
+  const p = Math.min(1, Math.max(0, fastPct))
+  return (
+    <span class={'cal-ring' + (disc ? ' ' + disc : '')}>
+      {fastPct > 0 && (
+        <svg viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+          <circle cx={size / 2} cy={size / 2} r={r} class="cr-track" stroke-width={stroke} />
+          <circle cx={size / 2} cy={size / 2} r={r} class="cr-fill" stroke-width={stroke} stroke-dasharray={len} stroke-dashoffset={len * (1 - Math.max(p, 0.04))} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        </svg>
+      )}
+      <span class="cal-num">{day}</span>
+    </span>
+  )
 }
