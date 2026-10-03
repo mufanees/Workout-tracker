@@ -7,6 +7,7 @@
 // - Short JSON calls produce pre-workout targets, a post-workout takeaway and chat condensing.
 // - A background job writes a weekly review on Sunday evening and sends a notification.
 import crypto from 'node:crypto'
+import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
@@ -164,6 +165,20 @@ export function createCoach({ db, q, mcp, push }) {
       case 'body_stats':
       case 'search_exercises':
         return { result: await mcp.callTool(name, args) }
+      case 'training_knowledge':
+        return { result: knowledgeLookup(args.topic) }
+      case 'search_library':
+        return { result: searchLibrary(items(), String(args.query || '')) }
+      case 'save_to_library': {
+        const title = String(args.title || '').trim().slice(0, 120)
+        const text = String(args.text || '').trim().slice(0, 60000)
+        if (!title || !text) return { error: 'title and text are required' }
+        const dupe = items().find((x) => x.kind === 'source' && same(x.text, title))
+        const rec = { id: dupe?.id || newId('src'), kind: 'source', text: title, body: text, created: dupe?.created || Date.now(), source: 'coach' }
+        write(rec)
+        emit({ memory: { action: 'library', text: title } })
+        return { saved: rec.id }
+      }
       case 'remember': {
         const text = String(args.note || '').trim().slice(0, 300)
         if (!text) return { error: 'empty note' }
@@ -208,6 +223,7 @@ export function createCoach({ db, q, mcp, push }) {
       case 'propose_routine_targets':
       case 'propose_goal':
       case 'propose_training_block':
+      case 'propose_program':
       case 'propose_profile_update': {
         const id = newId('prop')
         emit({ proposal: { id, tool: name, args } })

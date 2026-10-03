@@ -3,13 +3,13 @@ import { signal, computed, effect } from '@preact/signals'
 import { sampleFn } from './cloud'
 import { claudeQuick } from './coachClaude'
 import { afterServerSync, getToken, syncNow } from './sync'
-import { coachItems, exercises, exMap, routines, saveCoachItem, saveRoutine, workouts } from './store'
-import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
+import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, workouts } from './store'
+import { matchExercise, resolvePlan, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
-import type { CoachItem, GoalSpec } from './types'
+import type { CoachItem, Exercise, ExType, GoalSpec } from './types'
 import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
-import { clone, uid } from './util'
+import { clone, startOfDay, uid } from './util'
 
 /** null = still checking; false = no coach on this server (or no server). */
 export const coachOn = signal<boolean | null>(null)
@@ -74,7 +74,7 @@ export async function quick<T>(body: Record<string, unknown>, focusWorkoutId?: s
 
 export interface Proposal {
   id: string
-  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block'
+  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program'
   args: Record<string, unknown>
   state?: 'pending' | 'approved' | 'dismissed'
 }
@@ -95,6 +95,15 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
       ...(list(a.cooldown).length ? [`Cool-down, ${list(a.cooldown).length} moves: ${list(a.cooldown).join('; ')}`] : []),
     ]
     return { title: `Update “${a.routine}”`, lines }
+  }
+  if (p.tool === 'propose_program') {
+    const list = Array.isArray(a.routines) ? a.routines : []
+    const lines = [[a.days_per_week ? `${a.days_per_week} days a week` : '', a.minutes ? `~${a.minutes} min` : ''].filter(Boolean).join(' · ') + (a.summary ? `. ${a.summary}` : '')]
+    for (const r of list) {
+      const ex = (Array.isArray(r?.exercises) ? r.exercises : []).map((e: any) => `${e.name} ${e.sets}×${e.reps}${e.superset ? ` (${e.superset})` : ''}${e.notes ? ` – ${e.notes}` : ''}`)
+      lines.push(`${r?.name}: ${ex.join('; ')}`)
+    }
+    return { title: `New program: ${String(a.name || 'Program')}`, lines }
   }
   if (p.tool === 'propose_training_block') {
     const b = blockFrom(a)
@@ -120,6 +129,17 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
 /** Apply an approved proposal locally (it syncs from there). Returns a confirmation message. */
 export async function applyProposal(p: Proposal): Promise<string> {
   const a = p.args as Record<string, any>
+  if (p.tool === 'propose_program') {
+    const name = String(a.name || 'Program').slice(0, 60)
+    const plan = { folder: name, routines: (Array.isArray(a.routines) ? a.routines : []).map((r: any) => ({ ...r, exercises: (Array.isArray(r?.exercises) ? r.exercises : []).map((e: any) => ({ ...e, superset: e?.superset ?? undefined })) })) }
+    const result = resolvePlan(plan, exercises.value, () => uid())
+    for (const e of result.newExercises) await saveExercise({ id: e.id, name: e.name, muscle: e.muscle, equipment: e.equipment, type: e.type as ExType, custom: true, updatedAt: 0 } as Exercise)
+    const ids: string[] = []
+    for (const r of result.routines) ids.push((await saveRoutine({ ...r, updatedAt: 0 })).id)
+    await saveSettings({ program: { name, routineIds: ids, daysPerWeek: Math.max(1, Math.min(7, Math.round(Number(a.days_per_week) || 3))), minutes: Number(a.minutes) || undefined, summary: a.summary ? String(a.summary).slice(0, 400) : undefined, start: startOfDay(new Date()) } })
+    if (getToken()) void saveSnapshot(true)
+    return `Program “${name}” is set: ${ids.length} routines`
+  }
   if (p.tool === 'propose_training_block') {
     // One block at a time: the new one replaces whatever was running.
     for (const old of coachItems.value.filter((x) => x.kind === 'block' && (x.status || 'open') === 'open')) await saveCoachItem({ ...old, status: 'done', outcome: 'Replaced by a new block' })

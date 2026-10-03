@@ -2,6 +2,7 @@
 // as the server's Gemini coach (shared/coachSpec.mjs); look-ups read the app's own data and memory
 // is saved locally (and from there to the Claude account).
 import { COACH_TOOLS, QUICK, systemText, isPlanning } from '../shared/coachSpec.mjs'
+import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
 import { sampleFn } from './cloud'
 import { bodyWeights, coachItems, dayNotes, exercises, fasts, readings, remove, saveCoachItem, workouts } from './store'
@@ -45,6 +46,8 @@ function lookup(name: string, a: Record<string, unknown>): string {
     const dn = [...dayNotes.value.values()].sort((x, y) => y.id.localeCompare(x.id)).slice(0, 21).map((d) => `${d.id}: ${checkinWords(d) ? `[${checkinWords(d)}] ` : ''}${d.text.slice(0, 300)}`)
     return `Weight:\n${w.join('\n') || 'none'}\n\nFasts:\n${f.join('\n') || 'none'}\n\nMorning readings:\n${r.join('\n') || 'none'}\n\nShoulder (0-10):\n${sh.join('\n') || 'none'}\n\nDay notes:\n${dn.join('\n') || 'none'}`
   }
+  if (name === 'training_knowledge') return knowledgeLookup(String(a.topic || ''))
+  if (name === 'search_library') return searchLibrary(coachItems.value, String(a.query || ''))
   if (name === 'search_exercises') {
     const words = String(a.query || '').toLowerCase().split(/\s+/).filter(Boolean)
     const muscle = typeof a.muscle === 'string' ? a.muscle.toLowerCase() : ''
@@ -90,6 +93,15 @@ async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHand
     const status = ['done', 'missed', 'dropped'].includes(String(a.status)) ? (String(a.status) as CoachItem['status']) : 'done'
     await saveCoachItem({ ...c, status, outcome: a.outcome ? String(a.outcome).slice(0, 300) : c.outcome })
     return { updated: c.id }
+  }
+  if (name === 'save_to_library') {
+    const title = String(a.title || '').trim().slice(0, 120)
+    const text = String(a.text || '').trim().slice(0, 60000)
+    if (!title || !text) throw new Error('title and text are required')
+    const dupe = items.find((x) => x.kind === 'source' && norm(x.text) === norm(title))
+    const rec = await saveCoachItem({ id: dupe?.id || uid('src-'), kind: 'source', text: title, body: text, created: dupe?.created || Date.now(), source: 'coach', updatedAt: dupe?.updatedAt || 0 })
+    h.onMemory({ action: 'library', text: title })
+    return { saved: rec.id }
   }
   if (name === 'resolve_goal') {
     const g = items.find((x) => x.id === a.id && x.kind === 'goal')

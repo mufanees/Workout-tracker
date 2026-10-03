@@ -47,12 +47,12 @@ export function CoachMemory() {
   const wipe = async () => {
     const ok = await confirmDialog({
       title: 'Forget everything?',
-      message: 'Deletes all notes, goals, commitments and reviews. Your profile and training data stay.',
+      message: 'Deletes all notes, goals, commitments and reviews. Your profile, library and training data stay.',
       confirm: 'Forget everything',
       danger: true,
     })
     if (!ok) return
-    for (const x of coachItems.value) if (x.kind !== 'profile') await remove('coach', x.id)
+    for (const x of coachItems.value) if (!['profile', 'source', 'snapshot', 'block'].includes(x.kind)) await remove('coach', x.id)
     toast('Memory cleared')
   }
 
@@ -179,6 +179,9 @@ export function CoachMemory() {
         </div>
       </section>
 
+      <h2 class="section-title" id="library">Library</h2>
+      <Library />
+
       {insights.value.length > 0 && (
         <>
           <h2 class="section-title">Reviews</h2>
@@ -204,4 +207,70 @@ export function CoachMemory() {
 
 function draftFields(p: CoachItem) {
   return [p.goals || '', p.injuries || '', p.equipment || '', p.schedule || '', p.preferences || '', p.age ?? null, p.maxHr ?? null]
+}
+
+/** Your own material for the coach: video transcripts, programs, articles, notes. */
+function Library() {
+  const items = coachItems.value.filter((x) => x.kind === 'source').sort((a, b) => (b.created || 0) - (a.created || 0))
+  const [title, setTitle] = useState('')
+  const [text, setText] = useState('')
+  const [adding, setAdding] = useState(false)
+  const add = async () => {
+    if (!title.trim() || !text.trim()) return
+    await saveCoachItem({ id: uid('src-'), kind: 'source', text: title.trim().slice(0, 120), body: text.trim().slice(0, 60000), created: Date.now(), source: 'you', updatedAt: 0 })
+    setTitle('')
+    setText('')
+    setAdding(false)
+    toast('Added to your library')
+  }
+  const del = async (item: CoachItem) => {
+    if (!(await confirmDialog({ title: 'Remove from library?', message: item.text, confirm: 'Remove', danger: true }))) return
+    await remove('coach', item.id)
+    toast('Removed', { label: 'Undo', run: () => void saveCoachItem(item) })
+  }
+  return (
+    <section class="card mem-list">
+      <p class="muted small">Videos, programs, articles and notes you want your coach to learn from. It searches them when planning and answering. You can also paste something in chat and say “save this to my library”.</p>
+      {items.map((x) => (
+        <details class="review lib-item">
+          <summary>
+            <span>
+              <b>{x.text}</b>
+              <small>
+                {' '}
+                · {wordCount(x.body || '')} · {fmtDay(x.created || x.updatedAt)}
+              </small>
+            </span>
+          </summary>
+          <p class="lib-body">{(x.body || '').slice(0, 1500)}{(x.body || '').length > 1500 ? '…' : ''}</p>
+          <button class="btn btn-ghost-danger btn-sm" onClick={() => void del(x)}>
+            Remove
+          </button>
+        </details>
+      ))}
+      {adding ? (
+        <div class="lib-add">
+          <input type="text" class="plain-input" value={title} placeholder="Title, e.g. Nippard minimalist video" onInput={(e) => setTitle(e.currentTarget.value)} />
+          <AutoText value={text} onInput={setText} placeholder="Paste the transcript, program or notes" class="input-like" label="Material" />
+          <div class="row gap">
+            <button class="btn btn-secondary grow" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+            <button class="btn btn-primary grow" disabled={!title.trim() || !text.trim()} onClick={add}>
+              Add to library
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button class="btn btn-secondary btn-block" onClick={() => setAdding(true)}>
+          <Icon name="plus" size={18} /> Add material
+        </button>
+      )}
+    </section>
+  )
+}
+
+const wordCount = (t: string) => {
+  const n = (t.match(/\S+/g) || []).length
+  return n < 1000 ? `${n} words` : `${Math.round(n / 100) / 10}k words`
 }

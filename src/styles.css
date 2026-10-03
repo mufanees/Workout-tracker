@@ -6580,3 +6580,26 @@ html[data-nav='back']::view-transition-old(screen) {
 .cal-day .cal-ring + .cal-fast.none {
   background: none;
 }
+.lib-item summary span {
+  display: inline;
+}
+.lib-body {
+  white-space: pre-wrap;
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  color: var(--muted);
+  line-height: 1.45;
+  margin: var(--sp-2) 0 var(--sp-3);
+}
+.lib-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.lib-add .input-like {
+  min-height: 140px;
+}
+.plan-title.long {
+  font-size: var(--fs-34);
+  line-height: 1.05;
+}

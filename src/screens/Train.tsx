@@ -3,6 +3,7 @@ import { active, routines, saveRoutine, remove, saveSettings, exMap } from '../s
 import { navigate } from '../router'
 import { startCardio, startEmpty, startRoutine } from '../workout'
 import { planStatus } from '../plan'
+import { programStatus } from '../program'
 import { Icon } from '../ui/icons'
 import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import type { Routine } from '../types'
@@ -41,7 +42,7 @@ export function Train() {
       <GoalCard />
       <BlockCard />
       <HeroQuote tag={daysSinceLast() >= 3 ? 'Action & Consistency' : undefined} />
-      {!active.value && <PlanCard />}
+      {!active.value && (programStatus.value ? <ProgramCard /> : <PlanCard />)}
       <WinCard />
 
       <div class="quick-starts">
@@ -143,6 +144,50 @@ function RoutineCard({ r }: { r: Routine }) {
         </button>
       </div>
     </div>
+  )
+}
+
+/** The coach-built program: next routine in the rotation, sessions this week. */
+function ProgramCard() {
+  const s = programStatus.value!
+  const menu = () =>
+    actionSheet({
+      title: s.program.name,
+      message: s.program.summary,
+      actions: [
+        { label: 'Ask coach to adjust it', icon: 'coach', onSelect: () => navigate(`/coach?ask=${encodeURIComponent(`Let's review my program “${s.program.name}”. I'm in week ${s.week}. What should change?`)}`) },
+        {
+          label: 'Back to the Comeback plan',
+          icon: 'left',
+          onSelect: async () => {
+            if (await confirmDialog({ title: 'Stop this program?', message: 'Its routines stay in their folder. The Comeback plan card comes back.', confirm: 'Stop program' })) void saveSettings({ program: null })
+          },
+        },
+      ],
+    })
+  return (
+    <section class={'plan-card' + (s.restDay ? ' rest' : '')}>
+      <div class="plan-top">
+        <button class="plan-eyebrow" onClick={menu} aria-label={`Week ${s.week} of ${s.program.name}. Options`}>
+          Week {s.week} · {s.program.name} <Icon name="down" size={14} />
+        </button>
+        <div class="plan-weeks" aria-hidden="true">
+          {Array.from({ length: s.target }, (_, i) => (
+            <span class={i < s.thisWeek ? 'now' : ''} />
+          ))}
+        </div>
+      </div>
+      <h2 class={'plan-title' + (s.routine.name.length > 14 ? ' long' : '')}>{s.routine.name}</h2>
+      <div class="plan-sub">
+        <p class={'plan-status' + (s.restDay ? ' rest' : '')}>{s.status}</p>
+        <p class="plan-note">
+          {s.thisWeek} of {s.target} this week{s.program.minutes ? ` · about ${s.program.minutes} min` : ''}
+        </p>
+      </div>
+      <button class="btn btn-block btn-lg" onClick={() => startRoutine(s.routine)}>
+        <Icon name="play" size={18} /> Start {s.routine.name}
+      </button>
+    </section>
   )
 }
 

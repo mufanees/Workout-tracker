@@ -52,6 +52,10 @@ const TOOL_LABEL: Record<string, string> = {
   search_exercises: 'Finding alternatives',
   propose_goal: 'Preparing a goal',
   propose_training_block: 'Planning a training block',
+  propose_program: 'Designing your program',
+  training_knowledge: 'Checking the training science',
+  search_library: 'Reading your library',
+  save_to_library: 'Saving to your library',
   resolve_goal: 'Updating your goal',
   propose_profile_update: 'Preparing a profile update',
 }
@@ -308,7 +312,7 @@ export function Coach() {
               )}
               {m.memory?.map((x) => (
                 <span class="mem-chip">
-                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : 'Remembered'}: {x.text}
+                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'library' ? 'Saved to library' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : 'Remembered'}: {x.text}
                 </span>
               ))}
               {m.proposals?.map((p) => {

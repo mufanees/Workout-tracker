@@ -6,6 +6,7 @@ import { planFor } from './timeplan'
 import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
 import { prIndex, sessionsByExercise, stalledAt } from './stats'
 import { planStatus } from './plan'
+import { programStatus, programText } from './program'
 import { summarizeHR, zoneRange } from './hr'
 import { counts, e1rm, phaseMinutes, startOfWeek } from './util'
 import type { Workout, WSet } from './types'
@@ -68,7 +69,8 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   out.push(`Today: ${date(now)} (${new Date().toLocaleDateString('en-GB', { weekday: 'long' })}). Weights in kg (dumbbell exercises: weight of one dumbbell). Display unit: ${st.unit}.`)
 
   const p = planStatus.value
-  if (p) out.push(`Program: 12-week Dumbbell Comeback plan (every other day, A/B alternating, superset pairs, shoulder-friendly). Currently week ${Math.min(p.week, 12)} of 12, Phase ${p.phase.n} ${p.phase.name} (${p.phase.note}). Next session: Workout ${p.day}. ${p.status}`)
+  if (programStatus.value) out.push(`PROGRAM (coach-built, active)\n${programText()}`)
+  else if (p) out.push(`Program: 12-week Dumbbell Comeback plan (every other day, A/B alternating, superset pairs, shoulder-friendly). Currently week ${Math.min(p.week, 12)} of 12, Phase ${p.phase.n} ${p.phase.name} (${p.phase.note}). Next session: Workout ${p.day}. ${p.status}`)
   out.push(`Heart rate zones (bpm): ${[1, 2, 3, 4, 5].map((z) => `Z${z} ${zoneRange(z)}`).join(', ')}. Weekly zone 2 goal: ${st.zone2Goal} min.`)
 
   out.push(`\nGOALS (computed by the app from their logs)\n${goalsText()}`)

@@ -104,6 +104,8 @@ export interface Settings extends Rec {
   fastRemind?: boolean // notify when the eating window is about to close
   moveGoal?: number // daily Move ring, minutes of any workout
   showPace?: boolean // time budget and pace on the workout screen
+  /** A program the coach built and the athlete approved: routines to rotate through. Replaces the Comeback plan card while set. */
+  program?: { name: string; routineIds: string[]; daysPerWeek: number; minutes?: number; summary?: string; start: number } | null
 }
 
 export interface Quote {
@@ -144,7 +146,7 @@ export interface BlockSpec {
 }
 
 export interface CoachItem extends Rec {
-  kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight' | 'snapshot' | 'block'
+  kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight' | 'snapshot' | 'block' | 'source'
   text?: string
   created?: number
   due?: number | null // goals and commitments
@@ -152,6 +154,7 @@ export interface CoachItem extends Rec {
   outcome?: string
   goal?: GoalSpec // kind 'goal': what to measure
   block?: BlockSpec // kind 'block': the plan
+  body?: string // kind 'source': the material (text is its title)
   source?: 'coach' | 'you' | 'app'
   type?: 'weekly' | 'workout' // insights
   ref?: string // insight: workout id or week start (YYYY-MM-DD)
