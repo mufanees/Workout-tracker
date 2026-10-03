@@ -13,7 +13,7 @@ import { Coach } from './screens/Coach'
 import { CoachMemory } from './screens/CoachMemory'
 import { Fast } from './screens/Fast'
 import { FastDone } from './screens/FastDone'
-import { GooDefs } from './ui/Goo'
+import { GooDefs, Motes } from './ui/Goo'
 import { BlockScreen, GoalDetail, GoalsScreen } from './screens/Goal'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
@@ -84,6 +84,7 @@ export function App() {
             return (
               <button class={'tab' + (on ? ' on' : '')} style={{ viewTransitionName: `tab-${i}` }} aria-current={on ? 'page' : undefined} onClick={() => !on && navigate(t.path, { replace: tab != null })}>
                 {on && <span class="tab-pill" aria-hidden="true" />}
+                {on && <Motes />}
                 <Icon name={t.icon} size={22} stroke={on ? 2.4 : 2} />
                 <span class="tab-label">{t.label}</span>
               </button>

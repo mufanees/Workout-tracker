@@ -2,6 +2,7 @@
 // and Zone 2 (minutes this week toward the weekly goal). Showing up at all earns the day.
 import { active, fasts, settings, workouts } from './store'
 import { DAY, HOUR, fastsByDay } from './fasting'
+import { activityOf } from './activity'
 import { summarizeHR } from './hr'
 import type { Workout } from './types'
 import { startOfDay, startOfWeek } from './util'
@@ -60,6 +61,18 @@ export function zone2Minutes(weekStart = startOfWeek(Date.now())) {
     if (w.start >= weekStart + 7 * DAY) continue
     const s = summarizeHR(w.hr)
     if (s) min += s.zoneSeconds[1] / 60
+  }
+  return min
+}
+
+/** All cardio minutes in the week (whole sessions, whatever the heart rate). Zone 2 is the part
+ *  of any workout's heart rate spent in zone 2, so it's a slice of this, never taken away from it. */
+export function cardioMinutes(weekStart = startOfWeek(Date.now())) {
+  let min = 0
+  for (const w of workouts.value) {
+    if (w.start < weekStart) break // newest first
+    if (w.start >= weekStart + 7 * DAY || !w.end || activityOf(w).kind !== 'cardio') continue
+    min += (w.end - w.start) / 60000
   }
   return min
 }

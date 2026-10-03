@@ -3827,7 +3827,7 @@ label.setting:active {
   aspect-ratio: 1;
   margin: 0 auto;
 }
-.stage-ring svg {
+.stage-ring > svg {
   width: 100%;
   height: 100%;
 }
@@ -6677,14 +6677,10 @@ html[data-nav='back']::view-transition-old(screen) {
 }
 
 /* =====================================================================================
-   Goo. Lime is liquid: blobs melt together (SVG filter #goo in src/ui/Goo.tsx), lime
-   buttons squish like jelly, picked chips ooze into place, the tab pill stretches between
-   tabs. Kept quick so nothing slows down logging; off with reduced motion.
+   Goo. Lime is liquid: blobs melt together (SVG filters in src/ui/Goo.tsx), taps shed
+   droplets that drift away, motes rise off the active tab. Shapes never morph; particles
+   carry the motion. Nothing slows down logging; off with reduced motion.
    ===================================================================================== */
-:root {
-  /* a springy overshoot: stretches past, wobbles back */
-  --spring: linear(0, 0.22 7%, 0.66 16%, 1.07 28%, 1.16 35%, 1.12 42%, 1.01 54%, 0.97 63%, 0.99 78%, 1);
-}
 .goo-defs {
   position: absolute;
   width: 0;
@@ -6744,54 +6740,99 @@ html[data-nav='back']::view-transition-old(screen) {
   }
 }
 
-/* jelly: lime things squash when pressed and wobble back */
-:is(.btn-primary, .check.on, .plan-card .btn, .effort-opt.on, .tab.on, .goal-state.on-track, .fab) {
-  transition-property: scale, background-color, color, box-shadow;
-  transition-duration: 620ms;
-  transition-timing-function: var(--spring);
+/* tap droplets: a bead swells on the control's top edge, droplets pinch off and float away */
+.goo-tap {
+  position: fixed;
+  z-index: 300;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  filter: url(#goo-sm);
 }
-:is(.btn-primary, .plan-card .btn, .check):active:not(:disabled) {
-  scale: 1.05 0.9;
-  transition-duration: 110ms;
-  transition-timing-function: ease-out;
+.goo-tap b,
+.goo-tap i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: var(--accent);
 }
-.check.on {
-  animation: jelly 560ms var(--spring);
+.goo-tap b {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  animation: goo-tap-core 620ms cubic-bezier(0.3, 0.7, 0.3, 1) both;
 }
-@keyframes jelly {
+.goo-tap i {
+  width: var(--sz);
+  height: var(--sz);
+  margin: calc(var(--sz) / -2) 0 0 calc(var(--sz) / -2);
+  animation: goo-float 1s cubic-bezier(0.25, 0.6, 0.3, 1) both;
+}
+@keyframes goo-tap-core {
   0% {
-    scale: 1.18 0.82;
+    transform: scale(0.2);
   }
-  40% {
-    scale: 0.92 1.1;
+  30% {
+    transform: scale(1);
   }
   100% {
-    scale: 1 1;
+    transform: scale(0);
   }
 }
-
-/* picked chips ooze into place */
-:is(.chip.on, .effort-opt.on, .fb-opt.on, .when-days .chip.on, .proto.on) {
-  animation: ooze 520ms var(--spring);
-}
-@keyframes ooze {
+@keyframes goo-float {
   0% {
-    scale: 0.82 0.9;
-    border-radius: 42% 58% 52% 48% / 60% 44% 56% 40%;
+    transform: translate(0, 0) scale(0.7);
   }
-  45% {
-    scale: 1.06 0.95;
-    border-radius: 55% 45% 40% 60% / 45% 60% 40% 55%;
+  14% {
+    /* budding off the bead */
+    transform: translate(calc(var(--dx) * 0.12), calc(var(--dy) * 0.12)) scale(1);
+  }
+  50% {
+    transform: translate(calc(var(--dx) * 0.62 + var(--wx)), calc(var(--dy) * 0.62)) scale(0.85);
+  }
+  100% {
+    transform: translate(calc(var(--dx) - var(--wx) * 0.6), var(--dy)) scale(0);
   }
 }
 
-/* the tab pill stretches and wobbles between tabs */
-::view-transition-group(tab-pill) {
-  animation-duration: 520ms;
-  animation-timing-function: var(--spring);
+/* motes: tiny lime particles that keep rising off the active tab's pill */
+.motes {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 0;
+  height: 0;
+  pointer-events: none;
 }
-.tab.on .tab-pill {
-  animation: jelly 600ms var(--spring);
+.motes i {
+  position: absolute;
+  left: var(--x);
+  top: 0;
+  width: var(--sz);
+  height: var(--sz);
+  margin-left: calc(var(--sz) / -2);
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0;
+  animation: mote var(--dur) cubic-bezier(0.3, 0.5, 0.4, 1) var(--delay) infinite;
+}
+@keyframes mote {
+  0% {
+    transform: translate(0, 4px) scale(0.2);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(calc(var(--drift) * 0.15), -2px) scale(1);
+    opacity: 0.95;
+  }
+  60% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(var(--drift), calc(var(--rise) * -1)) scale(0.35);
+    opacity: 0;
+  }
 }
 
 /* lava lamp inside the lime workout card */
@@ -6950,13 +6991,12 @@ html[data-nav='back']::view-transition-old(screen) {
 @media (prefers-reduced-motion: reduce) {
   .lava,
   .goo-burst,
-  .goo-splash {
+  .goo-splash,
+  .goo-tap {
     display: none;
   }
-  .check.on,
-  .tab.on .tab-pill,
-  :is(.chip.on, .effort-opt.on, .fb-opt.on, .when-days .chip.on, .proto.on) {
-    animation: none;
+  .motes {
+    display: none;
   }
   .goo-dots i {
     animation: none;

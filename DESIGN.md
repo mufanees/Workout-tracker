@@ -7,7 +7,7 @@ One set of tokens drives every screen. They live at the top of `src/styles.css`;
 - **Glanceable mid-set.** The numbers you act on (weight, reps, time, rest) are the largest thing on screen, in tabular figures.
 - **One accent.** Lime (`--accent`) means "do this" or "done": primary buttons, completed sets, the active tab, closed rings. Everything else is neutral.
 - **Space groups things.** Tight inside a group, open between groups: the gap between groups is at least twice the gap inside one.
-- **Motion explains, and the lime is liquid.** One arrival curve, quicker exits, nothing that slows logging a set. Lime things behave like goo: they squash when pressed, wobble back, and melt into each other (see Goo).
+- **Motion explains, and the lime is liquid.** One arrival curve, quicker exits, nothing that slows logging a set. Shapes never morph; lime particles carry the liveliness: droplets off a tap, motes off the active tab (see Goo).
 
 ## Color
 
@@ -104,12 +104,11 @@ Touch targets are at least 44px: `--h-sm` 36 (secondary chips only), `--h-md` 44
 
 The gooey layer (`src/ui/Goo.tsx`, the "goo" block at the end of `styles.css`). All of it is decoration: `aria-hidden`, `pointer-events: none`, off under `prefers-reduced-motion`.
 
-- **Metaball filters** (`<GooDefs />`, mounted once in App): blur, then a hard alpha cut, so nearby blobs melt into one shape. `#goo` (blur 7) for splashes and bursts, `#goo-sm` (blur 3.2) for small things such as the coach dots, `#goo-soft` (blur 14, no edge composite) for lava.
-- **Spring**: `--spring`, a CSS `linear()` curve that overshoots about 16% and settles. Used for the jelly release, the tab pill and the ooze on chips.
-- **Jelly press**: lime buttons and the set check squash to `scale: 1.05 0.9` while held and spring back; a check that turns on wobbles.
-- **Ooze**: selected chips (check-in, effort, feedback, fasting day and plan chips) swell and settle with the spring.
-- **Splash** (`gooSplash(el, host)`): ticking a set throws seven lime droplets out of the check that melt back in (~720ms). Drawn inside the exercise card so it scrolls with the row.
-- **Tab pill**: the lime pill stretches across to the new tab (view transition `tab-pill`, 520ms on the spring) and jiggles on arrival.
+- **Metaball filters** (`<GooDefs />`, mounted once in App): blur, then a hard alpha cut, so nearby blobs melt into one shape. `#goo` (blur 7) for the set splash and celebration burst, `#goo-sm` (blur 3.2) for small things (tap droplets, coach dots), `#goo-soft` (blur 14) for lava.
+- **No morphing.** The owner tried squash-and-stretch presses, a jelly tab pill and blob-shaped chip corners and found them abrupt and oddly shaped. Presses stay `scale: 0.96`, the tab pill glides, chips settle with a slight scale (no corner changes).
+- **Tap droplets** (`gooTap`, a capture-phase click listener in `GooDefs`): tapping any button, link or tab buds a small bead on the control's top edge (above the finger, never over the label) and 6–9 droplets of 4–11px break off and drift up and away, each at its own pace (0.9–1.6 s). Skipped for text fields, the set check (it has its own splash) and `[data-no-goo]`; at most four at once.
+- **Motes** (`<Motes />` in the active tab): five tiny lime particles keep rising off the top of the tab pill on 2.8–4.1 s loops.
+- **Splash** (`gooSplash(el, host)`): ticking a set throws seven lime droplets out of the check that melt back in (~720ms), drawn inside the exercise card so it scrolls with the row.
 - **Lava**: four slow blobs drifting behind the plan / program card on training days (opacity .55, 11–19s loops).
 - **Burst**: blobs rise and merge behind the celebration hero. **Dots**: the coach's "thinking" indicator is three blobs that merge and split.
 

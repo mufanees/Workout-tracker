@@ -2,7 +2,7 @@ import { useMemo } from 'preact/hooks'
 import { saveSettings, settings } from '../store'
 import { navigate } from '../router'
 import { HOUR, dayKey, hm } from '../fasting'
-import { MOVE_GOALS, moveGoal, nudge, ringsFor, thisWeekDays, zone2Minutes } from '../rings'
+import { cardioMinutes, MOVE_GOALS, moveGoal, nudge, ringsFor, thisWeekDays, zone2Minutes } from '../rings'
 import type { Milestone } from '../milestones'
 import { startOfDay } from '../util'
 import { Icon } from './icons'
@@ -51,6 +51,7 @@ export function TodayRings() {
   const days = ringsFor(week, now)
   const t = days.find((d) => d.day === today) || ringsFor([today], now)[0]
   const z2 = zone2Minutes()
+  const cardio = Math.round(cardioMinutes())
   const z2Goal = settings.value.zone2Goal || 150
   const fastPct = t.fastMs / t.fastGoalMs
   const movePct = t.moveMin / t.moveGoal
@@ -104,7 +105,7 @@ export function TodayRings() {
               {Math.round(z2)}
               <small> / {z2Goal} min</small>
             </b>
-            <span class="tr-sub">This week</span>
+            <span class="tr-sub">{cardio ? `This week · ${cardio} min cardio` : 'This week'}</span>
           </button>
         </div>
       </div>
