@@ -1,11 +1,11 @@
 // The coach on Claude, for the Claude-hosted copy (no server). Same instructions, memory and tools
 // as the server's Gemini coach (shared/coachSpec.mjs); look-ups read the app's own data and memory
 // is saved locally (and from there to the Claude account).
-import { COACH_TOOLS, QUICK, systemText } from '../shared/coachSpec.mjs'
+import { COACH_TOOLS, QUICK, systemText, isPlanning } from '../shared/coachSpec.mjs'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
 import { sampleFn } from './cloud'
 import { bodyWeights, coachItems, dayNotes, exercises, fasts, readings, remove, saveCoachItem, workouts } from './store'
-import { buildCoachContext, routinesText, workoutLine } from './coachContext'
+import { checkinWords, buildCoachContext, routinesText, workoutLine } from './coachContext'
 import { sessionsByExercise } from './stats'
 import type { Proposal } from './coach'
 import type { CoachItem } from './types'
@@ -42,7 +42,7 @@ function lookup(name: string, a: Record<string, unknown>): string {
     const f = fasts.value.slice(0, 14).map((x) => `${iso(x.start)} ${x.end ? ((x.end - x.start) / 3600000).toFixed(1) + ' h' : 'in progress'} (goal ${x.goal} h)${x.note ? ` "${x.note}"` : ''}`)
     const r = readings.value.slice(0, 30).map((x) => `${iso(x.date)} resting ${x.rhr} bpm${x.hrv ? `, HRV ${Math.round(x.hrv)} ms` : ''}`)
     const sh = workouts.value.filter((x) => x.shoulder != null).slice(0, 20).map((x) => `${iso(x.start)} ${x.shoulder}/10`)
-    const dn = [...dayNotes.value.values()].sort((x, y) => y.id.localeCompare(x.id)).slice(0, 21).map((d) => `${d.id}: ${d.text.slice(0, 300)}`)
+    const dn = [...dayNotes.value.values()].sort((x, y) => y.id.localeCompare(x.id)).slice(0, 21).map((d) => `${d.id}: ${checkinWords(d) ? `[${checkinWords(d)}] ` : ''}${d.text.slice(0, 300)}`)
     return `Weight:\n${w.join('\n') || 'none'}\n\nFasts:\n${f.join('\n') || 'none'}\n\nMorning readings:\n${r.join('\n') || 'none'}\n\nShoulder (0-10):\n${sh.join('\n') || 'none'}\n\nDay notes:\n${dn.join('\n') || 'none'}`
   }
   if (name === 'search_exercises') {
@@ -123,7 +123,9 @@ export async function claudeChat(history: { role: 'user' | 'assistant'; content:
   }))
   const msgs = turnsFor(`${system}\n\nThe conversation follows. Reply to the athlete's last message.`, history)
   try {
-    const { text } = await sample(msgs, { tools, cache: false, signal: h.signal, onText: ({ text }: { text: string }) => h.onText(text) })
+    // Planning questions (goals, programs, milestones) get the strongest model; everyday ones stay quick.
+    const modelTier = isPlanning(history[history.length - 1]?.content || '') ? 'complex' : 'default'
+    const { text } = await sample(msgs, { tools, cache: false, modelTier, signal: h.signal, onText: ({ text }: { text: string }) => h.onText(text) })
     return text
   } catch (e) {
     throw new Error(sampleError(e))

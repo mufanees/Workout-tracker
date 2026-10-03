@@ -100,7 +100,8 @@ function liftSeries(ex: Exercise, reps: number): { pts: Pt[]; sets: WSet[] } {
     let bv = 0
     for (const set of s.sets) {
       if (!counts(set) || !set.weight || !set.reps) continue
-      const v = estimate(set.weight, set.reps, reps) * factor
+      // Reps left in the tank count: 12 reps with 3 left is about a 15-rep effort.
+      const v = estimate(set.weight, set.reps + Math.min(5, set.rir ?? 0), reps) * factor
       if (v > bv) (bv = v), (best = set)
     }
     if (best) pts.push({ t: s.workout.start, v: bv }), sets.push(best)

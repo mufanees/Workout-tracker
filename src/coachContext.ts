@@ -1,5 +1,6 @@
 // Builds a compact plain-text summary of your training for the AI coach (or to paste into Claude).
 import { goalsText } from './goals'
+import { blockText } from './blocks'
 import { dayKey } from './fasting'
 import { planFor } from './timeplan'
 import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
@@ -16,8 +17,9 @@ const r1 = (n: number) => Math.round(n * 10) / 10
 function fmtSet(s: WSet, type: string) {
   const tag = s.kind === 'warmup' ? 'W ' : s.kind === 'failure' ? 'F ' : s.kind === 'drop' ? 'D ' : ''
   if (type === 'duration') return `${tag}${s.seconds ?? '?'}s`
-  if (s.weight == null) return `${tag}${s.reps ?? '?'}`
-  return `${tag}${r1(s.weight)}×${s.reps ?? '?'}`
+  const rir = s.rir != null ? ` @RIR${s.rir === 1.5 ? '1-2' : s.rir >= 3 ? '3+' : s.rir}` : ''
+  if (s.weight == null) return `${tag}${s.reps ?? '?'}${rir}`
+  return `${tag}${r1(s.weight)}×${s.reps ?? '?'}${rir}`
 }
 
 export function workoutLine(w: Workout) {
@@ -70,6 +72,7 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   out.push(`Heart rate zones (bpm): ${[1, 2, 3, 4, 5].map((z) => `Z${z} ${zoneRange(z)}`).join(', ')}. Weekly zone 2 goal: ${st.zone2Goal} min.`)
 
   out.push(`\nGOALS (computed by the app from their logs)\n${goalsText()}`)
+  out.push(`\nTRAINING BLOCK\n${blockText()}`)
 
   const list = workouts.value
   const focus = opts.focusWorkoutId ? list.find((w) => w.id === opts.focusWorkoutId) : null
@@ -132,7 +135,11 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   if (fs.length) out.push(`\nFASTS, LAST 3 WEEKS\n${fs.map((f) => `${date(f.start)} ${f.end ? r1((f.end - f.start) / 3600000) + ' h' : 'in progress'} (goal ${f.goal} h)${f.note ? ` “${f.note}”` : ''}`).join(', ')}`)
 
   const dn = [...dayNotes.value.values()].filter((d) => d.id >= dayKey(now - 21 * DAY)).sort((a, b) => a.id.localeCompare(b.id))
-  if (dn.length) out.push(`\nDAY NOTES, LAST 3 WEEKS\n${dn.map((d) => `${d.id}: ${d.text.slice(0, 300)}`).join('\n')}`)
+  const withText = dn.filter((d) => d.text.trim())
+  if (withText.length) out.push(`\nDAY NOTES, LAST 3 WEEKS\n${withText.map((d) => `${d.id}: ${d.text.slice(0, 300)}`).join('\n')}`)
+  const ci = dn.filter((d) => d.id >= dayKey(now - 14 * DAY) && (d.sleep || d.energy || d.stress))
+  if (ci.length) out.push(`\nDAILY CHECK-IN, LAST 14 DAYS (sleep poor/ok/good, energy low/ok/high, stress high/some/low)\n${ci.map((d) => `${d.id}: ${checkinWords(d)}`).join('\n')}`)
+  else out.push('\nDAILY CHECK-IN: none in the last 14 days.')
   if (settings.value.weightGoal != null) out.push(`\nTarget body weight: ${settings.value.weightGoal} kg`)
 
   out.push(`\nROUTINES\n${routinesText()}`)
@@ -162,4 +169,10 @@ export function routinesText() {
 /** For pasting into Gemini or Claude when the in-app coach isn't set up. */
 export function coachPasteText(question: string) {
   return `You're my personal trainer. Here's my training data from my workout app. ${question}\n\n${buildCoachContext()}`
+}
+
+/** "sleep good, energy low, stress some" */
+export function checkinWords(d: { sleep?: number | null; energy?: number | null; stress?: number | null }) {
+  const w = (v: number | null | undefined, words: string[]) => (v ? words[v - 1] : null)
+  return [w(d.sleep, ['poor', 'ok', 'good']) && `sleep ${w(d.sleep, ['poor', 'ok', 'good'])}`, w(d.energy, ['low', 'ok', 'high']) && `energy ${w(d.energy, ['low', 'ok', 'high'])}`, w(d.stress, ['high', 'some', 'low']) && `stress ${w(d.stress, ['high', 'some', 'low'])}`].filter(Boolean).join(', ')
 }

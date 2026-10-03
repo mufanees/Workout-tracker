@@ -11,10 +11,11 @@ How to coach:
 - Lead with the answer. Short enough to read on a phone between sets: a few sentences or a short list. Headings only for a full review.
 - End with one to three concrete next actions (what to lift, how much, how many reps, how many zone 2 minutes).
 - Progression: when every working set reaches the top of the rep range with clean form, add the smallest jump their equipment allows (see profile). Same weight for three sessions without more reps means one lighter week (about 70%, 2 sets). Upper body progresses slower than legs.
-- Recovery: low HRV or resting heart rate 5+ bpm above normal means an easier day. Missing a week or more means repeating the last completed week at the same weights.
+- Recovery: low HRV or resting heart rate 5+ bpm above normal means an easier day. So do poor sleep, low energy or high stress in today's DAILY CHECK-IN: keep the main lift but drop a set or hold the weight; several rough days in a row explain a stall better than the program does. Mention it briefly, without lecturing. Missing a week or more means repeating the last completed week at the same weights.
 - Encourage honestly. Name real wins. Don't flatter. If they've been skipping, say it plainly and give the smallest next step.
 - Not a doctor: for sharp, worsening or lasting pain, stop that movement and see a physio. No diagnoses.
 - Weights in kg; dumbbell exercises log the weight of one dumbbell.
+- "@RIR" after a set is how many more reps they said they could have done (from a tap after the exercise): 0 = nothing left, 1-2 = good working effort, 3+ = easy. Use it for progression: 3+ on the last set means add weight or reps next time; 0 on early sets or several sessions running means hold or back off. No RIR means they didn't say.
 - Format with plain Markdown: short paragraphs, "-" bullets, "1." steps, **bold** for key numbers. No tables.
 
 Workout feedback (the "Athlete feedback", "Athlete said" and "Time" lines in the training data):
@@ -31,6 +32,11 @@ Goals (the GOALS section of the training data shows each open goal's id, target,
 - Behind pace: find the reason in the data (missed sessions, a stall, too much volume, poor recovery, a lift they skip) and fix that one thing: a routine change via propose_routine_changes, a deload, more frequency on the goal lift, or a smaller next milestone. Ahead: keep the plan and maybe pull the milestones in.
 - Train toward the goal, not just the plan: as the goal lift gets within about 15% of target, shift its work toward 3–6 reps with longer rests; well below that, build with 6–12 reps. With capped dumbbells, use double progression (add reps up to the top of the range before adding weight), then tempo, pauses and one-and-a-quarter reps; tell them when buying heavier dumbbells will unlock the next milestone.
 - When the data shows a milestone or goal reached, celebrate it with the numbers and the date. Mark a reached goal done with resolve_goal and suggest the next one. Change a goal's target, date or milestones only through propose_goal with replaces_goal_id, after they agree. Drop a goal only when they ask.
+
+Training blocks (TRAINING BLOCK in the training data shows the active one, the current week and phase):
+- When they want a plan to reach a goal, or a goal's pace needs a change of approach, propose a block with propose_training_block: 4 to 8 weeks, phases with a focus, rep range, sets and effort (in reps left in the tank), one easier deload week (usually the last, about 60% volume), and how each key lift progresses week to week. Build it on their current routines and the time they have; swap exercises only through propose_routine_changes.
+- Fit it to them: returning lifters start with more reps (8–12, 2–3 left) and build toward heavier work (4–6, 1–2 left) as a goal lift nears target; respect the shoulder, their schedule and the 24 kg-style equipment limits in the profile or goal.
+- While a block runs, today's targets, reviews and answers follow this week's phase. Say which week they're in. If it isn't working (stalls, missed weeks, poor recovery), say so and propose a revised block; don't silently ignore it.
 
 Memory and follow-through:
 - Open commitments are listed below with their ids. When the conversation or the data shows how one went, call resolve_commitment. If one is past due and you can see the result in the data, mention it.
@@ -124,6 +130,24 @@ export const COACH_TOOLS = [
     ),
   },
   {
+    name: 'propose_training_block',
+    kind: 'proposal',
+    description: 'Propose a 3–12 week training block (phases, rep ranges, effort, deload, key-lift progression) for the athlete to approve. Replaces any active block.',
+    parameters: obj(
+      {
+        name: str('Short name, e.g. "Strength base · 6 weeks"'),
+        start_date: str('YYYY-MM-DD, usually the coming Monday or today'),
+        weeks: int('Length in weeks'),
+        summary: str('One or two sentences: the aim and how it serves their goal'),
+        goal_id: str('Goal id from GOALS this block serves, if any'),
+        phases: arr(obj({ from_week: int(), to_week: int(), focus: str(), reps: str('e.g. "8-10"'), sets: int(), effort: str('e.g. "2-3 reps left"'), notes: str() }, ['from_week', 'to_week', 'focus'])),
+        deload_week: int('Week number of the easier week, if any'),
+        key_lifts: arr(obj({ exercise: str(), progression: str('How it progresses week to week') }, ['exercise', 'progression'])),
+      },
+      ['name', 'weeks', 'phases'],
+    ),
+  },
+  {
     name: 'propose_profile_update',
     kind: 'proposal',
     description: 'Propose updating one field of the athlete profile.',
@@ -181,7 +205,7 @@ export function systemText({ list, context, tz }) {
 export const QUICK = {
   pre: {
     prompt: (routine, exercises) =>
-      `The athlete is starting "${routine}" now with these exercises: ${exercises.join(', ')}. Using their last sessions, the plan's progression rules, their equipment, recovery, their feedback on recent workouts and any open commitments, give today's target for each exercise and one short line of focus for the session. Use exact exercise names from the list. Leave weight_kg out for bodyweight or timed exercises.`,
+      `The athlete is starting "${routine}" now with these exercises: ${exercises.join(', ')}. Using their last sessions (including how many reps they had left), this week of the active TRAINING BLOCK if there is one, the plan's progression rules, their goals, today's check-in, their equipment, recovery, their feedback on recent workouts and any open commitments, give today's target for each exercise and one short line of focus for the session. Use exact exercise names from the list. Leave weight_kg out for bodyweight or timed exercises.`,
     schema: obj({ focus: str('One short sentence'), targets: arr(obj({ exercise: str(), weight_kg: num(), reps: str('e.g. "8-10"'), note: str() }, ['exercise'])) }, ['focus', 'targets']),
   },
   workout: {
@@ -199,4 +223,9 @@ export const QUICK = {
       'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, shoulder, stalls, missed sessions), where they stand on each open goal (pace vs target, next milestone), and the plan for next week. Also give a one-sentence headline for a phone notification.',
     schema: obj({ headline: str(), review: str() }, ['headline', 'review']),
   },
+}
+
+/** Questions that deserve the strongest model and more thinking: planning, goals, programs. */
+export function isPlanning(text) {
+  return /\b(goal|goals|plan|planning|program|programme|block|milestones?|periodi[sz]|phase|deload|roadmap|how (do|can|should) i (get|reach|hit)|how long (until|to|will)|weeks? from now|by (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))/i.test(String(text || ''))
 }

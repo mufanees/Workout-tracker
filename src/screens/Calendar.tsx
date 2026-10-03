@@ -133,7 +133,7 @@ export function CalendarView() {
                   ws ? ws.map((x) => x.name).join(', ') : '',
                   f ? `fasted ${hm(f.ms)}` : '',
                   b.has(d) ? 'weigh-in' : '',
-                  notes.has(dayKey(d)) ? 'note' : '',
+                  notes.get(dayKey(d))?.text.trim() ? 'note' : '',
                 ]
                   .filter(Boolean)
                   .join(', ')
@@ -144,7 +144,7 @@ export function CalendarView() {
                     {f ? <span class={'cal-fast' + (f.hit ? ' hit' : '') + (f.live ? ' live' : '')}>{hShort(f.ms)}</span> : <span class="cal-fast none" />}
                     <span class="cal-dots">
                       {b.has(d) && <i class="lg-weight" />}
-                      {notes.has(dayKey(d)) && <i class="lg-note" />}
+                      {!!notes.get(dayKey(d))?.text.trim() && <i class="lg-note" />}
                     </span>
                   </button>
                 )

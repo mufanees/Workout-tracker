@@ -618,9 +618,48 @@ function ExerciseCard({
           )
         })}
       </div>
+      {(mode === 'live' || mode === 'edit') && ex.type !== 'duration' && (() => {
+        const work = we.sets.filter((x) => x.kind !== 'warmup')
+        const last = [...work].reverse().find((x) => x.done)
+        if (!last || !work.every((x) => x.done)) return null
+        return (
+          <EffortRow
+            value={last.rir}
+            onPick={(v) =>
+              mut((w) => {
+                const s = [...w.sets].reverse().find((x) => x.done && x.kind !== 'warmup')
+                if (s) s.rir = s.rir === v ? null : v
+              })
+            }
+          />
+        )
+      })()}
       <button class="add-set" onClick={addSet}>
         <Icon name="plus" size={16} stroke={2.5} /> Add set
       </button>
+    </div>
+  )
+}
+
+const EFFORT: [number, string, string][] = [
+  [3, 'Easy', '3+ left'],
+  [1.5, 'Good', '1–2 left'],
+  [0, 'Max', 'none left'],
+]
+
+/** After the last set: how many more reps could you have done? Tells the coach how hard it really was. */
+function EffortRow({ value, onPick }: { value?: number | null; onPick: (v: number) => void }) {
+  return (
+    <div class="effort-row" role="radiogroup" aria-label="How hard was the last set?">
+      <span class="effort-q">How hard was the last set?</span>
+      <div class="effort-opts">
+        {EFFORT.map(([v, label, sub]) => (
+          <button role="radio" aria-checked={value === v} class={'effort-opt' + (value === v ? ' on' : '') + (v === 0 ? ' max' : '')} onClick={() => onPick(v)}>
+            <b>{label}</b>
+            <small>{sub}</small>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

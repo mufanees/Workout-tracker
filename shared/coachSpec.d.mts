@@ -22,3 +22,4 @@ export const QUICK: {
   condense: { prompt(transcript: string): string; schema: JsonSchema }
   weekly: { prompt(): string; schema: JsonSchema }
 }
+export function isPlanning(text: string): boolean

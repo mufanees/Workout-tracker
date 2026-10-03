@@ -186,11 +186,25 @@ export async function saveFast(f: Fast) {
 }
 
 /** Saves a day's note; an empty note becomes a tombstone. */
+const hasCheckin = (d?: Partial<DayNote>) => !!(d && (d.sleep || d.energy || d.stress))
+
 export async function saveDayNote(id: string, text: string) {
   const cur = dayNotes.value.get(id)
   if (!text.trim() && !cur) return
   if (cur && cur.text === text) return
-  const rec = await write<DayNote>('days', text.trim() ? { id, text, updatedAt: cur?.updatedAt || 0 } : { id, text: '', deleted: true, updatedAt: cur?.updatedAt || 0 })
+  const keep = text.trim() || hasCheckin(cur)
+  const rec = await write<DayNote>('days', keep ? { ...(cur || {}), id, text, updatedAt: cur?.updatedAt || 0 } : { id, text: '', deleted: true, updatedAt: cur?.updatedAt || 0 })
+  const next = new Map(dayNotes.value)
+  if (rec.deleted) next.delete(id)
+  else next.set(id, rec)
+  dayNotes.value = next
+}
+
+/** The morning check-in for a day (sleep, energy, stress), kept on that day's note. */
+export async function saveCheckin(id: string, patch: Pick<Partial<DayNote>, 'sleep' | 'energy' | 'stress'>) {
+  const cur = dayNotes.value.get(id)
+  const merged = { ...(cur || { text: '' }), ...patch, id, updatedAt: cur?.updatedAt || 0 } as DayNote
+  const rec = await write<DayNote>('days', merged)
   const next = new Map(dayNotes.value)
   if (rec.deleted) next.delete(id)
   else next.set(id, rec)

@@ -32,7 +32,8 @@ Supersets take their colour from `SUPERSET_COLORS` in `src/util.ts` (`--ss`).
 ## Type
 
 - **Space Grotesk** (display and UI): headings, labels, buttons, every number.
-- **Inter** (`--font-read`, reading): exercise lists, notes, checklists, coach replies, hints. Anything you read rather than scan.
+- **Inter** (`--font-read`, reading and secondary text): exercise lists, notes, checklists, coach replies, hints, captions, meta lines and descriptions under 15px. Anything you read rather than scan.
+- Space Grotesk keeps headings, buttons and chips, uppercase eyebrows, units beside big numbers and chart axes.
 
 | Token | Size | Typical use |
 |---|---|---|

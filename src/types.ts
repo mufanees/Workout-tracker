@@ -30,6 +30,8 @@ export interface WSet {
   // Today's targets from the coach (take priority over last time's numbers as placeholders).
   cw?: number | null
   cr?: number | null
+  /** Reps left in the tank on this set (0 = couldn't do another), from the effort tap after an exercise. */
+  rir?: number | null
 }
 
 export interface WExercise {
@@ -130,15 +132,27 @@ export interface GoalSpec {
   milestones?: { value: number; due?: number | null; label?: string }[]
 }
 
+/** A multi-week training plan the coach proposed and the athlete approved. */
+export interface BlockSpec {
+  start: number // local midnight of day 1
+  weeks: number
+  summary?: string
+  goalId?: string
+  phases: { from: number; to: number; focus: string; reps?: string; sets?: number; effort?: string; notes?: string }[]
+  deloadWeek?: number | null
+  keyLifts?: { exercise: string; progression: string }[]
+}
+
 export interface CoachItem extends Rec {
-  kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight'
+  kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight' | 'snapshot' | 'block'
   text?: string
   created?: number
   due?: number | null // goals and commitments
   status?: 'open' | 'done' | 'missed' | 'dropped'
   outcome?: string
   goal?: GoalSpec // kind 'goal': what to measure
-  source?: 'coach' | 'you'
+  block?: BlockSpec // kind 'block': the plan
+  source?: 'coach' | 'you' | 'app'
   type?: 'weekly' | 'workout' // insights
   ref?: string // insight: workout id or week start (YYYY-MM-DD)
   // profile fields
@@ -174,6 +188,10 @@ export interface Fast extends Rec {
 /** A note for one day. id is the local date, "YYYY-MM-DD". */
 export interface DayNote extends Rec {
   text: string
+  /** Morning check-in, 1 (bad) to 3 (good) each; stress 3 = calm. */
+  sleep?: 1 | 2 | 3 | null
+  energy?: 1 | 2 | 3 | null
+  stress?: 1 | 2 | 3 | null
 }
 
 export type StoreName = 'exercises' | 'routines' | 'workouts' | 'settings' | 'body' | 'fasts' | 'readings' | 'coach' | 'days'

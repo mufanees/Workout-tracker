@@ -51,6 +51,8 @@ const TOOL_LABEL: Record<string, string> = {
   propose_routine_changes: 'Reworking your routine',
   search_exercises: 'Finding alternatives',
   propose_goal: 'Preparing a goal',
+  propose_training_block: 'Planning a training block',
+  resolve_goal: 'Updating your goal',
   propose_profile_update: 'Preparing a profile update',
 }
 

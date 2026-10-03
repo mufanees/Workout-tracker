@@ -6,6 +6,7 @@ import { STATE_LABEL, fmtPace, fmtValue, fmtWhen, openGoals, type GoalStatus } f
 import { Icon } from '../ui/icons'
 import { confirmDialog, toast } from '../ui/overlay'
 import { coachItems } from '../store'
+import { activeBlock, phaseLine, type BlockStatus } from '../blocks'
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 const WEEK = 7 * 86400000
@@ -368,4 +369,130 @@ function niceStep(raw: number) {
   const p = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 0.1))))
   const n = raw / p
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p
+}
+
+// ---------- training block ----------
+
+/** Train screen: this week of the active training block. */
+export function BlockCard() {
+  const b = activeBlock.value
+  if (!b) return null
+  const s = b.spec
+  return (
+    <button class="goal-card block-card" onClick={() => navigate('/block')}>
+      <div class="gc-top">
+        <span class="eyebrow">
+          <Icon name="calendarDays" size={14} /> Training block
+        </span>
+        <span class={'goal-state' + (b.deload ? '' : ' on-track')}>{b.week === 0 ? 'Starts soon' : b.finished ? 'Finished' : b.deload ? 'Deload week' : `Week ${b.week} of ${s.weeks}`}</span>
+      </div>
+      <b class="gc-title">{b.item.text}</b>
+      {b.phase && !b.finished && <span class="block-now">{phaseLine(b.phase)}</span>}
+      <WeekDots b={b} />
+    </button>
+  )
+}
+
+function WeekDots({ b }: { b: BlockStatus }) {
+  return (
+    <div class="week-dots" aria-hidden="true">
+      {Array.from({ length: b.spec.weeks }, (_, i) => (
+        <span class={(i + 1 < b.week ? 'past' : i + 1 === b.week ? 'now' : '') + (b.spec.deloadWeek === i + 1 ? ' deload' : '')} />
+      ))}
+    </div>
+  )
+}
+
+export function BlockScreen() {
+  const b = activeBlock.value
+  const end = async () => {
+    if (!b) return
+    const ok = await confirmDialog({ title: 'End this block?', message: 'Your coach stops planning around it. Your workouts stay.', confirm: 'End block' })
+    if (!ok) return
+    await saveCoachItem({ ...b.item, status: 'done', outcome: `Ended in week ${b.week}` })
+    toast('Block ended')
+    navigate('/train', { replace: true })
+  }
+  return (
+    <div class="screen goal-screen">
+      <header class="page-head sub">
+        <button class="icon-btn" onClick={() => back('/train')} aria-label="Back">
+          <Icon name="left" />
+        </button>
+        <span class="page-title">Training block</span>
+      </header>
+      {!b ? (
+        <p class="empty-note">No training block running. Ask your coach to plan the next few weeks toward your goal.</p>
+      ) : (
+        <>
+          <section class="goal-hero">
+            <div class="gh-top">
+              <span class="gh-eyebrow">
+                {b.spec.weeks} weeks · from {dateFmt.format(new Date(b.spec.start))}
+              </span>
+              <span class="goal-state on-track">{b.week === 0 ? 'Starts soon' : b.finished ? 'Finished' : `Week ${b.week}`}</span>
+            </div>
+            <b class="gh-title">{b.item.text}</b>
+            {b.spec.summary && <p class="gh-summary">{b.spec.summary}</p>}
+            <WeekDots b={b} />
+          </section>
+          <div class="section-head">
+            <h2>Phases</h2>
+          </div>
+          <section class="card goal-milestones">
+            {b.spec.phases.map((p) => {
+              const now = b.week >= p.from && b.week <= p.to
+              const past = b.week > p.to
+              return (
+                <div class={'gm-row' + (past ? ' done' : '') + (now ? ' now' : '')}>
+                  <span class="gm-dot">{past ? <Icon name="check" size={14} stroke={3} /> : null}</span>
+                  <span class="gm-text">
+                    <b>{p.focus}</b>
+                    <small>{[p.reps ? `${p.reps} reps` : '', p.sets ? `${p.sets} sets` : '', p.effort || ''].filter(Boolean).join(' · ')}</small>
+                    {p.notes && <small>{p.notes}</small>}
+                  </span>
+                  <span class="gm-when">{p.from === p.to ? `Wk ${p.from}` : `Wk ${p.from}–${p.to}`}</span>
+                </div>
+              )
+            })}
+            {b.spec.deloadWeek && (
+              <div class={'gm-row' + (b.week > b.spec.deloadWeek ? ' done' : '') + (b.deload ? ' now' : '')}>
+                <span class="gm-dot" />
+                <span class="gm-text">
+                  <b>Deload</b>
+                  <small>Easier week to recover and come back stronger</small>
+                </span>
+                <span class="gm-when">Wk {b.spec.deloadWeek}</span>
+              </div>
+            )}
+          </section>
+          {!!b.spec.keyLifts?.length && (
+            <>
+              <div class="section-head">
+                <h2>Key lifts</h2>
+              </div>
+              <section class="card goal-lifts">
+                {b.spec.keyLifts.map((k) => (
+                  <div class="gl-row">
+                    <span class="gl-name">
+                      <b>{k.exercise}</b>
+                      <small>{k.progression}</small>
+                    </span>
+                  </div>
+                ))}
+              </section>
+            </>
+          )}
+          <button class="btn btn-primary btn-block btn-lg" onClick={() => askCoach(`How is my training block going? I'm in week ${b.week}. Anything to adjust?`)}>
+            <Icon name="coach" size={20} /> Ask coach about this block
+          </button>
+          <div class="row gap">
+            <button class="btn btn-ghost-danger grow" onClick={() => void end()}>
+              End block
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }

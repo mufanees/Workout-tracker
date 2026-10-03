@@ -53,7 +53,7 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     return date != null && kg != null && kg > 0 ? { ...rec, updatedAt, date, kg } : null
   }
   if (store === 'coach') {
-    const kinds = ['profile', 'note', 'goal', 'commitment', 'insight']
+    const kinds = ['profile', 'note', 'goal', 'commitment', 'insight', 'snapshot', 'block']
     return kinds.includes(rec.kind as string) ? { ...rec, updatedAt } : null
   }
   if (store === 'readings') {
@@ -65,6 +65,10 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     const start = num(rec.start)
     return start != null ? { ...rec, updatedAt, start, end: num(rec.end), goal: num(rec.goal) ?? 16, note: typeof rec.note === 'string' ? rec.note : undefined } : null
   }
-  if (store === 'days') return /^\d{4}-\d{2}-\d{2}$/.test(rec.id) ? { ...rec, updatedAt, text: String(rec.text ?? '') } : null
+  if (store === 'days') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rec.id)) return null
+    const lvl = (v: unknown) => ([1, 2, 3].includes(Number(v)) ? Number(v) : null)
+    return { ...rec, updatedAt, text: String(rec.text ?? ''), sleep: lvl(rec.sleep), energy: lvl(rec.energy), stress: lvl(rec.stress) }
+  }
   return null
 }

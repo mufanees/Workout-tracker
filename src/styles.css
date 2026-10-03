@@ -6283,3 +6283,203 @@ html[data-nav='back']::view-transition-old(screen) {
   flex: none;
   white-space: nowrap;
 }
+
+/* Effort tap after an exercise's last set (reps in reserve) */
+.effort-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+  animation: enter-up 0.3s var(--ease, ease) both;
+}
+.effort-q {
+  font-size: var(--fs-13);
+  font-weight: 650;
+  color: var(--muted);
+}
+.effort-opts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+}
+.effort-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--h-lg);
+  justify-content: center;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.effort-opt b {
+  font-size: var(--fs-15);
+  font-weight: 700;
+}
+.effort-opt small {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.effort-opt.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.effort-opt.on small {
+  color: var(--accent-ink);
+  opacity: 0.75;
+}
+.effort-opt.max.on {
+  background: var(--warn);
+}
+.block-card .eyebrow {
+  color: var(--accent-text);
+}
+.block-now {
+  font-size: var(--fs-15);
+  color: var(--muted);
+}
+.week-dots {
+  display: flex;
+  gap: var(--sp-1);
+}
+.week-dots span {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+}
+.week-dots span.past {
+  background: var(--accent);
+  opacity: 0.45;
+}
+.week-dots span.now {
+  background: var(--accent);
+}
+.week-dots span.deload {
+  outline: 1px dashed var(--muted);
+  outline-offset: 1px;
+}
+.goal-hero .week-dots span {
+  background: rgba(255, 255, 255, 0.14);
+}
+.goal-hero .week-dots span.past,
+.goal-hero .week-dots span.now {
+  background: var(--accent);
+}
+.gh-summary {
+  color: rgba(255, 255, 255, 0.75);
+  font-family: var(--font-read);
+  line-height: 1.4;
+}
+.gm-row.now .gm-dot {
+  border-color: var(--accent);
+}
+.gm-row.now .gm-when {
+  color: var(--accent-text);
+}
+
+/* Morning check-in card on Train */
+.checkin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.checkin .eyebrow {
+  color: var(--accent-text);
+}
+.checkin-why {
+  font-size: var(--fs-12);
+  color: var(--muted);
+  text-align: right;
+}
+.checkin-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.checkin-row > span {
+  width: 56px;
+  flex: none;
+  font-size: var(--fs-14);
+  font-weight: 650;
+  color: var(--muted);
+}
+.checkin-opts {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-1-5);
+}
+.checkin-opts .chip {
+  min-height: var(--h-md);
+  padding: 0 var(--sp-2);
+}
+
+/* ---------- secondary text in Inter too ----------
+   Captions, hints, meta lines and descriptions under 15px read better in a text face.
+   Space Grotesk stays for headings, buttons and chips, uppercase labels, units beside big
+   numbers and chart axes. */
+.mini-text small,
+.plan-note,
+.ss-hint,
+.nudge-card,
+.action-msg,
+.action-hint,
+.field-hint,
+.field-error,
+.type-opt small,
+.pick-meta,
+.ex-last,
+.wc-date,
+.wc-meta,
+.detail-ex-note,
+.chart-readout span,
+.setting small,
+.setting-note,
+.about,
+.small,
+.empty-note,
+.fast-meta,
+.weight-trend,
+.import-summary,
+.matches,
+.win-sub,
+.coach-status,
+.proposal-state,
+.stage-card small,
+.proto small,
+.cal-stats,
+.day-workout small,
+.tr-sub,
+.tr-nudge,
+.cel-credit,
+.cel-next,
+.tc-parts,
+.when-err,
+.gc-meta,
+.gc-lift > span:first-child,
+.gm-text small,
+.gl-name small,
+.goal-stats small,
+.effort-q,
+.effort-opt small,
+.checkin-why,
+.block-now,
+.gh-bar-labels,
+.ch-bar-labels,
+.zt-legend,
+.cal-legend {
+  font-family: var(--font-read);
+  letter-spacing: 0;
+}
+.checkin .gc-top {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+.checkin-why {
+  text-align: left;
+}

@@ -2,12 +2,13 @@
 import { signal, computed, effect } from '@preact/signals'
 import { sampleFn } from './cloud'
 import { claudeQuick } from './coachClaude'
-import { getToken, syncNow } from './sync'
-import { coachItems, exercises, exMap, routines, saveCoachItem, saveRoutine } from './store'
+import { afterServerSync, getToken, syncNow } from './sync'
+import { coachItems, exercises, exMap, routines, saveCoachItem, saveRoutine, workouts } from './store'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
 import type { CoachItem, GoalSpec } from './types'
 import { fmtValue, goalStatus, twoDumbbells } from './goals'
+import { blockFrom, phaseLine } from './blocks'
 import { clone, uid } from './util'
 
 /** null = still checking; false = no coach on this server (or no server). */
@@ -73,7 +74,7 @@ export async function quick<T>(body: Record<string, unknown>, focusWorkoutId?: s
 
 export interface Proposal {
   id: string
-  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update'
+  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block'
   args: Record<string, unknown>
   state?: 'pending' | 'approved' | 'dismissed'
 }
@@ -95,6 +96,14 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
     ]
     return { title: `Update “${a.routine}”`, lines }
   }
+  if (p.tool === 'propose_training_block') {
+    const b = blockFrom(a)
+    const lines = [`${b.weeks} weeks from ${new Date(b.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}${b.summary ? `. ${b.summary}` : ''}`]
+    for (const ph of b.phases) lines.push(`Weeks ${ph.from}–${ph.to}: ${phaseLine(ph)}`)
+    if (b.deloadWeek) lines.push(`Week ${b.deloadWeek}: easier deload week`)
+    for (const k of b.keyLifts || []) lines.push(`${k.exercise}: ${k.progression}`)
+    return { title: `Training block: ${String(a.name || 'New block')}`, lines }
+  }
   if (p.tool === 'propose_goal') {
     const spec = goalSpecFrom(a)
     const two = spec.metric === 'lift' && (!spec.exercise || /^any/i.test(spec.exercise) || twoDumbbells(findEx(spec.exercise)))
@@ -111,6 +120,13 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
 /** Apply an approved proposal locally (it syncs from there). Returns a confirmation message. */
 export async function applyProposal(p: Proposal): Promise<string> {
   const a = p.args as Record<string, any>
+  if (p.tool === 'propose_training_block') {
+    // One block at a time: the new one replaces whatever was running.
+    for (const old of coachItems.value.filter((x) => x.kind === 'block' && (x.status || 'open') === 'open')) await saveCoachItem({ ...old, status: 'done', outcome: 'Replaced by a new block' })
+    await saveCoachItem({ id: uid('block-'), kind: 'block', text: String(a.name || 'Training block').slice(0, 80), status: 'open', created: Date.now(), source: 'coach', updatedAt: 0, block: blockFrom(a) })
+    if (getToken()) void saveSnapshot(true)
+    return 'Training block started'
+  }
   if (p.tool === 'propose_goal') {
     const due = a.due_date ? Date.parse(a.due_date) : NaN
     const old = a.replaces_goal_id ? coachItems.value.find((x) => x.id === a.replaces_goal_id && x.kind === 'goal') : undefined
@@ -119,6 +135,7 @@ export async function applyProposal(p: Proposal): Promise<string> {
     // Remember where they started, so progress reads from there.
     if (spec.metric !== 'custom') spec.baseline = old?.goal?.baseline ?? goalStatus({ ...base, goal: { ...spec, baseline: undefined } }).current ?? undefined
     await saveCoachItem(base)
+    if (getToken()) void saveSnapshot(true)
     return old ? 'Goal updated' : 'Goal added'
   }
   if (p.tool === 'propose_profile_update') {
@@ -212,3 +229,23 @@ export function goalSpecFrom(a: Record<string, any>): GoalSpec {
       .filter((m: { value: number }) => Number.isFinite(m.value) && m.value > 0)
   return spec
 }
+
+// ---- context snapshot for the server -------------------------------------------------
+// The server's Sunday review can't compute goals, estimates or blocks itself, so the app keeps a
+// copy of the coach's full training summary there (a coach item that syncs like any other).
+
+const SNAPSHOT_ID = 'snapshot-context'
+let lastBuilt = 0
+let lastWorkoutSeen = 0
+/** Rebuilt at most every 10 minutes (right away after a new workout); written only when it changed. */
+export async function saveSnapshot(force = false) {
+  const lastWorkout = workouts.value[0]?.end || 0
+  if (!force && Date.now() - lastBuilt < 10 * 60000 && lastWorkout === lastWorkoutSeen) return
+  lastBuilt = Date.now()
+  lastWorkoutSeen = lastWorkout
+  const old = coachItems.value.find((x) => x.id === SNAPSHOT_ID)
+  const text = buildCoachContext().slice(0, 150000)
+  if (old?.text === text) return
+  await saveCoachItem({ id: SNAPSHOT_ID, kind: 'snapshot', text, created: Date.now(), source: 'app', updatedAt: old?.updatedAt || 0 })
+}
+afterServerSync.push(() => saveSnapshot().catch(() => undefined))

@@ -7,9 +7,11 @@
 // - Short JSON calls produce pre-workout targets, a post-workout takeaway and chat condensing.
 // - A background job writes a weekly review on Sunday evening and sends a notification.
 import crypto from 'node:crypto'
-import { COACH_TOOLS, QUICK, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
+import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
+// Optional stronger model for planning questions and weekly reviews (e.g. a Pro model); defaults to MODEL.
+const PLAN_MODEL = process.env.GEMINI_PLAN_MODEL || MODEL
 const BASE = (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com').replace(/\/$/, '')
 const DAY = 86400000
 
@@ -18,13 +20,35 @@ export const coachEnabled = () => !!process.env.GEMINI_API_KEY
 
 // ---- Gemini REST -----------------------------------------------------------------
 
-async function geminiFetch(method, payload, signal) {
-  const res = await fetch(`${BASE}/v1beta/models/${encodeURIComponent(MODEL)}:${method}`, {
-    method: 'POST',
-    signal,
-    headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-    body: JSON.stringify(payload),
+const sleep = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => (clearTimeout(t), reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))), { once: true })
   })
+
+/** POST to Gemini. Busy or flaky answers (429, 5xx, network) are retried twice with backoff before giving up. */
+async function geminiFetch(method, payload, signal, model = MODEL) {
+  let res
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(`${BASE}/v1beta/models/${encodeURIComponent(model)}:${method}`, {
+        method: 'POST',
+        signal,
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify(payload),
+      })
+    } catch (e) {
+      if (e?.name === 'AbortError' || attempt >= 2) throw e
+      await sleep(1500 * 2 ** attempt, signal)
+      continue
+    }
+    if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+      const wait = Math.min(8000, Number(res.headers.get('retry-after')) * 1000 || 1500 * 2 ** attempt)
+      await sleep(wait, signal)
+      continue
+    }
+    break
+  }
   if (!res.ok) {
     let message = ''
     try {
@@ -49,8 +73,8 @@ export function friendlyError(e) {
 }
 
 /** One streamed model turn. Calls onText for visible text; returns the raw parts (kept for tool loops). */
-async function streamTurn(payload, { onText, signal }) {
-  const res = await geminiFetch('streamGenerateContent?alt=sse', payload, signal)
+async function streamTurn(payload, { onText, signal, model }) {
+  const res = await geminiFetch('streamGenerateContent?alt=sse', payload, signal, model)
   const reader = res.body.getReader()
   const dec = new TextDecoder()
   let buf = ''
@@ -86,12 +110,12 @@ async function streamTurn(payload, { onText, signal }) {
 }
 
 /** A single JSON answer that follows `schema` (Gemini Schema format, uppercase types). */
-async function generateJson(system, prompt, schema) {
+async function generateJson(system, prompt, schema, model = MODEL) {
   const res = await geminiFetch('generateContent', {
     systemInstruction: { parts: [{ text: system }] },
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { responseMimeType: 'application/json', responseSchema: schema, maxOutputTokens: 4096 },
-  })
+  }, undefined, model)
   const json = await res.json()
   const text = (json.candidates?.[0]?.content?.parts || [])
     .filter((p) => p.text && !p.thought)
@@ -183,6 +207,7 @@ export function createCoach({ db, q, mcp, push }) {
       case 'propose_routine_changes':
       case 'propose_routine_targets':
       case 'propose_goal':
+      case 'propose_training_block':
       case 'propose_profile_update': {
         const id = newId('prop')
         emit({ proposal: { id, tool: name, args } })
@@ -216,7 +241,7 @@ export function createCoach({ db, q, mcp, push }) {
             tools: [{ functionDeclarations: DECLARATIONS }],
             generationConfig: { maxOutputTokens: 8192 },
           },
-          { onText: (t) => send({ t }), signal: ctrl.signal },
+          { onText: (t) => send({ t }), signal: ctrl.signal, model: isPlanning(messages[messages.length - 1]?.content) ? PLAN_MODEL : MODEL },
         )
         if (blocked || finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT') {
           send({ t: '\n\nGemini declined to answer that one. Try asking about your training a different way.' })
@@ -314,16 +339,15 @@ export function createCoach({ db, q, mcp, push }) {
       if (items().some((x) => x.id === id)) return
       const workouts = mcp.rows('workouts').filter((w) => w.start > Date.now() - 7 * DAY)
       if (!workouts.length && !mcp.rows('workouts').length) return // nothing logged at all
+      // The app keeps its full training summary here (goals, estimates, blocks, check-ins); use it when it's recent.
+      const snap = items().find((x) => x.id === 'snapshot-context' && x.kind === 'snapshot')
+      const fresh = snap?.text && snap.created > Date.now() - 4 * DAY
       const context = [
+        ...(fresh ? [`SUMMARY FROM THE APP (as of ${ymd(snap.created, tz)})\n${String(snap.text).slice(0, 150000)}`] : []),
         `THIS WEEK'S WORKOUTS\n${await mcp.callTool('recent_workouts', { from: weekKey, limit: 20 })}`,
-        `EARLIER WORKOUTS\n${await mcp.callTool('recent_workouts', { to: ymd(Date.now() - 7 * DAY, tz), limit: 12 })}`,
-        await mcp.callTool('body_stats', {}),
+        ...(fresh ? [] : [`EARLIER WORKOUTS\n${await mcp.callTool('recent_workouts', { to: ymd(Date.now() - 7 * DAY, tz), limit: 12 })}`, await mcp.callTool('body_stats', {})]),
       ].join('\n\n')
-      const out = await generateJson(
-        systemText({ context, tz }),
-        QUICK.weekly.prompt(),
-        toGemini(QUICK.weekly.schema),
-      )
+      const out = await generateJson(systemText({ context, tz }), QUICK.weekly.prompt(), toGemini(QUICK.weekly.schema), PLAN_MODEL)
       const text = String(out.review || '').trim()
       if (!text) return
       write({ id, kind: 'insight', type: 'weekly', ref: weekKey, text, created: Date.now(), source: 'coach' })

@@ -26,6 +26,9 @@ It also does:
 - **Notifications** from your server: rest over, fast complete, training-day reminder, even with the app closed.
 - **Nightly server backups**, 14 days kept.
 - **Goals your coach coaches to**: tell the coach what you want ("lift 100 kg", "get to 80 kg", "150 min of zone 2") and it sets a measurable goal with milestones. The app tracks where you are, your pace over 8 weeks, a projected date, ahead or behind, and every lift that counts; the coach reports on it and adjusts your training.
+- **Training blocks**: ask the coach for a plan and it proposes 4–8 weeks toward your goal (phases, rep ranges, how many reps to leave in the tank, a deload week). Approve it and Train shows which week you're in; pre-workout targets follow it.
+- **Effort tap**: after an exercise's last set, tap Easy / Good / Max (reps left in the tank). The coach progresses you on it and goal estimates account for it.
+- **Morning check-in**: sleep, energy and stress in three taps on Train, so the coach can tell a rough week from a stall and adjust today's targets.
 - **AI coach** (Gemini on the server, Claude in the Claude-hosted copy) that reads your training and answers like a personal trainer: weekly reviews, what to change next session, recovery, progress on a lift, and a push when you don't feel like training.
 - **Motivation**: your own quotes (editable, capitals are highlighted) as a big rotating quote card at the top of Train, after workouts and in reminders, plus a progress card showing what you can do now that you couldn't a few weeks ago.
 - **Plan import**: give Claude a plan (a sheet like the Comeback plan, a screenshot, text) and get routines back, either by pasting its answer into the app or through MCP.
@@ -97,7 +100,7 @@ The Coach tab sends your question plus a text summary of your training (the last
 
 1. Create a free API key in Google AI Studio (aistudio.google.com → Get API key).
 2. Add `GEMINI_API_KEY=...` to the server's environment in Coolify and redeploy.
-3. Optional: `GEMINI_MODEL` to use a different Gemini model.
+3. Optional: `GEMINI_MODEL` to use a different Gemini model, and `GEMINI_PLAN_MODEL` for a stronger one (e.g. a Pro model) used only for planning questions (goals, training blocks) and the Sunday review. Busy or failed Gemini calls are retried twice before you see an error.
 
 The free tier has per-minute and per-day request limits, which one person asking a coach won't normally hit. On Google's free tier, your prompts (including the training summary) may be used by Google to improve its products; a paid key doesn't have that.
 

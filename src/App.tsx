@@ -13,7 +13,7 @@ import { Coach } from './screens/Coach'
 import { CoachMemory } from './screens/CoachMemory'
 import { Fast } from './screens/Fast'
 import { FastDone } from './screens/FastDone'
-import { GoalDetail, GoalsScreen } from './screens/Goal'
+import { BlockScreen, GoalDetail, GoalsScreen } from './screens/Goal'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
@@ -65,6 +65,7 @@ export function App() {
   else if (a === 'fast') screen = <Fast />
   else if (a === 'goals' && b) screen = <GoalDetail id={b} key={b} />
   else if (a === 'goals') screen = <GoalsScreen />
+  else if (a === 'block') screen = <BlockScreen />
   else if (a === 'day' && b && /^\d{4}-\d{2}-\d{2}$/.test(b)) screen = <DayView id={b} key={b} />
   else (screen = <Train />), (tab = '/train')
 
@@ -78,7 +79,7 @@ export function App() {
       {showTabs && (
         <nav class="tabbar" aria-label="Main">
           {TABS.map((t, i) => {
-            const on = (tab || ({ fast: '/body', day: '/history', goals: '/train' } as Record<string, string>)[a] || '/' + a) === t.path
+            const on = (tab || ({ fast: '/body', day: '/history', goals: '/train', block: '/train' } as Record<string, string>)[a] || '/' + a) === t.path
             return (
               <button class={'tab' + (on ? ' on' : '')} style={{ viewTransitionName: `tab-${i}` }} aria-current={on ? 'page' : undefined} onClick={() => !on && navigate(t.path, { replace: tab != null })}>
                 {on && <span class="tab-pill" aria-hidden="true" />}

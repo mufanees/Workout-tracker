@@ -181,7 +181,11 @@ export function createMcpHandler({ db, q, rootDir }) {
         const notes = rows('days')
           .sort((a, b) => b.id.localeCompare(a.id))
           .slice(0, 21)
-          .map((d) => `${d.id}: ${String(d.text || '').slice(0, 300)}`)
+          .map((d) => {
+            const lv = (v, words) => (v ? words[v - 1] : null)
+            const ci = [lv(d.sleep, ['poor', 'ok', 'good']) && `sleep ${lv(d.sleep, ['poor', 'ok', 'good'])}`, lv(d.energy, ['low', 'ok', 'high']) && `energy ${lv(d.energy, ['low', 'ok', 'high'])}`, lv(d.stress, ['high', 'some', 'low']) && `stress ${lv(d.stress, ['high', 'some', 'low'])}`].filter(Boolean)
+            return `${d.id}: ${ci.length ? `[${ci.join(', ')}] ` : ''}${String(d.text || '').slice(0, 300)}`
+          })
         const reads = rows('readings')
           .sort((a, b) => b.date - a.date)
           .slice(0, 30)

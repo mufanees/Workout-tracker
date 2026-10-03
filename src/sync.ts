@@ -7,6 +7,9 @@ import { cloudPush, cloudReady, cloudState, initCloud } from './cloud'
 import { active, setActive } from './store'
 import type { Workout } from './types'
 
+/** Run after each successful sync with the server (not the Claude account), e.g. the coach snapshot. */
+export const afterServerSync: (() => void | Promise<void>)[] = []
+
 export type SyncStatus = 'checking' | 'syncing' | 'synced' | 'offline' | 'locked' | 'local' | 'error' | 'cloud'
 export const syncState = signal<{ status: SyncStatus; at?: number; message?: string }>({ status: 'checking' })
 
@@ -143,6 +146,7 @@ async function run() {
   const sent = new Map(changes.map((c) => [`${c.store}:${c.id}`, c.updatedAt]))
   await applyChanges(body.changes, sent, body.seq, body.dbId)
   syncState.value = { status: 'synced', at: Date.now() }
+  for (const f of afterServerSync) void f()
 }
 
 /** Saves to the Claude account (artifact copy): push what changed here; remote changes arrive by subscription. */
