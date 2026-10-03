@@ -1,6 +1,7 @@
 // Goals the app tracks and the coach coaches to. For each open goal: where you are now, the
 // trend over recent weeks, when you'd get there at that pace, whether that's ahead of or behind
 // the date you set, and milestones on the way. The same numbers feed the screens and the coach.
+import { weightModel } from './weightModel'
 import { computed } from '@preact/signals'
 import { bodyWeights, coachItems, exMap, fasts, workouts } from './store'
 import { sessionsByExercise } from './stats'
@@ -185,13 +186,13 @@ export function goalStatus(item: CoachItem, now = Date.now()): GoalStatus {
     unit = 'kg'
     title = 'Body weight'
     const pts = [...bodyWeights.value].reverse().map((b) => ({ t: b.date, v: b.kg }))
-    // 7-day average as "now", so one heavy morning doesn't swing it
     series = pts
-    if (pts.length) {
-      const last = pts[pts.length - 1].t
-      const wk = pts.filter((p) => p.t > last - 7 * DAY)
-      current = wk.reduce((a, p) => a + p.v, 0) / wk.length
-      slope = trendPerWeek(pts, now)
+    // the weight model's trend (not one heavy morning) is "now"; its rate is the pace, but only
+    // once it's distinguishable from holding steady
+    const m = weightModel({ list: bodyWeights.value, fasts: fasts.value, now })
+    if (m) {
+      current = m.trend
+      slope = m.ready && m.moving ? m.rate : m.ready ? 0 : trendPerWeek(pts, now)
     }
     up = target != null && series.length ? target > series[0].v : false
   } else if (spec.metric === 'zone2' || spec.metric === 'workouts') {

@@ -1,4 +1,6 @@
 // Builds a compact plain-text summary of your training for the AI coach (or to paste into Claude).
+import { bodyModel } from './bodyModel'
+import { weightModelText } from './weightModel'
 import { goalsText } from './goals'
 import { blockText } from './blocks'
 import { dayKey } from './fasting'
@@ -132,6 +134,7 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
 
   const bw = bodyWeights.value.filter((b) => b.date > now - 60 * DAY)
   if (bw.length) out.push(`\nBODY WEIGHT, LAST 60 DAYS (kg)\n${bw.map((b) => `${date(b.date)} ${b.kg}`).join(', ')}`)
+  if (bodyWeights.value.length) out.push(`\nWEIGHT MODEL (Kalman trend; talk about the trend and the rate, not single weigh-ins)\n${weightModelText(bodyModel.value)}`)
 
   const fs = fasts.value.filter((f) => f.start > now - 21 * DAY)
   if (fs.length) out.push(`\nFASTS, LAST 3 WEEKS\n${fs.map((f) => `${date(f.start)} ${f.end ? r1((f.end - f.start) / 3600000) + ' h' : 'in progress'} (goal ${f.goal} h)${f.note ? ` “${f.note}”` : ''}`).join(', ')}`)

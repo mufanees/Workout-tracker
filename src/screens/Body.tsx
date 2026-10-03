@@ -5,7 +5,9 @@ import { navigate } from '../router'
 import { HOUR, endFast, fastStats, hm, protocolLabel, stageAt, startFast } from '../fasting'
 import { useNow, whenLabel } from '../ui/Fasting'
 import { fmtDay, fmtNum, fmtTime, LB, startOfDay, uid } from '../util'
-import { LineChart } from '../ui/Chart'
+import { WeightChart } from '../ui/WeightChart'
+import { bodyModel } from '../bodyModel'
+import type { WeightModel } from '../weightModel'
 import { MorningCheck, ShoulderCard, Zone2Week } from './BodyCards'
 import { Icon } from '../ui/icons'
 import { actionSheet, Sheet, toast } from '../ui/overlay'
@@ -129,24 +131,8 @@ function WeightCard() {
     setValue(String(Math.round((n + d) * 10) / 10))
   }
 
-  // Trend: 7-day average now vs 7-day average a week and a month earlier.
-  const avgAround = (t: number) => {
-    const xs = list.filter((b) => b.date <= t && b.date > t - 7 * 86400000)
-    return xs.length ? xs.reduce((a, b) => a + b.kg, 0) / xs.length : null
-  }
-  const now = Date.now()
-  const avg7 = avgAround(now)
-  const wk = avgAround(now - 7 * 86400000)
-  const mo = avgAround(now - 30 * 86400000)
-  const delta = (a: number | null, b: number | null) => (a != null && b != null ? toUnit(a - b, u) : null)
-  const dW = delta(avg7, wk)
-  const dM = delta(avg7, mo)
+  const m = bodyModel.value
   const sign = (d: number) => (d > 0 ? '+' : d < 0 ? '−' : '±') + fmtNum(Math.abs(Math.round(d * 10) / 10), 1)
-
-  const points = [...list]
-    .filter((b) => b.date > now - 120 * 86400000)
-    .reverse()
-    .map((b) => ({ t: b.date, v: Math.round(toUnit(b.kg, u) * 10) / 10 }))
 
   const entryMenu = (b: BodyWeight) =>
     actionSheet({
@@ -183,25 +169,7 @@ function WeightCard() {
       )}
       <WeightGoalBar onEdit={() => setTargetOpen(true)} />
       <TargetSheet open={targetOpen} onClose={() => setTargetOpen(false)} />
-      {(dW != null || dM != null) && (
-        <div class="weight-trend">
-          {avg7 != null && (
-            <span>
-              7-day avg <b>{fmtW(avg7, u)}</b>
-            </span>
-          )}
-          {dW != null && (
-            <span>
-              Week <b>{sign(dW)}</b>
-            </span>
-          )}
-          {dM != null && (
-            <span>
-              Month <b>{sign(dM)}</b>
-            </span>
-          )}
-        </div>
-      )}
+      {m && m.n >= 2 && <WeightInsights m={m} u={u} />}
       <div class="weight-log">
         <button class="icon-btn step" onClick={() => step(-0.1)} aria-label="Down 0.1">
           <Icon name="minus" />
@@ -224,7 +192,17 @@ function WeightCard() {
           {todays ? 'Update' : 'Log'}
         </button>
       </div>
-      {points.length > 0 && <LineChart points={points} format={(v) => `${fmtNum(v, 1)} ${u}`} best={null} />}
+      {m && m.series.length >= 2 && <WeightChart m={m} conv={(kg) => toUnit(kg, u)} unit={u} />}
+      {m && m.patterns.length > 0 && (
+        <ul class="wm-patterns">
+          {m.patterns.map((p) => (
+            <li class={'wm-pattern ' + p.kind}>
+              <Icon name={p.kind === 'fast' || p.kind === 'water' ? 'droplet' : p.kind === 'plateau' ? 'chart' : p.kind === 'pace' ? 'target' : 'sparkles'} size={16} />
+              <span>{p.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {list.length > 0 && (
         <ul class="weight-list">
           {(all ? list : list.slice(0, 5)).map((b, i) => {
@@ -253,6 +231,58 @@ function WeightCard() {
   )
 }
 
+const monthDay = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+
+/** What the model says: trend weight, rate, a 4-week forecast and when you'd reach the target. */
+function WeightInsights({ m, u }: { m: WeightModel; u: 'kg' | 'lb' }) {
+  const r = (kg: number) => fmtNum(Math.round(toUnit(kg, u) * 10) / 10, 1)
+  const sign = (d: number) => (d > 0 ? '+' : d < 0 ? '−' : '±') + r(Math.abs(d))
+  if (!m.ready)
+    return (
+      <p class="wm-wait">
+        Trend <b>{r(m.trend)} {u}</b>. Weigh in on {Math.max(1, 6 - m.n)} more day{6 - m.n === 1 ? '' : 's'} over the next week or two and you’ll get your rate and a forecast.
+      </p>
+    )
+  const steady = !m.moving
+  return (
+    <div class="wm">
+      <div class="stat-grid wm-grid">
+        <div>
+          <b>{r(m.trend)}</b>
+          <span>Trend weight, {u}</span>
+        </div>
+        <div>
+          <b class={steady ? '' : m.rate < 0 ? 'down' : 'up'}>
+            {steady ? 'Steady' : sign(m.rate)}
+          </b>
+          <span>{steady ? `Within ±${r(1.64 * m.rateSd)} ${u} a week` : `${u} a week (±${r(1.64 * m.rateSd)})`}</span>
+        </div>
+        <div>
+          <b>{m.at4 ? r(m.at4.kg) : '–'}</b>
+          <span>{m.at4 ? `In 4 weeks (${r(m.at4.lo)}–${r(m.at4.hi)})` : 'In 4 weeks'}</span>
+        </div>
+      </div>
+      {m.target != null && (
+        <p class="wm-eta">
+          <Icon name="target" size={15} />
+          {Math.abs(m.trend - m.target) < 0.2 ? (
+            <span>You’re at your target. Hold it here.</span>
+          ) : m.eta ? (
+            <span>
+              At this rate you reach <b>{r(m.target)} {u}</b> around <b>{monthDay.format(new Date(m.eta))}</b>
+              {m.etaLo && m.etaHi ? ` (likely ${monthDay.format(new Date(m.etaLo))} to ${monthDay.format(new Date(m.etaHi))})` : m.etaLo ? ', if the pace holds' : ''}.
+            </span>
+          ) : (
+            <span>
+              {steady ? 'Holding steady' : 'Moving away from'} {steady ? `for now, so no date for ${r(m.target)} ${u} yet.` : `your ${r(m.target)} ${u} target at the moment.`}
+            </span>
+          )}
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** Start → target progress, Easy Fast style. Start is the first weigh-in. */
 export function WeightGoalBar({ onEdit }: { onEdit: () => void }) {
   const u = unit.value
@@ -266,7 +296,9 @@ export function WeightGoalBar({ onEdit }: { onEdit: () => void }) {
       </button>
     )
   const start = list[list.length - 1].kg
-  const now = list[0].kg
+  // the model's trend once it has enough data, so one watery morning doesn't move the bar
+  const m = bodyModel.value
+  const now = m?.ready ? m.trend : list[0].kg
   const span = start - goal
   const pct = span === 0 ? 100 : Math.max(0, Math.min(100, ((start - now) / span) * 100))
   const left = Math.abs(now - goal)
