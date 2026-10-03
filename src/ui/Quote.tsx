@@ -79,8 +79,17 @@ export function HeroQuote({ tag }: { tag?: string }) {
   return (
     <button class="hero-quote" onClick={() => setI((n) => (n + 1) % order.length)} aria-label="Next quote" aria-live="polite">
       <Icon name="quote" size={26} class="hq-mark" stroke={2.5} />
-      <span class={'hq-text' + (long ? ' long' : '')} key={i}>
-        <QuoteText text={q.text} />
+      {/* Every quote sits invisibly in the same grid cell, so the card is always as tall as
+          the longest one and rotating never moves the page. */}
+      <span class="hq-stack">
+        {order.map((x) => (
+          <span class={'hq-text hq-sizer' + (x.text.length > 90 ? ' long' : '')} aria-hidden="true">
+            <QuoteText text={x.text} />
+          </span>
+        ))}
+        <span class={'hq-text' + (long ? ' long' : '')} key={i}>
+          <QuoteText text={q.text} />
+        </span>
       </span>
       <span class="hq-foot">
         <span class="hq-author">{q.author || q.tag || 'Keep going'}</span>

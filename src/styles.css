@@ -5906,3 +5906,16 @@ html[data-nav='back']::view-transition-old(screen) {
   display: grid;
   background: var(--surface-3);
 }
+
+/* Hero quote: fixed height = the longest quote (see HeroQuote). */
+.hq-stack {
+  display: grid;
+}
+.hq-stack > .hq-text {
+  grid-area: 1 / 1;
+  align-self: center;
+}
+.hq-stack > .hq-sizer {
+  visibility: hidden;
+  animation: none;
+}
