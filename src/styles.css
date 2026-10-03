@@ -6483,3 +6483,22 @@ html[data-nav='back']::view-transition-old(screen) {
 .checkin-why {
   text-align: left;
 }
+
+/* Plan card hierarchy: label line (week · phase), title, status, then the week's detail. */
+.plan-sub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  margin: var(--sp-3) 0 var(--sp-4);
+}
+.plan-card .plan-status {
+  font-family: var(--font-read);
+  font-size: var(--fs-16);
+  font-weight: 600;
+  margin: 0;
+}
+.plan-card .plan-note {
+  font-size: var(--fs-14);
+  opacity: 0.7;
+  margin: 0;
+}

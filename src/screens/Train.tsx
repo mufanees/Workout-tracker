@@ -166,8 +166,8 @@ function PlanCard() {
   return (
     <section class={'plan-card' + (p.restDay ? ' rest' : '')}>
       <div class="plan-top">
-        <button class="plan-eyebrow" onClick={pickWeek} aria-label={`Week ${Math.min(p.week, 12)} of 12. Change week`}>
-          Week {Math.min(p.week, 12)} of 12 <Icon name="down" size={14} />
+        <button class="plan-eyebrow" onClick={pickWeek} aria-label={`Week ${Math.min(p.week, 12)} of 12, phase ${p.phase.n} ${p.phase.name}. Change week`}>
+          Week {Math.min(p.week, 12)} of 12 · {p.phase.name} <Icon name="down" size={14} />
         </button>
         <div class="plan-weeks" aria-hidden="true">
           {Array.from({ length: 12 }, (_, i) => (
@@ -176,11 +176,10 @@ function PlanCard() {
         </div>
       </div>
       <h2 class="plan-title">Workout {p.day}</h2>
-      <p class="plan-phase">
-        Phase {p.phase.n} · {p.phase.name}
-      </p>
-      <p class="plan-note">{p.setsHint || p.phase.note}</p>
-      <p class={'plan-status' + (p.restDay ? ' rest' : '')}>{p.finished ? 'You’ve finished the 12 weeks. Keep running Phase 4 or start over.' : p.status}</p>
+      <div class="plan-sub">
+        <p class={'plan-status' + (p.restDay ? ' rest' : '')}>{p.finished ? 'You’ve finished the 12 weeks. Keep running Phase 4 or start over.' : p.status}</p>
+        <p class="plan-note">{(p.setsHint || p.phase.note).replace(/^Week \d+:\s*/, (m) => (p.setsHint ? '' : m)).replace(/^./, (c) => c.toUpperCase())}</p>
+      </div>
       <button class="btn btn-block btn-lg" onClick={() => startRoutine(p.routine!)}>
         <Icon name="play" size={18} /> Start Workout {p.day}
       </button>
