@@ -1,7 +1,8 @@
 // The gooey layer: an SVG "metaball" filter (blur, then a hard alpha cut, so nearby blobs melt
 // into one liquid shape) and the small pieces that use it. Everything here is decoration:
 // it's hidden from screen readers and switched off for people who prefer reduced motion.
-import { useEffect } from 'preact/hooks'
+import { gsap } from 'gsap'
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks'
 
 /** Put once in the app. Elements with `filter: url(#goo)` merge their blobs. Also makes every
  *  tap on a control shed a few droplets (see `gooTap`). */
@@ -23,6 +24,24 @@ export function GooDefs() {
           <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="blur" />
           <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
           <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+        </filter>
+        {/* blur, cut the alpha so overlaps go solid, then lay the crisp shapes back on top:
+            separate shapes that come close grow a liquid bridge, and keep their own edges */}
+        <filter id="goo-merge" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+          <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9" result="goo" />
+          <feMerge>
+            <feMergeNode in="goo" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="goo-merge-sm" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+          <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
+          <feMerge>
+            <feMergeNode in="goo" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
         </filter>
         <filter id="goo-soft" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
           <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur" />
@@ -132,13 +151,96 @@ export function GooBurst() {
   )
 }
 
-/** Three lime blobs that merge and split while the coach thinks. */
+/** The coach thinking: three drops rise off a bar one after another and sink back into it. */
 export function GooDots({ label = 'Thinking' }: { label?: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const drops = ref.current ? Array.from(ref.current.querySelectorAll('i')) : []
+    if (!drops.length || reduced()) return
+    const tl = gsap
+      .timeline({ repeat: -1, repeatDelay: 0.15 })
+      .to(drops, { y: -13, duration: 0.5, ease: 'back.out(2)', stagger: 0.14 })
+      .to(drops.slice().reverse(), { y: 0, duration: 0.42, ease: 'power2.in', stagger: 0.14 })
+    return () => {
+      tl.kill()
+    }
+  }, [])
   return (
-    <span class="goo-dots" role="img" aria-label={label}>
+    <span class="goo-dots" role="img" aria-label={label} ref={ref}>
+      <b />
       <i />
       <i />
       <i />
+    </span>
+  )
+}
+
+/**
+ * The lime pill under the tab bar. It's a pill and three blobs inside one goo filter: when the
+ * tab changes, the pill races ahead and the blobs follow on slower curves, so a liquid neck
+ * stretches out behind it, snaps, and the drops catch up and melt back in.
+ */
+export function TabGoo({ index }: { index: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const placed = useRef(false)
+  useLayoutEffect(() => {
+    const layer = ref.current
+    const nav = layer?.parentElement
+    if (!layer || !nav) return
+    const [head, ...trail] = Array.from(layer.children) as HTMLElement[]
+    const target = () => {
+      const tab = nav.querySelectorAll<HTMLElement>('.tab')[index]
+      return tab ? { x: tab.offsetLeft, w: tab.offsetWidth, cx: tab.offsetLeft + tab.offsetWidth / 2 } : null
+    }
+    const place = (animate: boolean) => {
+      const t = target()
+      if (!t) return
+      if (!animate || reduced()) {
+        gsap.set(head, { x: t.x, width: t.w })
+        gsap.set(trail, { x: t.cx, scale: 1 })
+        return
+      }
+      // Same curve for everything, each a beat later than the one ahead: the gaps stay small
+      // enough for the filter to bridge, so the pill drags a stretching liquid tail behind it.
+      gsap.to(head, { x: t.x, width: t.w, duration: 0.5, ease: 'power3.inOut', overwrite: 'auto' })
+      trail.forEach((el, i) => {
+        gsap.to(el, { x: t.cx, duration: 0.5 + i * 0.03, delay: 0.012 + i * 0.012, ease: 'power3.inOut', overwrite: 'auto' })
+        // the drops thin out as they're pulled along, then plump back up once they land
+        gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.28, delay: i * 0.012, ease: 'sine.out', yoyo: true, repeat: 1, overwrite: 'auto' })
+      })
+    }
+    place(placed.current)
+    placed.current = true
+    // Tabs keep changing size after the switch (the label opens), so follow them: glide the pill
+    // (and the drops' destination) to wherever the tab settles.
+    let raf = 0
+    const follow = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const t = target()
+        if (!t) return
+        if (reduced()) return place(false)
+        // let a switch finish its glide (so the tail stays attached), then settle onto the tab's final size
+        if (gsap.isTweening(head)) return follow()
+        gsap.to(head, { x: t.x, width: t.w, duration: 0.25, ease: 'power2.out', overwrite: 'auto' })
+        trail.forEach((el) => !gsap.isTweening(el) && gsap.to(el, { x: t.cx, duration: 0.25, ease: 'power2.out' }))
+      })
+    }
+    const ro = new ResizeObserver(follow)
+    ro.observe(nav)
+    nav.querySelectorAll('.tab').forEach((el) => ro.observe(el))
+    return () => {
+      ro.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [index])
+  useEffect(() => () => gsap.killTweensOf(ref.current ? Array.from(ref.current.children) : []), [])
+  return (
+    <span class="tab-goo" aria-hidden="true" ref={ref}>
+      <b class="tg-head" />
+      <i class="tg-tail" />
+      <i class="tg-drop" />
+      <i class="tg-drop sm" />
     </span>
   )
 }

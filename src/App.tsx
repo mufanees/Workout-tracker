@@ -13,7 +13,7 @@ import { Coach } from './screens/Coach'
 import { CoachMemory } from './screens/CoachMemory'
 import { Fast } from './screens/Fast'
 import { FastDone } from './screens/FastDone'
-import { GooDefs, Motes } from './ui/Goo'
+import { GooDefs, Motes, TabGoo } from './ui/Goo'
 import { BlockScreen, GoalDetail, GoalsScreen } from './screens/Goal'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
@@ -71,6 +71,7 @@ export function App() {
   else (screen = <Train />), (tab = '/train')
 
   const isLive = a === 'live'
+  const activeTab = tab || ({ fast: '/body', day: '/history', goals: '/train', block: '/train' } as Record<string, string>)[a] || '/' + a
   const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings', 'import'].includes(a) && !(a === 'fast' && b === 'done'))
 
   return (
@@ -79,11 +80,11 @@ export function App() {
       {!isLive && showTabs && <MiniBar />}
       {showTabs && (
         <nav class="tabbar" aria-label="Main">
+          <TabGoo index={TABS.findIndex((t) => t.path === activeTab)} />
           {TABS.map((t, i) => {
-            const on = (tab || ({ fast: '/body', day: '/history', goals: '/train', block: '/train' } as Record<string, string>)[a] || '/' + a) === t.path
+            const on = activeTab === t.path
             return (
               <button class={'tab' + (on ? ' on' : '')} style={{ viewTransitionName: `tab-${i}` }} aria-current={on ? 'page' : undefined} onClick={() => !on && navigate(t.path, { replace: tab != null })}>
-                {on && <span class="tab-pill" aria-hidden="true" />}
                 {on && <Motes />}
                 <Icon name={t.icon} size={22} stroke={on ? 2.4 : 2} />
                 <span class="tab-label">{t.label}</span>

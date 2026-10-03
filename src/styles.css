@@ -388,14 +388,47 @@ textarea {
   touch-action: manipulation;
   transition: color 200ms ease-out;
 }
-/* The lime pill is its own element so the browser can glide it from tab to tab. */
-.tab-pill {
+/* The lime pill lives in the tab bar (TabGoo in src/ui/Goo.tsx), under the tabs. */
+.tab-goo {
   position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
+  left: 0;
+  top: var(--sp-1-5);
+  width: 100%;
+  height: 48px;
+  pointer-events: none;
+  filter: url(#goo-merge);
+  view-transition-name: tab-goo;
+}
+.tab-goo > * {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 48px;
+  border-radius: 99px;
   background: var(--accent);
-  view-transition-name: tab-pill;
+  will-change: transform;
+}
+.tab-goo .tg-head {
+  width: 52px;
+}
+.tab-goo .tg-tail,
+.tab-goo .tg-drop {
+  width: 40px;
+  height: 40px;
+  top: 4px;
+  margin-left: -20px;
+}
+.tab-goo .tg-drop {
+  width: 24px;
+  height: 24px;
+  top: 12px;
+  margin-left: -12px;
+}
+.tab-goo .tg-drop.sm {
+  width: 16px;
+  height: 16px;
+  top: 16px;
+  margin-left: -8px;
 }
 .tab-label {
   max-width: 0;
@@ -5416,8 +5449,13 @@ label.setting:active {
 }
 
 /* Tab label slides open as the pill arrives. */
+/* The label takes its width at once (the tabs slide into place with the view transition and the
+   pill needs the final size to aim at) and fades in as the pill arrives. */
 .tab-label {
-  transition: max-width 300ms var(--ease), opacity 200ms ease-out, margin 300ms var(--ease);
+  transition: opacity 120ms ease-out;
+}
+.tab.on .tab-label {
+  transition: opacity 240ms ease-out 200ms;
 }
 
 /* Press feedback on everything you tap. */
@@ -5520,13 +5558,14 @@ html.vt .app > :is(.screen, .live) {
   animation-timing-function: var(--ease);
 }
 /* the pill: glide and resize; tabs: slide to their new places */
-::view-transition-group(tab-pill) {
-  animation-duration: 300ms;
+/* The goo layer animates itself (GSAP) in the live new view; hide the old snapshot. */
+::view-transition-group(tab-goo) {
+  animation: none;
 }
-::view-transition-old(tab-pill),
-::view-transition-new(tab-pill) {
-  height: 100%;
-  width: 100%;
+::view-transition-old(tab-goo) {
+  display: none;
+}
+::view-transition-new(tab-goo) {
   animation: none;
 }
 ::view-transition-old(tab-0),
@@ -5544,9 +5583,8 @@ html.vt .app > :is(.screen, .live) {
   object-fit: none;
   object-position: left center;
 }
-/* Keep the pill under every tab: it lives inside the active tab, so by default the browser
-   draws it on top of that tab's icon while it moves. */
-::view-transition-group(tab-pill) {
+/* Keep the pill under every tab while they move. */
+::view-transition-group(tab-goo) {
   z-index: 1;
 }
 ::view-transition-group(tab-0),
@@ -5644,9 +5682,6 @@ html[data-nav='back']::view-transition-old(screen) {
 /* Browsers without view transitions still get a soft arrival. */
 .no-vt .screen {
   animation: enter-up 300ms var(--ease);
-}
-.no-vt .tab-pill {
-  transition: none;
 }
 
 /* Reduced motion: keep feedback (colour, press) but drop movement. */
@@ -6954,38 +6989,34 @@ html[data-nav='back']::view-transition-old(screen) {
 .goo-dots {
   position: relative;
   display: inline-block;
-  width: 60px;
-  height: 24px;
-  filter: url(#goo-sm);
+  width: 58px;
+  height: 30px;
+  filter: url(#goo-merge-sm);
   vertical-align: middle;
 }
+.goo-dots b,
 .goo-dots i {
   position: absolute;
-  top: 5px;
-  left: 4px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
   background: var(--accent);
-  animation: goo-dot 1.4s ease-in-out infinite;
+  border-radius: 99px;
 }
-.goo-dots i:nth-child(2) {
-  left: 23px;
-  animation-name: goo-dot-mid;
+.goo-dots b {
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  height: 7px;
 }
-.goo-dots i:nth-child(3) {
-  left: 42px;
-  animation-direction: reverse;
+.goo-dots i {
+  bottom: 3px;
+  width: 10px;
+  height: 10px;
+  left: 9px;
 }
-@keyframes goo-dot {
-  50% {
-    transform: translateX(19px) scale(1.2);
-  }
+.goo-dots i:nth-of-type(2) {
+  left: 24px;
 }
-@keyframes goo-dot-mid {
-  50% {
-    transform: scale(0.55);
-  }
+.goo-dots i:nth-of-type(3) {
+  left: 39px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -6997,8 +7028,5 @@ html[data-nav='back']::view-transition-old(screen) {
   }
   .motes {
     display: none;
-  }
-  .goo-dots i {
-    animation: none;
   }
 }

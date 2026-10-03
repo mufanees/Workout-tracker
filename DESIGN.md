@@ -104,13 +104,14 @@ Touch targets are at least 44px: `--h-sm` 36 (secondary chips only), `--h-md` 44
 
 The gooey layer (`src/ui/Goo.tsx`, the "goo" block at the end of `styles.css`). All of it is decoration: `aria-hidden`, `pointer-events: none`, off under `prefers-reduced-motion`.
 
-- **Metaball filters** (`<GooDefs />`, mounted once in App): blur, then a hard alpha cut, so nearby blobs melt into one shape. `#goo` (blur 7) for the set splash and celebration burst, `#goo-sm` (blur 3.2) for small things (tap droplets, coach dots), `#goo-soft` (blur 14) for lava.
+- **Metaball filters** (`<GooDefs />`, mounted once in App): blur, then a hard alpha cut, so nearby blobs melt into one shape. `#goo` (blur 7) for the set splash and celebration burst, `#goo-sm` (blur 3.2) for tap droplets, `#goo-soft` (blur 14) for lava. `#goo-merge` / `#goo-merge-sm` follow the classic recipe (blur, alpha cut, then `feMerge` the crisp original back on top), so separate shapes keep their own edges and only grow liquid bridges where they come close: used for the tab pill and the coach dots.
+- **Gooey morphs are separate shapes, not distorted ones.** A morph is several shapes inside one goo filter moving on slightly offset timings (GSAP): the gaps stay small enough (well under ~20px) for the filter to bridge them, so a neck stretches and snaps. Big delays make shapes fly apart and read as separate blobs.
 - **No morphing.** The owner tried squash-and-stretch presses, a jelly tab pill and blob-shaped chip corners and found them abrupt and oddly shaped. Presses stay `scale: 0.96`, the tab pill glides, chips settle with a slight scale (no corner changes).
 - **Tap droplets** (`gooTap`, a capture-phase click listener in `GooDefs`): tapping any button, link or tab buds a small bead on the control's top edge (above the finger, never over the label) and 6–9 droplets of 4–11px break off and drift up and away, each at its own pace (0.9–1.6 s). Skipped for text fields, the set check (it has its own splash) and `[data-no-goo]`; at most four at once.
 - **Motes** (`<Motes />` in the active tab): five tiny lime particles keep rising off the top of the tab pill on 2.8–4.1 s loops.
 - **Splash** (`gooSplash(el, host)`): ticking a set throws seven lime droplets out of the check that melt back in (~720ms), drawn inside the exercise card so it scrolls with the row.
 - **Lava**: four slow blobs drifting behind the plan / program card on training days (opacity .55, 11–19s loops).
-- **Burst**: blobs rise and merge behind the celebration hero. **Dots**: the coach's "thinking" indicator is three blobs that merge and split.
+- **Burst**: blobs rise and merge behind the celebration hero. **Dots** (GSAP): the coach's "thinking" indicator is three drops that rise off a bar one after another (`back.out(2)`) and sink back into it.
 
 ## Components
 
