@@ -22,7 +22,7 @@ export function filterExercises(list: Exercise[], query: string, muscle: string 
 
 export function MuscleChips({ value, onChange }: { value: string | null; onChange: (m: string | null) => void }) {
   return (
-    <div class="chips-scroll" role="group" aria-label="Filter by muscle">
+    <div class="chips-scroll" data-goo role="group" aria-label="Filter by muscle">
       <button class={'chip' + (value == null ? ' on' : '')} onClick={() => onChange(null)} aria-pressed={value == null}>
         All
       </button>
@@ -279,7 +279,7 @@ export function ExerciseForm({
       </div>
       <div class="field">
         <span>Muscle group</span>
-        <div class="chips-wrap">
+        <div class="chips-wrap" data-goo>
           {MUSCLES.map((m) => (
             <button class={'chip' + (muscle === m ? ' on' : '')} aria-pressed={muscle === m} onClick={() => setMuscle(m)}>
               {m}
@@ -289,7 +289,7 @@ export function ExerciseForm({
       </div>
       <div class="field">
         <span>Equipment</span>
-        <div class="chips-wrap">
+        <div class="chips-wrap" data-goo>
           {EQUIPMENT.map((m) => (
             <button class={'chip' + (equipment === m ? ' on' : '')} aria-pressed={equipment === m} onClick={() => setEquipment(m)}>
               {m}

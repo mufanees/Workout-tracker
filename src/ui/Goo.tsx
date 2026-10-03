@@ -3,6 +3,7 @@
 // it's hidden from screen readers and switched off for people who prefer reduced motion.
 import { gsap } from 'gsap'
 import { CustomEase } from 'gsap/CustomEase'
+import { goo, gt, wobbleEase } from '../gooConfig'
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks'
 
 /** Put once in the app. Elements with `filter: url(#goo)` merge their blobs. Also makes every
@@ -69,14 +70,16 @@ const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-r
 
 // Controls that shed droplets when tapped. The set check has its own splash; text fields don't.
 const TAPPABLE = 'button, a[href], [role="button"], [role="tab"], label.chip, summary'
-const SKIP = '.check, [data-no-goo], input, textarea, select'
+const SKIP = '.check, .toggle, [data-no-goo], input, textarea, select'
 let live = 0
 
 function onTap(e: MouseEvent) {
+  if (gooReduced()) return
   // An option in a goo group: start its goo now rather than after the app re-renders. It has
   // its own goo, so no droplets.
-  const opt = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-goo] > :is(button, .chip, .proto-custom)') : null
+  const opt = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-goo] > :is(button, .chip, .proto-custom, .swatch)') : null
   if (opt && !(opt as HTMLButtonElement).disabled && opt.parentElement) return gooPick(opt.parentElement, opt)
+  if (!goo.taps) return
   const t = e.target instanceof Element ? e.target.closest(TAPPABLE) : null
   if (!t || t.closest(SKIP) || (t as HTMLButtonElement).disabled) return
   // Droplets bud off the control's top edge, above your finger, so they never cover its label.
@@ -89,7 +92,7 @@ function onTap(e: MouseEvent) {
 
 /** A small bead swells at (x, y) and droplets pinch off it and float up and away. */
 export function gooTap(x: number, y: number) {
-  if (reduced() || live >= 4) return
+  if (gooReduced() || live >= 4) return
   live++
   const wrap = document.createElement('span')
   wrap.className = 'goo-tap'
@@ -121,7 +124,7 @@ export function gooTap(x: number, y: number) {
 /** A lime splash that bursts out of `el` and melts back (ticking a set). It's drawn inside `host`
  *  (a positioned, unclipped ancestor) so it scrolls with the row; rows that clip can't cut it off. */
 export function gooSplash(el: Element | null | undefined, host: HTMLElement | null | undefined) {
-  if (!el || !host || reduced()) return
+  if (!el || !host || gooReduced()) return
   const wrap = document.createElement('span')
   wrap.className = 'goo-splash'
   wrap.setAttribute('aria-hidden', 'true')
@@ -173,7 +176,7 @@ export function GooDots({ label = 'Thinking' }: { label?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     const drops = ref.current ? Array.from(ref.current.querySelectorAll('i')) : []
-    if (!drops.length || reduced()) return
+    if (!drops.length || gooReduced()) return
     const tl = gsap
       .timeline({ repeat: -1, repeatDelay: 0.15 })
       .to(drops, { y: -13, duration: 0.5, ease: 'back.out(2)', stagger: 0.14 })
@@ -193,13 +196,17 @@ export function GooDots({ label = 'Thinking' }: { label?: string }) {
 }
 
 gsap.registerPlugin(CustomEase)
-// The tab pill's curves. A short ramp-up (so it doesn't jerk off the mark) into a long, soft
-// deceleration. The move overshoots ~5% and eases back so the pill settles instead of stopping
-// dead; its size doesn't overshoot, so the shape stays a pill.
-const GOO_MOVE = CustomEase.create('goo-move', 'M0,0 C0.3,0 0.1,1.08 0.62,1.045 0.86,1.028 0.9,1 1,1')
-const GOO_SIZE = CustomEase.create('goo-size', 'M0,0 C0.3,0 0.12,1 1,1')
+// After a stall (the browser pauses drawing while it swaps screens, or a heavy screen renders),
+// carry on from where the motion was instead of jumping ahead to catch up: a gap over 100ms
+// counts as one frame. Jumps are what make motion feel un-smooth.
+gsap.ticker.lagSmoothing(100, 16)
+// One family of curves for all goo, so every piece moves alike. `goo-move`: a gentle ramp-up
+// into a long, soft deceleration with no overshoot (reversing direction reads as a jolt).
+// `goo-size`: the same feel, a little quicker, for size changes.
+const GOO_MOVE = CustomEase.create('goo-move', 'M0,0 C0.32,0.04 0.14,1 1,1')
+const GOO_SIZE = CustomEase.create('goo-size', 'M0,0 C0.3,0.06 0.18,1 1,1')
 export const gooEase = { move: GOO_MOVE, size: GOO_SIZE }
-export const gooReduced = () => reduced()
+export const gooReduced = () => reduced() || !goo.enabled
 
 export interface GooRect {
   x: number
@@ -216,12 +223,13 @@ const BULGE = [30, 24, 20]
 
 /**
  * The gooey move, for anything that marks one selected thing in a row or grid (the tab pill,
- * chip groups, AM / PM, the clock's hour and minute boxes). It lives in a `layer` under a goo
- * filter and is a highlight shape plus blobs. On a move the highlight launches at once and
- * glides (CustomEase with a small overshoot); the place it leaves swells into lumps that are
- * pulled after it and thin away; a puddle there is sucked thin; drops string out behind and
- * catch up; and it lands lumpy, blobs bulging past its edges and wobbling back in. Sizes scale
- * with the highlight's height (designed at 48px), and it works in any direction.
+ * chip groups, AM / PM, the clock's hour and minute boxes, toggles). It lives in a `layer`
+ * under a goo filter and is a highlight shape plus blobs. On a move the highlight glides there
+ * on one long, soft curve; the place it leaves swells into lumps that are drawn after it and
+ * melt away; a puddle there is sucked thin; drops string out behind and catch up; and it lands
+ * lumpy, blobs bulging past its edges and easing back in. When everything has finished it
+ * comes to rest as an exact copy of the target shape. Sizes scale with the highlight's height
+ * (designed at 48px); it works in any direction; Settings → Goo tunes it (gooConfig.ts).
  */
 export class GooTrack {
   readonly layer: HTMLElement
@@ -232,6 +240,7 @@ export class GooTrack {
   private bulges: HTMLElement[]
   cur: GooRect | null = null
   private raf = 0
+  private resting: gsap.core.Tween | null = null
 
   constructor(layer: HTMLElement) {
     this.layer = layer
@@ -255,112 +264,156 @@ export class GooTrack {
     return [this.head, this.origin, ...this.lumps, ...this.trail, ...this.bulges]
   }
 
-  private sizes(list: number[], r: GooRect) {
-    const k = Math.min(1.2, r.h / 48)
+  private sizes(list: number[], r: GooRect, k = 1) {
+    const s = Math.min(1.2, r.h / 48) * k
     const cap = Math.min(r.w, r.h)
-    return list.map((s) => Math.min(cap, s * k))
+    return list.map((x) => Math.min(cap, x * s))
+  }
+
+  /** Stop the extras (lumps, puddle, bulges) and hide them, so none is left stuck mid-motion. */
+  private clearExtras() {
+    gsap.killTweensOf([this.origin, ...this.lumps, ...this.bulges])
+    gsap.set([this.origin, ...this.lumps, ...this.bulges], { autoAlpha: 0, scale: 0 })
+  }
+
+  /** The exact resting shape: the highlight on its target, the drops hidden inside it. */
+  private rest(r: GooRect) {
+    this.resting?.kill()
+    this.resting = null
+    this.clearExtras()
+    gsap.killTweensOf([this.head, ...this.trail])
+    gsap.set(this.head, { x: r.x, y: r.y, width: r.w, height: r.h, borderRadius: `${r.r ?? r.h / 2}px`, scale: 1, autoAlpha: 1 })
+    const ts = this.sizes(TRAIL, r)
+    this.trail.forEach((el, i) => gsap.set(el, { x: r.x + r.w / 2, y: r.y + r.h / 2, width: ts[i], height: ts[i], scale: 1, autoAlpha: 1 }))
   }
 
   /** Put the highlight on `r` without animating (null hides it). */
   snap(r: GooRect | null) {
     cancelAnimationFrame(this.raf)
-    gsap.killTweensOf(this.all())
     this.cur = r
-    gsap.set([this.origin, ...this.lumps, ...this.bulges], { autoAlpha: 0 })
-    if (!r) return gsap.set([this.head, ...this.trail], { autoAlpha: 0 })
-    gsap.set(this.head, { x: r.x, y: r.y, width: r.w, height: r.h, borderRadius: r.r ?? r.h / 2, scale: 1, autoAlpha: 1 })
-    const ts = this.sizes(TRAIL, r)
-    this.trail.forEach((el, i) => gsap.set(el, { x: r.x + r.w / 2, y: r.y + r.h / 2, width: ts[i], height: ts[i], scale: 1, autoAlpha: 1 }))
+    if (r) return this.rest(r)
+    this.resting?.kill()
+    gsap.killTweensOf(this.all())
+    gsap.set(this.all(), { autoAlpha: 0 })
   }
 
   /** The highlight is gone (nothing selected): it shrinks away. */
   hide() {
     if (!this.cur) return
     this.cur = null
-    if (reduced()) return this.snap(null)
-    gsap.to([this.head, ...this.trail], { scale: 0, autoAlpha: 0, duration: 0.32, ease: 'sine.in', overwrite: 'auto' })
+    if (gooReduced()) return this.snap(null)
+    this.resting?.kill()
+    this.clearExtras()
+    gsap.to([this.head, ...this.trail], { scale: 0, autoAlpha: 0, duration: gt(0.45), ease: 'sine.inOut', overwrite: 'auto' })
   }
 
   /** Something got selected where nothing was: it wells up there, lumpy, and settles. */
   appear(to: GooRect) {
     this.snap(to)
-    if (reduced()) return
-    gsap.fromTo(this.head, { scale: 0.55 }, { scale: 1, duration: 0.8, ease: 'elastic.out(1, 0.5)' })
-    gsap.fromTo(this.trail, { scale: 0.4 }, { scale: 1, duration: 0.6, ease: 'sine.out' })
+    if (gooReduced()) return
+    const w = wobbleEase()
+    gsap.fromTo(this.head, { scale: 0.6 }, { scale: 1, duration: w.duration, ease: w.ease })
+    gsap.fromTo(this.trail, { scale: 0.4 }, { scale: 1, duration: gt(0.8), ease: 'sine.out' })
     this.land(to, { x: 0, y: -1 }, 0)
+    this.restAfter(w.duration + 0.1)
+  }
+
+  private restAfter(seconds: number) {
+    this.resting?.kill()
+    // rest on wherever it's aimed by then (a layout change may have moved the target)
+    this.resting = gsap.delayedCall(seconds, () => {
+      this.resting = null
+      if (this.cur) this.rest(this.cur)
+    })
   }
 
   /** Glide, goo and all, from where it is to `to`. */
   move(to: GooRect) {
     const f = this.cur
     if (!f) return this.appear(to)
-    if (reduced()) return this.snap(to)
+    if (gooReduced()) return this.snap(to)
     this.cur = to
     cancelAnimationFrame(this.raf)
-    const fc = { x: f.x + f.w / 2, y: f.y + f.h / 2 }
+    this.clearExtras()
+    // where the highlight really is right now (it may be mid-glide)
+    const hx = Number(gsap.getProperty(this.head, 'x'))
+    const hy = Number(gsap.getProperty(this.head, 'y'))
+    const hw = Number(gsap.getProperty(this.head, 'width')) || f.w
+    const hh = Number(gsap.getProperty(this.head, 'height')) || f.h
+    const from: GooRect = { x: hx, y: hy, w: hw, h: hh, r: f.r }
+    const fc = { x: from.x + from.w / 2, y: from.y + from.h / 2 }
     const tc = { x: to.x + to.w / 2, y: to.y + to.h / 2 }
     const dist = Math.hypot(tc.x - fc.x, tc.y - fc.y) || 1
     const u = { x: (tc.x - fc.x) / dist, y: (tc.y - fc.y) / dist }
     const n = { x: -u.y, y: u.x }
     const along = (r: GooRect) => Math.abs(u.x) * r.w + Math.abs(u.y) * r.h
-    const k = Math.min(1.2, Math.min(f.h, to.h) / 48)
-    gsap.killTweensOf([this.origin, ...this.lumps, ...this.bulges])
+    const k = Math.min(1.2, Math.min(from.h, to.h) / 48)
+    const L = goo.lumps
+    const T = goo.trail
+    const glide = gt(0.95)
 
-    // 1. The highlight launches at once, glides, overshoots a touch and settles.
-    gsap.to(this.head, { x: to.x, y: to.y, duration: 0.75, ease: GOO_MOVE, overwrite: 'auto' })
-    gsap.to(this.head, { width: to.w, height: to.h, borderRadius: to.r ?? to.h / 2, duration: 0.6, ease: GOO_SIZE })
+    // 1. The highlight glides there on one long, soft curve.
+    gsap.to(this.head, { x: to.x, y: to.y, duration: glide, ease: GOO_MOVE, overwrite: 'auto' })
+    gsap.to(this.head, { width: to.w, height: to.h, borderRadius: `${to.r ?? to.h / 2}px`, duration: gt(0.8), ease: GOO_SIZE, overwrite: 'auto' })
 
-    // 2. A puddle stays where it was and is sucked thin towards where it went.
-    const horizontal = Math.abs(u.x) >= Math.abs(u.y)
-    const stub = 22 * k
-    const sw = horizontal ? stub : f.w
-    const sh = horizontal ? f.h : stub
-    const lead = { x: fc.x + u.x * (along(f) / 2 - stub / 2), y: fc.y + u.y * (along(f) / 2 - stub / 2) }
-    gsap.set(this.origin, { x: f.x, y: f.y, width: f.w, height: f.h, borderRadius: f.r ?? f.h / 2, scale: 1, autoAlpha: 1 })
-    gsap.to(this.origin, { x: lead.x - sw / 2, y: lead.y - sh / 2, width: sw, height: sh, duration: 0.4, ease: 'power2.inOut' })
-    gsap.to(this.origin, { scale: 0, duration: 0.42, delay: 0.08, ease: 'sine.in' })
+    if (L > 0.02) {
+      // 2. A puddle stays where it was and is drawn thin towards where it went.
+      const horizontal = Math.abs(u.x) >= Math.abs(u.y)
+      const stub = 22 * k
+      const sw = horizontal ? stub : from.w
+      const sh = horizontal ? from.h : stub
+      const lead = { x: fc.x + u.x * (along(from) / 2 - stub / 2), y: fc.y + u.y * (along(from) / 2 - stub / 2) }
+      gsap.set(this.origin, { x: from.x, y: from.y, width: from.w, height: from.h, borderRadius: `${from.r ?? from.h / 2}px`, scale: 1, autoAlpha: 1 })
+      gsap.to(this.origin, { x: lead.x - sw / 2, y: lead.y - sh / 2, width: sw, height: sh, duration: gt(0.55), ease: 'sine.inOut' })
+      gsap.to(this.origin, { scale: 0, duration: gt(0.55), delay: gt(0.12), ease: 'sine.in' })
 
-    // 3. The place it leaves swells into lumps, drawn after it and melting away.
-    const ls = this.sizes(LUMP, f)
-    this.lumps.forEach((el, i) => {
-      const a = (i - 1) * along(f) * 0.28 + (Math.random() - 0.5) * 8 * k
-      const b = (i % 2 ? 1 : -1) * (6 + Math.random() * 5) * k
-      gsap
-        .timeline()
-        .set(el, { x: fc.x, y: fc.y, width: ls[i], height: ls[i], scale: 0.5, autoAlpha: 1 })
-        .to(el, { x: fc.x + u.x * a + n.x * b, y: fc.y + u.y * a + n.y * b, scale: 1.1, duration: 0.22, ease: 'sine.out' })
-        .to(el, { x: tc.x, y: tc.y, duration: 0.5 + i * 0.05, ease: 'power2.inOut' }, 0.14 + i * 0.04)
-        .to(el, { scale: 0, duration: 0.42 + i * 0.05, ease: 'sine.inOut' }, 0.2 + i * 0.04)
-        .set(el, { autoAlpha: 0 })
-    })
+      // 3. The place it leaves swells into lumps, drawn after it and melting away.
+      const ls = this.sizes(LUMP, from, Math.min(1.4, 0.4 + 0.6 * L))
+      this.lumps.forEach((el, i) => {
+        const a = ((i - 1) * along(from) * 0.28 + (Math.random() - 0.5) * 8 * k) * L
+        const b = (i % 2 ? 1 : -1) * (6 + Math.random() * 5) * k * L
+        gsap
+          .timeline()
+          .set(el, { x: fc.x, y: fc.y, width: ls[i], height: ls[i], scale: 0.5, autoAlpha: 1 })
+          .to(el, { x: fc.x + u.x * a + n.x * b, y: fc.y + u.y * a + n.y * b, scale: 1.08, duration: gt(0.3), ease: 'sine.out' })
+          .to(el, { x: tc.x, y: tc.y, duration: gt(0.7 + i * 0.06), ease: 'sine.inOut' }, gt(0.16 + i * 0.05))
+          .to(el, { scale: 0, duration: gt(0.6 + i * 0.06), ease: 'sine.inOut' }, gt(0.24 + i * 0.05))
+          .set(el, { autoAlpha: 0 })
+      })
+    }
 
     // 4. Drops string out behind it on the same curve and catch up.
     const ts = this.sizes(TRAIL, to)
     this.trail.forEach((el, i) => {
-      gsap.to(el, { x: tc.x, y: tc.y, width: ts[i], height: ts[i], duration: 0.75 + i * 0.05, delay: 0.03 + i * 0.03, ease: GOO_MOVE, overwrite: 'auto' })
-      gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.35, delay: i * 0.03, ease: 'sine.inOut', yoyo: true, repeat: 1 })
+      gsap.to(el, { x: tc.x, y: tc.y, width: ts[i], height: ts[i], duration: glide + gt(i * 0.06 * T), delay: gt((0.03 + i * 0.035) * T), ease: GOO_MOVE, overwrite: 'auto' })
+      gsap.fromTo(el, { scale: 1 }, { scale: 1 - (0.25 + i * 0.1) * Math.min(T, 1.5), duration: gt(0.45), delay: gt(i * 0.035 * T), ease: 'sine.inOut', yoyo: true, repeat: 1 })
     })
 
-    // 5. It lands lumpy.
-    this.land(to, u, 0.16)
+    // 5. It lands lumpy, then rests as an exact copy of the target.
+    const w = wobbleEase()
+    const landAt = gt(0.3)
+    if (L > 0.02) this.land(to, u, landAt)
+    this.restAfter(Math.max(glide + gt(0.06 * 4 * T + 0.18 * T), landAt + gt(0.3 + 0.1) + w.duration) + 0.05)
   }
 
-  /** Blobs bulge out past the highlight's edges, then wobble softly back in as it settles. */
+  /** Blobs bulge out past the highlight's edges, then ease softly back in. */
   private land(to: GooRect, u: { x: number; y: number }, delay: number) {
     const tc = { x: to.x + to.w / 2, y: to.y + to.h / 2 }
     const n = { x: -u.y, y: u.x }
     const along = Math.abs(u.x) * to.w + Math.abs(u.y) * to.h
     const across = Math.abs(n.x) * to.w + Math.abs(n.y) * to.h
     const k = Math.min(1.2, to.h / 48)
-    const bs = this.sizes(BULGE, to)
+    const L = goo.lumps
+    const bs = this.sizes(BULGE, to, Math.min(1.4, 0.4 + 0.6 * L))
+    const w = wobbleEase()
     this.bulges.forEach((el, i) => {
-      const a = (i - 1) * along * 0.3 + 6 * k
-      const b = (i % 2 ? 1 : -1) * (across * 0.4 + Math.random() * 5 * k)
+      const a = ((i - 1) * along * 0.3 + 6 * k) * Math.min(L, 1.5)
+      const b = (i % 2 ? 1 : -1) * (across * 0.32 + Math.random() * 5 * k) * L
       gsap
-        .timeline({ delay: delay + i * 0.05 })
+        .timeline({ delay: delay + gt(i * 0.06) })
         .set(el, { x: tc.x - u.x * 18 * k, y: tc.y - u.y * 18 * k, width: bs[i], height: bs[i], scale: 0.4, autoAlpha: 1 })
-        .to(el, { x: tc.x + u.x * a + n.x * b, y: tc.y + u.y * a + n.y * b, scale: 1.1, duration: 0.24, ease: 'sine.out' })
-        .to(el, { x: tc.x + u.x * a * 0.35, y: tc.y + u.y * a * 0.35, scale: 0.65, duration: 1.1, ease: 'elastic.out(0.9, 0.55)' })
+        .to(el, { x: tc.x + u.x * a + n.x * b, y: tc.y + u.y * a + n.y * b, scale: 1.05, duration: gt(0.34), ease: 'sine.out' })
+        .to(el, { x: tc.x + u.x * a * 0.3, y: tc.y + u.y * a * 0.3, scale: 0.6, duration: w.duration, ease: w.ease })
         .set(el, { autoAlpha: 0 })
     })
   }
@@ -369,23 +422,26 @@ export class GooTrack {
   settle(to: GooRect | null) {
     cancelAnimationFrame(this.raf)
     if (!to) return this.snap(null)
-    if (!this.cur || reduced()) return this.snap(to)
+    if (!this.cur || gooReduced()) return this.snap(to)
+    const same = this.cur.x === to.x && this.cur.y === to.y && this.cur.w === to.w && this.cur.h === to.h
     this.cur = to
     const go = () => {
-      if (gsap.isTweening(this.head)) return void (this.raf = requestAnimationFrame(go))
+      if (this.resting) return void (this.raf = requestAnimationFrame(go))
       const x = Number(gsap.getProperty(this.head, 'x'))
       const y = Number(gsap.getProperty(this.head, 'y'))
       const w = Number(gsap.getProperty(this.head, 'width'))
       const h = Number(gsap.getProperty(this.head, 'height'))
       if (Math.abs(x - to.x) + Math.abs(y - to.y) + Math.abs(w - to.w) + Math.abs(h - to.h) < 0.5) return
-      gsap.to(this.head, { x: to.x, y: to.y, width: to.w, height: to.h, borderRadius: to.r ?? to.h / 2, duration: 0.22, ease: 'power2.out', overwrite: 'auto' })
-      this.trail.forEach((el) => gsap.to(el, { x: to.x + to.w / 2, y: to.y + to.h / 2, duration: 0.22, ease: 'power2.out' }))
+      gsap.to(this.head, { x: to.x, y: to.y, width: to.w, height: to.h, borderRadius: `${to.r ?? to.h / 2}px`, duration: gt(0.45), ease: GOO_SIZE, overwrite: 'auto' })
+      this.trail.forEach((el) => gsap.to(el, { x: to.x + to.w / 2, y: to.y + to.h / 2, duration: gt(0.45), ease: GOO_SIZE, overwrite: 'auto' }))
     }
-    go()
+    // nothing moved: leave the glide alone (it rests on its own when it finishes)
+    if (!same) go()
   }
 
   kill() {
     cancelAnimationFrame(this.raf)
+    this.resting?.kill()
     gsap.killTweensOf(this.all())
   }
 }
@@ -464,7 +520,7 @@ interface Group {
   ro: ResizeObserver
 }
 const groups = new Map<HTMLElement, Group>()
-const OPTION = ':scope > :is(button, .chip, .proto-custom)'
+const OPTION = ':scope > :is(button, .chip, .proto-custom, .swatch)'
 
 const rectOf = (el: HTMLElement): GooRect => {
   const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0
@@ -486,11 +542,22 @@ function paint(c: HTMLElement, on: HTMLElement | null) {
   c.style.setProperty('--goo-off', offBg)
 }
 
+/** In a scrolling row the layer spans the whole scroll area, not just the visible part. */
+function fit(c: HTMLElement, layer: HTMLElement) {
+  const wide = c.scrollWidth > c.clientWidth + 1
+  const tall = c.scrollHeight > c.clientHeight + 1
+  layer.style.right = wide ? 'auto' : ''
+  layer.style.width = wide ? `${c.scrollWidth}px` : ''
+  layer.style.bottom = tall ? 'auto' : ''
+  layer.style.height = tall ? `${c.scrollHeight}px` : ''
+}
+
 function initGroup(c: HTMLElement) {
   if (groups.has(c)) return
   const layer = document.createElement('span')
   layer.setAttribute('aria-hidden', 'true')
   c.prepend(layer)
+  fit(c, layer)
   const track = new GooTrack(layer)
   const on = c.querySelector<HTMLElement>(':scope > .on')
   paint(c, on)
@@ -499,6 +566,7 @@ function initGroup(c: HTMLElement) {
     const g = groups.get(c)
     if (!g) return
     if (!c.isConnected) return dropGroup(c)
+    fit(c, g.track.layer)
     g.track.settle(g.on && g.on.isConnected ? rectOf(g.on) : null)
   })
   ro.observe(c)
@@ -519,6 +587,7 @@ function updateGroup(c: HTMLElement) {
   const on = c.querySelector<HTMLElement>(':scope > .on')
   if (on === g.on) return
   g.on = on
+  fit(c, g.track.layer)
   paint(c, on)
   if (g.picked && on === g.picked) return void (g.picked = null) // already on its way
   g.picked = null
@@ -533,6 +602,11 @@ function gooPick(c: HTMLElement, opt: HTMLElement) {
   g.picked = opt
   // take the colour from the option being left (or the last one used); the real one is read on re-render
   g.track.move(rectOf(opt))
+}
+
+/** Re-read every goo group's colours (after a theme or accent change). */
+export function repaintGoo() {
+  groups.forEach((g, c) => paint(c, g.on))
 }
 
 function watchGroups() {
@@ -562,7 +636,7 @@ function watchGroups() {
   mo.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] })
   // colours follow the theme
   const mq = matchMedia('(prefers-color-scheme: dark)')
-  const repaint = () => groups.forEach((g, c) => paint(c, g.on))
+  const repaint = repaintGoo
   mq.addEventListener?.('change', repaint)
   return () => {
     mo.disconnect()
@@ -586,6 +660,46 @@ export function Motes() {
     <span class="motes" aria-hidden="true">
       {MOTES.map((m) => (
         <i style={{ '--x': `${m.x}%`, '--sz': `${m.sz}px`, '--dur': `${m.dur}s`, '--delay': `${m.delay}s`, '--drift': `${m.drift}px`, '--rise': `${m.rise}px` }} />
+      ))}
+    </span>
+  )
+}
+
+const EDGE = 60 // where the sheet's top edge is inside the jelly layer
+
+/**
+ * A sheet's top edge as jelly: as it lands, blobs well up out of the edge (the strip under
+ * them is the sheet's own top, so they bridge to it like liquid) and wobble back in.
+ */
+export function SheetJelly({ go }: { go: boolean }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !go || gooReduced() || goo.lumps <= 0.02) return
+    const W = el.offsetWidth
+    const blobs = Array.from(el.querySelectorAll<HTMLElement>('i'))
+    const w = wobbleEase()
+    const L = goo.lumps
+    const tl = gsap.timeline({ delay: gt(0.16) })
+    blobs.forEach((b, i) => {
+      const x = W * (0.12 + i * 0.19) + (Math.random() - 0.5) * 24
+      const s = (40 + Math.random() * 30) * Math.min(1.4, 0.5 + 0.5 * L)
+      const up = (12 + Math.random() * 14) * L
+      tl.set(b, { x, y: EDGE + s * 0.3, width: s, height: s, xPercent: -50, yPercent: -50, scale: 0.5, autoAlpha: 1 }, 0)
+        .to(b, { y: EDGE - up, scale: 1, duration: gt(0.34), ease: 'sine.out' }, gt(i * 0.05))
+        .to(b, { y: EDGE + s * 0.55, scale: 0.6, duration: w.duration, ease: w.ease }, gt(0.34 + i * 0.05))
+        .set(b, { autoAlpha: 0 })
+    })
+    return () => {
+      tl.kill()
+      gsap.set(blobs, { autoAlpha: 0 })
+    }
+  }, [go])
+  return (
+    <span class="sheet-jelly" ref={ref} aria-hidden="true">
+      <b />
+      {[0, 1, 2, 3, 4].map(() => (
+        <i />
       ))}
     </span>
   )

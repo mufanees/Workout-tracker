@@ -13,7 +13,9 @@ import { Coach } from './screens/Coach'
 import { CoachMemory } from './screens/CoachMemory'
 import { Fast } from './screens/Fast'
 import { FastDone } from './screens/FastDone'
-import { GooDefs, gooTab, Motes, TabGoo } from './ui/Goo'
+import { GooDefs, gooTab, Motes, repaintGoo, TabGoo } from './ui/Goo'
+import { applyAccent } from './accent'
+import { setGoo } from './gooConfig'
 import { BlockScreen, GoalDetail, GoalsScreen } from './screens/Goal'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
@@ -29,6 +31,7 @@ const TABS = [
 
 export function App() {
   const theme = settings.value.theme
+  const accent = settings.value.accent ?? null
   // First open: let the home screen arrive in chunks, once.
   const [boot, setBoot] = useState(true)
   useEffect(() => {
@@ -42,7 +45,16 @@ export function App() {
     else root.setAttribute('data-theme', theme)
     const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b0c0f' : '#f6f6f3')
-  }, [theme])
+    applyAccent(accent, dark)
+    requestAnimationFrame(repaintGoo)
+    // follow the system between light and dark when on Auto
+    const mq = matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => theme === 'system' && (applyAccent(accent, mq.matches), requestAnimationFrame(repaintGoo))
+    mq.addEventListener?.('change', onChange)
+    return () => mq.removeEventListener?.('change', onChange)
+  }, [theme, accent])
+  // after the app (and its goo filters) is on screen
+  useEffect(() => setGoo(settings.value.goo), [JSON.stringify(settings.value.goo || {}), ready.value])
 
   if (!ready.value) return <div class="boot" />
 

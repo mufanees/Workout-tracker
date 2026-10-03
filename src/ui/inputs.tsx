@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { parseNum } from '../util'
+import { GooTrack } from './Goo'
 
 function fmt(v: number | null): string {
   if (v == null) return ''
@@ -80,10 +81,22 @@ function focusNext(el: HTMLInputElement) {
   else el.blur()
 }
 
+/** An on/off switch. The knob is goo: it slides across with a trail and lands lumpy. */
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  const layer = useRef<HTMLSpanElement>(null)
+  const track = useRef<GooTrack | null>(null)
+  const knob = (on: boolean) => ({ x: on ? 23 : 3, y: 3, w: 24, h: 24 })
+  useLayoutEffect(() => {
+    if (!layer.current) return
+    if (!track.current) {
+      track.current = new GooTrack(layer.current)
+      track.current.snap(knob(checked))
+    } else track.current.move(knob(checked))
+  }, [checked])
+  useEffect(() => () => track.current?.kill(), [])
   return (
     <button class={'toggle' + (checked ? ' on' : '')} role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}>
-      <span />
+      <span class="toggle-goo" ref={layer} />
     </button>
   )
 }

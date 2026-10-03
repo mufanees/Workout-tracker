@@ -421,7 +421,7 @@ textarea {
   position: absolute;
   inset: 0;
 }
-.goo-ready > :is(button, .chip, .proto-custom) {
+.goo-ready > :is(button, .chip, .proto-custom, .swatch) {
   position: relative;
   background-color: transparent !important;
   /* the text turns as the goo arrives, not before (dark text on an empty chip is unreadable) */
@@ -429,10 +429,10 @@ textarea {
 }
 /* While the goo reads colours: no background transition (it would read the start of one), but
    the text keeps its delayed turn so it doesn't flip before the goo arrives. */
-.goo-measure > :is(button, .chip, .proto-custom) {
+.goo-measure > :is(button, .chip, .proto-custom, .swatch) {
   transition: color 120ms linear 230ms, scale 150ms ease-out !important;
 }
-.goo-ready > :is(button, .chip, .proto-custom)::before {
+.goo-ready > :is(button, .chip, .proto-custom, .swatch)::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -2258,22 +2258,17 @@ label.setting:active {
   flex: none;
   transition: background 0.2s ease;
 }
-.toggle span {
+/* the knob is a GooTrack (inputs.tsx) */
+.toggle-goo {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s ease;
+  inset: 0;
+  --goo-c: #fff;
+}
+.toggle-goo.goo-track {
+  filter: url(#goo-merge-sm) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 .toggle.on {
   background: var(--accent);
-}
-.toggle.on span {
-  transform: translateX(20px);
 }
 .segmented {
   display: inline-flex;
@@ -3614,7 +3609,7 @@ label.setting:active {
   inset: -40% -20% auto auto;
   width: 75%;
   height: 160%;
-  background: repeating-linear-gradient(115deg, rgba(198, 244, 50, 0.16) 0 14px, transparent 14px 34px);
+  background: repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent) 16%, transparent) 0 14px, transparent 14px 34px);
   transform: rotate(8deg);
   z-index: -1;
   mask-image: linear-gradient(to left, #000 20%, transparent 85%);
@@ -5168,7 +5163,7 @@ label.setting:active {
   inset: -40% -20% auto auto;
   width: 80%;
   height: 170%;
-  background: repeating-linear-gradient(115deg, rgba(198, 244, 50, 0.18) 0 14px, transparent 14px 34px);
+  background: repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent) 18%, transparent) 0 14px, transparent 14px 34px);
   transform: rotate(8deg);
   z-index: -1;
   mask-image: linear-gradient(to left, #000 20%, transparent 85%);
@@ -5196,7 +5191,7 @@ label.setting:active {
   place-items: center;
   background: var(--accent);
   color: #0b0c0f;
-  box-shadow: 0 0 0 6px rgba(198, 244, 50, 0.16);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 16%, transparent);
   animation: pop 0.55s ease 0.15s both;
 }
 .ch-num {
@@ -5225,7 +5220,7 @@ label.setting:active {
   display: block;
   height: 100%;
   border-radius: 99px;
-  background: rgba(198, 244, 50, 0.6);
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
   animation: bar-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both 0.2s;
   transform-origin: left;
 }
@@ -6377,7 +6372,7 @@ html[data-nav='back']::view-transition-old(screen) {
   inset: -40% -20% auto auto;
   width: 75%;
   height: 160%;
-  background: repeating-linear-gradient(115deg, rgba(198, 244, 50, 0.14) 0 14px, transparent 14px 34px);
+  background: repeating-linear-gradient(115deg, color-mix(in srgb, var(--accent) 14%, transparent) 0 14px, transparent 14px 34px);
   transform: rotate(8deg);
   z-index: -1;
   mask-image: linear-gradient(to left, #000 20%, transparent 85%);
@@ -7186,7 +7181,7 @@ html[data-nav='back']::view-transition-old(screen) {
 .lava i {
   position: absolute;
   border-radius: 50%;
-  background: #e4ff7a;
+  background: color-mix(in srgb, var(--accent) 60%, #fff);
   will-change: transform;
 }
 .lava .l1 {
@@ -7215,7 +7210,7 @@ html[data-nav='back']::view-transition-old(screen) {
   height: 54px;
   left: 82%;
   top: 22%;
-  background: #a9d61c;
+  background: color-mix(in srgb, var(--accent) 80%, #000);
   animation: lava-b 11s ease-in-out infinite alternate-reverse;
 }
 @keyframes lava-a {
@@ -7330,4 +7325,142 @@ html[data-nav='back']::view-transition-old(screen) {
   .motes {
     display: none;
   }
+}
+
+/* Settings → Goo switches (gooConfig.ts sets these classes on <html>) */
+.goo-off :is(.lava, .goo-burst, .goo-splash, .goo-tap, .motes, .sheet-jelly),
+.no-motes .motes,
+.no-lava .lava {
+  display: none;
+}
+
+/* A sheet's top edge as jelly (SheetJelly in Goo.tsx): above the sheet's background, under its content. */
+.sheet-jelly {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -60px;
+  height: 120px;
+  z-index: -1;
+  pointer-events: none;
+  filter: url(#goo-merge-lg);
+}
+.sheet-jelly > * {
+  position: absolute;
+  background: var(--surface);
+}
+.sheet-jelly b {
+  left: 0;
+  right: 0;
+  top: 60px;
+  bottom: 0;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+}
+.sheet-jelly i {
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  visibility: hidden;
+}
+
+/* Settings → accent colour */
+.accent-setting {
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-1);
+  border-radius: 99px;
+}
+.swatch {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--muted);
+  cursor: pointer;
+}
+/* the colour itself is a dot in the middle, so the goo ring around the chosen one shows */
+.swatch::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: var(--sw);
+}
+.swatch.on {
+  background: var(--text);
+}
+.swatch-custom::after {
+  background: conic-gradient(#ff6464, #ffc23a, #c6f432, #3ee6a8, #4cc2ff, #a78bfa, #ff6fb5, #ff6464);
+  opacity: 0.85;
+}
+.swatch-custom.on::after {
+  background: var(--sw);
+  opacity: 1;
+}
+.swatch-custom svg {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+}
+.swatch-custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Settings → Goo */
+.goo-tweaks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.goo-tweaks.off {
+  opacity: 0.45;
+}
+.goo-preview {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin: var(--sp-2) 0;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.goo-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+}
+.goo-slider span {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-15);
+}
+.goo-slider b {
+  font-weight: 600;
+  color: var(--accent-text);
+}
+.goo-slider input {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 28px;
+}
+.goo-settings .btn-text {
+  align-self: flex-start;
+  margin: var(--sp-2) var(--sp-4) var(--sp-3);
+}
+.goo-preview > .muted {
+  grid-column: 1 / -1;
 }

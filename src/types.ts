@@ -101,6 +101,10 @@ export interface Settings extends Rec {
   quotes: Quote[]
   showQuotes: boolean
   weightGoal?: number | null // kg
+  /** Settings → Goo (see gooConfig.ts); missing fields use the defaults */
+  goo?: Partial<import('./gooConfig').GooTweaks>
+  /** accent colour as #rrggbb; null or missing = lime */
+  accent?: string | null
   /** how to pick a time of day: clock dial (default) or scroll wheels */
   timePicker?: 'clock' | 'wheels'
   fastRemind?: boolean // notify when the eating window is about to close

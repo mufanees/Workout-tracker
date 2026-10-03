@@ -5,6 +5,7 @@
 import { gsap } from 'gsap'
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { gooEase, gooReduced } from './Goo'
+import { goo as gooCfg, gt, wobbleEase } from '../gooConfig'
 
 const H12 = !new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle?.startsWith('h2')
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -104,25 +105,25 @@ export function ClockPicker({ value, onChange, label }: { value: number; onChang
     }
     if (drag) {
       gsap.to(st.k, { a, r, duration: 0.06, ease: 'none', overwrite: 'auto', onUpdate: draw })
-      st.d.forEach((d, i) => gsap.to(d, { a, r, duration: 0.16 + i * 0.07, ease: 'power2.out', overwrite: 'auto', onUpdate: draw }))
+      st.d.forEach((d, i) => gsap.to(d, { a, r, duration: gt(0.2 + i * 0.08 * gooCfg.trail), ease: 'sine.out', overwrite: 'auto', onUpdate: draw }))
       return
     }
-    gsap.to(st.k, { a, r, duration: 0.6, ease: gooEase.move, overwrite: 'auto', onUpdate: draw })
-    st.d.forEach((d, i) => gsap.to(d, { a, r, duration: 0.6 + i * 0.05, delay: 0.025 + i * 0.025, ease: gooEase.move, overwrite: 'auto', onUpdate: draw }))
-    drops.forEach((el, i) => gsap.fromTo(el, { scale: 1 }, { scale: 0.7 - i * 0.1, duration: 0.3, delay: i * 0.025, ease: 'sine.inOut', yoyo: true, repeat: 1 }))
+    gsap.to(st.k, { a, r, duration: gt(0.85), ease: gooEase.move, overwrite: 'auto', onUpdate: draw })
+    st.d.forEach((d, i) => gsap.to(d, { a, r, duration: gt(0.85 + i * 0.06 * gooCfg.trail), delay: gt((0.03 + i * 0.035) * gooCfg.trail), ease: gooEase.move, overwrite: 'auto', onUpdate: draw }))
+    drops.forEach((el, i) => gsap.fromTo(el, { scale: 1 }, { scale: 1 - (0.3 + i * 0.1) * Math.min(gooCfg.trail, 1.5), duration: gt(0.42), delay: gt(i * 0.035 * gooCfg.trail), ease: 'sine.inOut', yoyo: true, repeat: 1 }))
     // land lumpy: blobs bulge out of the knob, then wobble back in
     const ur = { x: Math.sin(rad(a)), y: -Math.cos(rad(a)) }
     const ut = { x: -ur.y, y: ur.x }
     const kx = c + ur.x * r
     const ky = c + ur.y * r
-    bulges.forEach((el, i) => {
-      const t = (i - 1) * 14
-      const o = (i % 2 ? 1 : -1) * (17 + Math.random() * 5)
+    if (gooCfg.lumps > 0.02) bulges.forEach((el, i) => {
+      const t = (i - 1) * 14 * Math.min(gooCfg.lumps, 1.5)
+      const o = (i % 2 ? 1 : -1) * (15 + Math.random() * 5) * gooCfg.lumps
       gsap
-        .timeline({ delay: 0.16 + i * 0.05 })
+        .timeline({ delay: gt(0.3 + i * 0.06) })
         .set(el, { x: kx, y: ky, scale: 0.4, autoAlpha: 1 })
-        .to(el, { x: kx + ut.x * t + ur.x * o, y: ky + ut.y * t + ur.y * o, scale: 1.1, duration: 0.22, ease: 'sine.out' })
-        .to(el, { x: kx + ut.x * t * 0.3, y: ky + ut.y * t * 0.3, scale: 0.6, duration: 1, ease: 'elastic.out(0.9, 0.55)' })
+        .to(el, { x: kx + ut.x * t + ur.x * o, y: ky + ut.y * t + ur.y * o, scale: 1.05, duration: gt(0.34), ease: 'sine.out' })
+        .to(el, { x: kx + ut.x * t * 0.3, y: ky + ut.y * t * 0.3, scale: 0.6, duration: wobbleEase().duration, ease: wobbleEase().ease })
         .set(el, { autoAlpha: 0 })
     })
   }, [target, handR, drag, mode])

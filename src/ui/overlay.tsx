@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals'
 import type { ComponentChildren } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
+import { SheetJelly } from './Goo'
 import { Icon } from './icons'
 
 // ---- Bottom sheet -----------------------------------------------------------
@@ -49,6 +50,7 @@ export function Sheet({
     <div class={'sheet-root' + (shown ? ' shown' : '')}>
       <div class="sheet-backdrop" onClick={onClose} />
       <div class={'sheet' + (full ? ' full' : '')} role="dialog" aria-modal="true" aria-label={label || (typeof title === 'string' ? title : undefined)}>
+        <SheetJelly go={shown} />
         <div class="sheet-grip" aria-hidden="true" />
         {title != null && (
           <div class="sheet-head">

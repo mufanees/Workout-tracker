@@ -5,6 +5,7 @@ import { syncState, syncNow, getToken, setToken } from '../sync'
 import * as db from '../db'
 import { Icon } from '../ui/icons'
 import { Segmented, Toggle } from '../ui/inputs'
+import { AccentPicker, GooSettings } from './GooSettings'
 import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { REST_OPTIONS } from '../ui/WorkoutEditor'
 import { fmtRest } from '../util'
@@ -243,7 +244,11 @@ export function Settings() {
             onChange={(v) => saveSettings({ theme: v })}
           />
         </div>
+        <AccentPicker />
       </div>
+
+      <h2 class="section-title">Goo</h2>
+      <GooSettings />
 
       <h2 class="section-title">Sync</h2>
       <div class="settings-group">
