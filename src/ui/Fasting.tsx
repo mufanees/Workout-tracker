@@ -1,10 +1,11 @@
 import type { ComponentChildren } from 'preact'
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 import { remove, saveFast, settings } from '../store'
 import type { Fast } from '../types'
 import { cancelPush } from '../push'
 import { HOUR, PROTOCOLS, STAGES, hm, protocolLabel, saveFastEdit } from '../fasting'
 import { fmtDay, fmtTime, startOfDay, uid } from '../util'
+import { ClockPicker } from './Clock'
 import { Icon } from './icons'
 import { AutoText, confirmDialog, Sheet, toast } from './overlay'
 
@@ -69,85 +70,10 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const shortDay = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric' })
 const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 
-const ROW = 56 // wheel row height, px
-const H12 = !new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle?.startsWith('h2')
-const HOURS = H12 ? [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : Array.from({ length: 24 }, (_, i) => i)
-const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5)
 
 /**
- * One column of a big scroll wheel. Rows snap one at a time; the value is picked when the
- * scroll settles, or by tapping a row. A change from outside (clamped to now) scrolls it back.
- */
-function Wheel({ items, index, onPick, label, render }: { items: number[] | string[]; index: number; onPick: (i: number) => void; label: string; render?: (v: number | string) => string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const settle = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [center, setCenter] = useState(index)
-  const latest = useRef(index)
-  latest.current = index
-  const at = () => Math.max(0, Math.min(items.length - 1, Math.round((ref.current?.scrollTop || 0) / ROW)))
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (el) el.scrollTop = index * ROW
-    setCenter(index)
-  }, [])
-  useEffect(() => {
-    const el = ref.current
-    if (!el || at() === index) return setCenter(index)
-    el.scrollTo({ top: index * ROW, behavior: 'smooth' })
-  }, [index])
-  const onScroll = () => {
-    const i = at()
-    if (i !== center) {
-      setCenter(i)
-      navigator.vibrate?.(4)
-    }
-    if (settle.current) clearTimeout(settle.current)
-    settle.current = setTimeout(() => {
-      const j = at()
-      if (j !== index) onPick(j)
-      // If the pick was refused (e.g. held at now), roll back to the value that stuck.
-      setTimeout(() => {
-        if (ref.current && at() !== latest.current) ref.current.scrollTo({ top: latest.current * ROW, behavior: 'smooth' })
-      }, 60)
-    }, 140)
-  }
-  return (
-    <div class="wheel" ref={ref} role="listbox" aria-label={label} tabIndex={0} onScroll={onScroll}
-      onKeyDown={(e) => {
-        const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-        if (d) (e.preventDefault(), onPick(Math.max(0, Math.min(items.length - 1, index + d))))
-      }}>
-      {items.map((v, i) => (
-        <button role="option" tabIndex={-1} aria-selected={i === index} class={'wheel-row' + (i === center ? ' on' : '')} onClick={() => (i === index ? null : onPick(i))}>
-          {render ? render(v) : String(v)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** Hour, minute (5-minute steps) and AM/PM wheels for the time of day of `value`. */
-function TimeWheels({ value, onChange, label }: { value: number; onChange: (t: number) => void; label: string }) {
-  const d = new Date(value)
-  const h = d.getHours()
-  const m = d.getMinutes()
-  const pm = h >= 12
-  const at = (hh: number, mm: number) => onChange(new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm).getTime())
-  const hIndex = H12 ? h % 12 : h
-  return (
-    <div class={'wheels' + (H12 ? ' h12' : '')} role="group" aria-label={`${label}: time`}>
-      <div class="wheel-band" aria-hidden="true" />
-      <Wheel label="Hour" items={HOURS} index={hIndex} onPick={(i) => at(H12 ? i + (pm ? 12 : 0) : i, m)} />
-      <span class="wheel-colon" aria-hidden="true">:</span>
-      <Wheel label="Minute" items={MINUTES} index={Math.round(m / 5) % 12} onPick={(i) => at(h, i * 5)} render={(v) => pad(Number(v))} />
-      {H12 && <Wheel label="AM or PM" items={['AM', 'PM']} index={pm ? 1 : 0} onPick={(i) => at((h % 12) + (i ? 12 : 0), m)} />}
-    </div>
-  )
-}
-
-/**
- * A moment in the past: day chips (today, the last few days, earlier) and big snapping
- * wheels for the time. Never goes past now.
+ * A moment in the past: day chips (today, the last few days, earlier) and a clock dial for
+ * the time. Never goes past now.
  */
 export function WhenPicker({ value, onChange, min, label }: { value: number; onChange: (t: number) => void; min?: number; label: string }) {
   const now = Date.now()
@@ -185,7 +111,7 @@ export function WhenPicker({ value, onChange, min, label }: { value: number; onC
           />
         </span>
       </div>
-      <TimeWheels label={label} value={value} onChange={set} />
+      <ClockPicker label={label} value={value} onChange={set} />
     </div>
   )
 }

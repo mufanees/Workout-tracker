@@ -5940,79 +5940,157 @@ html[data-nav='back']::view-transition-old(screen) {
   cursor: pointer;
 }
 
-/* Big time wheels: 56px rows, five visible; every flick comes to rest on a row. */
-.wheels {
-  --row: 56px;
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+/* Clock picker (src/ui/Clock.tsx): hour and minute boxes, AM / PM, and a dial. */
+.clock {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  height: calc(var(--row) * 5);
+  gap: var(--sp-5);
+  padding: var(--sp-4) var(--sp-3) var(--sp-5);
   border-radius: var(--r-lg);
   background: var(--surface-2);
-  overflow: hidden;
-  padding: 0 var(--sp-2);
 }
-.wheels.h12 {
-  grid-template-columns: 1fr auto 1fr 1fr;
+.when-row .clock {
+  background: var(--surface-3);
 }
-.wheel-band {
-  position: absolute;
-  left: var(--sp-2);
-  right: var(--sp-2);
-  top: calc(50% - var(--row) / 2);
-  height: var(--row);
+.clock-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.clock-box {
+  width: 96px;
+  height: 80px;
   border-radius: var(--r-md);
   background: var(--surface-3);
-  pointer-events: none;
-}
-.wheel {
-  position: relative;
-  height: 100%;
-  overflow-y: scroll;
-  scroll-snap-type: y mandatory;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  padding: calc(var(--row) * 2) 0;
-  -webkit-mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
-  mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
-  outline: none;
-  touch-action: pan-y;
-}
-.wheel::-webkit-scrollbar {
-  display: none;
-}
-.wheel-row {
-  display: block;
-  width: 100%;
-  height: var(--row);
-  scroll-snap-align: center;
-  font-size: var(--fs-22);
-  font-weight: 600;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  transition: color 0.15s ease, font-size 0.15s ease;
-}
-.wheel-row.on {
   color: var(--text);
-  font-size: var(--fs-28);
-  font-weight: 700;
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 200ms var(--ease), color 200ms var(--ease);
 }
-.wheel:focus-visible .wheel-row.on {
-  color: var(--accent-text);
-}
-.wheel-colon {
-  position: relative;
-  font-size: var(--fs-28);
-  font-weight: 700;
-  padding-bottom: 4px;
-}
-.when-row .wheels {
-  background: var(--surface-3);
-}
-.when-row .wheel-band {
+.when-row .clock-box {
   background: var(--bg);
 }
+.clock-box.on {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.clock-colon {
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1;
+  padding-bottom: 6px;
+}
+.clock-ampm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+  margin-left: var(--sp-2);
+}
+.clock-ampm button {
+  width: 56px;
+  height: 37px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-14);
+  font-weight: 650;
+  transition: background-color 200ms var(--ease), color 200ms var(--ease), border-color 200ms var(--ease);
+}
+.clock-ampm button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.clock-dial {
+  position: relative;
+  width: min(272px, 100%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--surface-3);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  outline: none;
+}
+.when-row .clock-dial {
+  background: var(--bg);
+}
+.clock-dial:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.clock-hand {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  transform-origin: 50% 100%;
+  /* glides to a tapped value with a slight settle; follows the finger exactly while dragging */
+  transition: transform 320ms cubic-bezier(0.3, 1.25, 0.5, 1), height 240ms var(--ease);
+  pointer-events: none;
+}
+.clock-dial.dragging .clock-hand {
+  transition: none;
+}
+.clock-knob {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.clock-knob.between::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+}
+.clock-pivot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+}
+.clock-num {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-16);
+  font-weight: 550;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  transition: color 150ms ease-out;
+}
+.clock-num.inner {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.clock-num.on {
+  color: var(--accent-ink);
+}
+
 .modal p {
   white-space: pre-line;
 }

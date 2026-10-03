@@ -41,18 +41,19 @@ require('fs').mkdirSync(OUT, { recursive: true })
     {
       const t = new Date(Date.now() - 16 * 3600000 - 12 * 60000)
       if (t.getDate() !== new Date().getDate()) await page.locator('.sheet .when-days .chip', { hasText: 'Yesterday' }).tap()
-      // scroll each wheel like a flick and let it settle
-      const setWheel = async (label, text) => {
-        const w = page.locator(`.sheet .wheel[aria-label="${label}"]`)
-        if (!(await w.count())) return
-        const i = await w.locator('.wheel-row').evaluateAll((els, x) => els.findIndex((e) => e.textContent === x), text)
-        await w.evaluate((el, i) => (el.scrollTop = i * 56), i)
-        await page.waitForTimeout(450)
+      // the clock: tap the hour on the dial (it moves on to minutes), then the minute
+      const tapNum = async (text) => {
+        const n = page.locator('.sheet .clock-num', { hasText: new RegExp('^' + text + '$') }).first()
+        await page.locator('.sheet .clock-dial').scrollIntoViewIfNeeded()
+        await page.waitForTimeout(150)
+        const bb = await n.boundingBox()
+        await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2)
+        await page.waitForTimeout(350)
       }
-      const h12 = (await page.locator('.sheet .wheels.h12').count()) > 0
-      await setWheel('Hour', String(h12 ? t.getHours() % 12 || 12 : t.getHours()))
-      await setWheel('AM or PM', t.getHours() >= 12 ? 'PM' : 'AM')
-      await setWheel('Minute', String(Math.floor(t.getMinutes() / 5) * 5).padStart(2, '0'))
+      const h12 = (await page.locator('.sheet .clock-ampm').count()) > 0
+      if (h12) await page.locator('.sheet .clock-ampm button', { hasText: t.getHours() >= 12 ? 'PM' : 'AM' }).tap()
+      await tapNum(String(h12 ? t.getHours() % 12 || 12 : t.getHours() || 12))
+      await tapNum(String(Math.floor(t.getMinutes() / 5) * 5).padStart(2, '0'))
     }
     await page.locator('.sheet-foot .btn-primary').tap()
     await page.waitForTimeout(500)
