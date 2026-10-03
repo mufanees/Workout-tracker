@@ -3,8 +3,8 @@ import { useEffect, useState } from 'preact/hooks'
 import { remove, saveFast, settings } from '../store'
 import type { Fast } from '../types'
 import { cancelPush } from '../push'
-import { HOUR, PROTOCOLS, STAGES, hm, protocolLabel, saveFastEdit, toLocalInput } from '../fasting'
-import { fmtDay, fmtTime, uid } from '../util'
+import { HOUR, PROTOCOLS, STAGES, hm, protocolLabel, saveFastEdit } from '../fasting'
+import { fmtDay, fmtTime, startOfDay, uid } from '../util'
 import { Icon } from './icons'
 import { AutoText, confirmDialog, Sheet, toast } from './overlay'
 
@@ -63,7 +63,107 @@ const OFFSETS = [
   { label: '3 h ago', min: 180 },
 ]
 
-/** Pick a moment in the past: quick offsets, or an exact date and time. */
+const MIN = 60000
+const DAY = 86400000
+const pad = (n: number) => String(n).padStart(2, '0')
+const shortDay = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric' })
+const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+
+/** Moves `t` by `min` minutes, snapping to the quarter hour first. */
+function nudge(t: number, min: number) {
+  const q = 15 * MIN
+  if (Math.abs(min) < 60) {
+    const down = Math.floor(t / q) * q
+    if (min < 0) return down < t - 30000 ? down : down - q
+    const up = Math.ceil(t / q) * q
+    return up > t + 30000 ? up : up + q
+  }
+  return t + min * MIN
+}
+
+/**
+ * A moment in the past, picked with taps instead of a date wheel: day chips (today, the
+ * last few days, earlier) and the time with ±15 min / ±1 h. Tapping the time opens the
+ * phone's time-only wheel. Never goes past now.
+ */
+export function WhenPicker({ value, onChange, min, label }: { value: number; onChange: (t: number) => void; min?: number; label: string }) {
+  const now = Date.now()
+  const today = startOfDay(new Date(now))
+  const vDay = startOfDay(new Date(value))
+  const d = new Date(value)
+  const tod = value - vDay
+  const set = (t: number) => onChange(Math.min(t, now))
+  const days = [0, 1, 2, 3].map((i) => today - i * DAY)
+  // Calendar days, not 24 h steps, so DST changes don't shift the time.
+  const onDay = (day: number) => {
+    const x = new Date(day)
+    set(new Date(x.getFullYear(), x.getMonth(), x.getDate(), d.getHours(), d.getMinutes()).getTime())
+  }
+  const earlier = vDay < days[3]
+  const step = (m: number) => {
+    const t = nudge(value, m)
+    return { t, ok: t <= now + 30000 && (min == null || t > min) }
+  }
+  return (
+    <div class="when" role="group" aria-label={label}>
+      <div class="when-days" role="radiogroup" aria-label={`${label}: day`}>
+        {days.map((day, i) => (
+          <button role="radio" aria-checked={vDay === day} class={'chip' + (vDay === day ? ' on' : '')} disabled={min != null && day + DAY <= min} onClick={() => onDay(day)}>
+            {i === 0 ? 'Today' : i === 1 ? 'Yesterday' : shortDay.format(day)}
+          </button>
+        ))}
+        <span class={'chip when-earlier' + (earlier ? ' on' : '')}>
+          {earlier ? shortDate.format(value) : 'Earlier'}
+          <input
+            type="date"
+            aria-label={`${label}: pick a date`}
+            max={`${new Date(now).getFullYear()}-${pad(new Date(now).getMonth() + 1)}-${pad(new Date(now).getDate())}`}
+            value={`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`}
+            onChange={(e) => {
+              const [y, m, dd] = e.currentTarget.value.split('-').map(Number)
+              if (y) set(new Date(y, m - 1, dd).getTime() + tod)
+            }}
+          />
+        </span>
+      </div>
+      <div class="when-time">
+        {[-60, -15].map((m) => {
+          const { t, ok } = step(m)
+          return (
+            <button class="when-step" disabled={!ok} aria-label={m === -60 ? '1 hour earlier' : '15 minutes earlier'} onClick={() => set(t)}>
+              {m === -60 ? '−1h' : '−15m'}
+            </button>
+          )
+        })}
+        <label class="when-clock">
+          <b>{fmtTime(value)}</b>
+          <input
+            type="time"
+            aria-label={`${label}: exact time`}
+            value={`${pad(d.getHours())}:${pad(d.getMinutes())}`}
+            onChange={(e) => {
+              const [h, m] = e.currentTarget.value.split(':').map(Number)
+              if (Number.isFinite(h)) {
+                const x = new Date(vDay)
+                set(new Date(x.getFullYear(), x.getMonth(), x.getDate(), h, m || 0).getTime())
+              }
+            }}
+          />
+        </label>
+        {[15, 60].map((m) => {
+          const { t, ok } = step(m)
+          return (
+            <button class="when-step" disabled={!ok} aria-label={m === 60 ? '1 hour later' : '15 minutes later'} onClick={() => set(t)}>
+              {m === 60 ? '+1h' : '+15m'}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Pick a moment in the past: quick offsets, or an exact day and time. */
 export function TimeSheet({
   open,
   title,
@@ -81,11 +181,10 @@ export function TimeSheet({
   onPick: (t: number) => void
   onClose: () => void
 }) {
-  const [value, setValue] = useState(toLocalInput(initial))
+  const [t, setT] = useState(initial)
   useEffect(() => {
-    if (open) setValue(toLocalInput(initial))
+    if (open) setT(initial)
   }, [open])
-  const t = new Date(value).getTime()
   const valid = Number.isFinite(t) && t <= Date.now() + 60000 && (min == null || t > min)
   return (
     <Sheet
@@ -107,16 +206,16 @@ export function TimeSheet({
           const at = Date.now() - o.min * 60000
           const on = Math.abs(at - t) < 60000
           return (
-            <button class={'chip' + (on ? ' on' : '')} disabled={min != null && at <= min} onClick={() => setValue(toLocalInput(at))}>
+            <button class={'chip' + (on ? ' on' : '')} disabled={min != null && at <= min} onClick={() => setT(at)}>
               {o.label}
             </button>
           )
         })}
       </div>
-      <label class="field">
-        <span>Exact time</span>
-        <input id="time-exact" type="datetime-local" value={value} max={toLocalInput(Date.now())} onInput={(e) => setValue(e.currentTarget.value)} />
-      </label>
+      <div class="field">
+        <span>Or pick the day and time</span>
+        <WhenPicker label="Time" value={t} min={min} onChange={setT} />
+      </div>
     </Sheet>
   )
 }
@@ -159,15 +258,17 @@ export function ProtocolSheet({ open, value, onPick, onClose }: { open: boolean;
 
 /** Edit a fast (or add a past one when `isNew`). */
 export function FastEditor({ fast, isNew, onClose }: { fast: Fast | null; isNew?: boolean; onClose: () => void }) {
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
+  const [s, setS] = useState(0)
+  const [e, setE] = useState<number | null>(null)
+  const [open, setOpen] = useState<'start' | 'end' | null>('start')
   const [goal, setGoal] = useState(16)
   const [note, setNote] = useState('')
   const [proto, setProto] = useState(false)
   useEffect(() => {
     if (fast) {
-      setStart(toLocalInput(fast.start))
-      setEnd(fast.end ? toLocalInput(fast.end) : '')
+      setS(fast.start)
+      setE(fast.end ?? null)
+      setOpen(isNew ? 'start' : null)
       setGoal(fast.goal)
       setNote(fast.note || '')
     }
@@ -179,8 +280,6 @@ export function FastEditor({ fast, isNew, onClose }: { fast: Fast | null; isNew?
       </Sheet>
     )
   const running = fast.end == null
-  const s = new Date(start).getTime()
-  const e = end ? new Date(end).getTime() : null
   const len = (e ?? Date.now()) - s
   const save = async () => {
     if (!Number.isFinite(s) || (!running && (e == null || !Number.isFinite(e) || e <= s))) return toast('The end has to be after the start')
@@ -212,15 +311,25 @@ export function FastEditor({ fast, isNew, onClose }: { fast: Fast | null; isNew?
           {protocolLabel(goal)} <Icon name="pencil" size={13} />
         </button>
       </div>
-      <label class="field">
-        <span>Started</span>
-        <input id="fast-start" type="datetime-local" value={start} max={toLocalInput(Date.now())} onInput={(ev) => setStart(ev.currentTarget.value)} />
-      </label>
-      {!running && (
-        <label class="field">
-          <span>Ended</span>
-          <input id="fast-end" type="datetime-local" value={end} max={toLocalInput(Date.now())} onInput={(ev) => setEnd(ev.currentTarget.value)} />
-        </label>
+      {!running && e != null && (
+        <div class="fe-lengths" role="group" aria-label="Set the length">
+          <span>Length</span>
+          <div class="chips-wrap">
+            {[14, 16, 18, 20, 24].map((h) => (
+              <button class={'chip' + (Math.abs(e - s - h * HOUR) < MIN ? ' on' : '')} onClick={() => setS(e - h * HOUR)}>
+                {h}h
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <WhenRow label="Started" value={s} open={open === 'start'} onToggle={() => setOpen(open === 'start' ? null : 'start')}>
+        <WhenPicker label="Started" value={s} onChange={setS} />
+      </WhenRow>
+      {!running && e != null && (
+        <WhenRow label="Ended" value={e} open={open === 'end'} bad={e <= s} onToggle={() => setOpen(open === 'end' ? null : 'end')}>
+          <WhenPicker label="Ended" value={e} min={s} onChange={setE} />
+        </WhenRow>
       )}
       <label class="field">
         <span>Note</span>
@@ -252,6 +361,21 @@ export function FastEditor({ fast, isNew, onClose }: { fast: Fast | null; isNew?
       )}
       <ProtocolSheet open={proto} value={goal} onPick={setGoal} onClose={() => setProto(false)} />
     </Sheet>
+  )
+}
+
+/** A start or end time: a summary row that opens its picker. */
+function WhenRow({ label, value, open, bad, onToggle, children }: { label: string; value: number; open: boolean; bad?: boolean; onToggle: () => void; children: ComponentChildren }) {
+  return (
+    <div class={'when-row' + (open ? ' open' : '') + (bad ? ' bad' : '')}>
+      <button class="when-head" aria-expanded={open} onClick={onToggle}>
+        <span>{label}</span>
+        <b>{whenLabel(value)}</b>
+        <Icon name="down" size={18} />
+      </button>
+      {open && children}
+      {bad && <p class="when-err">Has to be after the start</p>}
+    </div>
   )
 }
 

@@ -3,7 +3,6 @@
 const { chromium } = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright')
 const OUT = __dirname + '/shots12/'
 require('fs').mkdirSync(OUT, { recursive: true })
-const local = (t) => new Date(t - new Date(t).getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 ;(async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' })
   let doneUrl = ''
@@ -39,7 +38,11 @@ const local = (t) => new Date(t - new Date(t).getTimezoneOffset() * 60000).toISO
       await page.waitForTimeout(400)
     }
     await page.locator('.fast-times button').tap()
-    await page.locator('#time-exact').fill(local(Date.now() - 16 * 3600000 - 12 * 60000))
+    {
+      const t = new Date(Date.now() - 16 * 3600000 - 12 * 60000)
+      if (t.getDate() !== new Date().getDate()) await page.locator('.sheet .when-days .chip', { hasText: 'Yesterday' }).tap()
+      await page.locator('.sheet .when-clock input').fill(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`)
+    }
     await page.locator('.sheet-foot .btn-primary').tap()
     await page.waitForTimeout(500)
     await page.locator('.fast-hero .btn-primary', { hasText: 'End fast' }).tap()
