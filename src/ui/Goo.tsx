@@ -35,6 +35,14 @@ export function GooDefs() {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <filter id="goo-merge-lg" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+          <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10" result="goo" />
+          <feMerge>
+            <feMergeNode in="goo" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
         <filter id="goo-merge-sm" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
           <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
           <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
@@ -187,7 +195,7 @@ export function TabGoo({ index }: { index: number }) {
     const layer = ref.current
     const nav = layer?.parentElement
     if (!layer || !nav) return
-    const [head, ...trail] = Array.from(layer.children) as HTMLElement[]
+    const [origin, head, ...trail] = Array.from(layer.children) as HTMLElement[]
     const target = () => {
       const tab = nav.querySelectorAll<HTMLElement>('.tab')[index]
       return tab ? { x: tab.offsetLeft, w: tab.offsetWidth, cx: tab.offsetLeft + tab.offsetWidth / 2 } : null
@@ -196,17 +204,27 @@ export function TabGoo({ index }: { index: number }) {
       const t = target()
       if (!t) return
       if (!animate || reduced()) {
+        gsap.set(origin, { autoAlpha: 0 })
         gsap.set(head, { x: t.x, width: t.w })
         gsap.set(trail, { x: t.cx, scale: 1 })
         return
       }
-      // Same curve for everything, each a beat later than the one ahead: the gaps stay small
-      // enough for the filter to bridge, so the pill drags a stretching liquid tail behind it.
-      gsap.to(head, { x: t.x, width: t.w, duration: 0.5, ease: 'power3.inOut', overwrite: 'auto' })
+      // Where the pill is leaving from: a puddle stays there and is sucked thin after it, so a
+      // liquid neck stretches across the bar before it tears.
+      const fromX = Number(gsap.getProperty(head, 'x'))
+      const fromW = Number(gsap.getProperty(head, 'width'))
+      const dir = Math.sign(t.x - fromX) || 1
+      gsap.killTweensOf(origin)
+      gsap.set(origin, { x: fromX, width: fromW, scaleY: 1, autoAlpha: 1 })
+      gsap.to(origin, { x: dir > 0 ? fromX + fromW - 24 : fromX, width: 24, scaleY: 0.55, duration: 0.42, ease: 'power2.in' })
+      gsap.to(origin, { scaleY: 0, autoAlpha: 0, duration: 0.16, delay: 0.42, ease: 'power1.in' })
+      // The pill and its drops share one curve, each a beat behind the one ahead: close enough for
+      // the filter to bridge, far enough apart to read as a tail that pinches into drops.
+      gsap.to(head, { x: t.x, width: t.w, duration: 0.7, ease: 'power3.inOut', overwrite: 'auto' })
       trail.forEach((el, i) => {
-        gsap.to(el, { x: t.cx, duration: 0.5 + i * 0.03, delay: 0.012 + i * 0.012, ease: 'power3.inOut', overwrite: 'auto' })
+        gsap.to(el, { x: t.cx, duration: 0.72 + i * 0.05, delay: 0.03 + i * 0.03, ease: 'power3.inOut', overwrite: 'auto' })
         // the drops thin out as they're pulled along, then plump back up once they land
-        gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.28, delay: i * 0.012, ease: 'sine.out', yoyo: true, repeat: 1, overwrite: 'auto' })
+        gsap.fromTo(el, { scale: 1 }, { scale: 0.8 - i * 0.12, duration: 0.38, delay: i * 0.03, ease: 'sine.out', yoyo: true, repeat: 1, overwrite: 'auto' })
       })
     }
     place(placed.current)
@@ -237,10 +255,13 @@ export function TabGoo({ index }: { index: number }) {
   useEffect(() => () => gsap.killTweensOf(ref.current ? Array.from(ref.current.children) : []), [])
   return (
     <span class="tab-goo" aria-hidden="true" ref={ref}>
+      <i class="tg-origin" />
       <b class="tg-head" />
       <i class="tg-tail" />
       <i class="tg-drop" />
+      <i class="tg-drop" />
       <i class="tg-drop sm" />
+      <i class="tg-drop xs" />
     </span>
   )
 }

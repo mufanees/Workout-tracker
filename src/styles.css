@@ -396,7 +396,7 @@ textarea {
   width: 100%;
   height: 48px;
   pointer-events: none;
-  filter: url(#goo-merge);
+  filter: url(#goo-merge-lg);
   view-transition-name: tab-goo;
 }
 .tab-goo > * {
@@ -410,6 +410,10 @@ textarea {
 }
 .tab-goo .tg-head {
   width: 52px;
+}
+.tab-goo .tg-origin {
+  width: 0;
+  visibility: hidden;
 }
 .tab-goo .tg-tail,
 .tab-goo .tg-drop {
@@ -429,6 +433,12 @@ textarea {
   height: 16px;
   top: 16px;
   margin-left: -8px;
+}
+.tab-goo .tg-drop.xs {
+  width: 11px;
+  height: 11px;
+  top: 18.5px;
+  margin-left: -5.5px;
 }
 .tab-label {
   max-width: 0;
