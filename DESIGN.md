@@ -97,7 +97,7 @@ Touch targets are at least 44px: `--h-sm` 36 (secondary chips only), `--h-md` 44
 - Exits: `150ms ease-out`, quieter (fade, small move).
 - Press: `scale: 0.96` over 150ms.
 - Icon swaps (a set's check): from `scale 0.25`, `blur(4px)`.
-- Screens and the tab pill: View Transitions API (`transition()` in `src/router.ts`). Tab switches crossfade evenly (both screens on the same 260ms curve with `mix-blend-mode: plus-lighter`, so brightness never dips mid-way; a quick exit with a slower entrance used to flicker); going deeper slides from the right; back slides the other way.
+- Screens and the tab pill: View Transitions API (`transition()` in `src/router.ts`). The old screen stays fully opaque underneath (it only slides) and the new one fades in on top, and both snapshots get the page colour as a solid background, so every frame is a true blend of the two pictures: no dip toward the background (a fade-out under a slower fade-in flashed, worst in light mode) and no double exposure. No blend modes (some web views lack `plus-lighter`). Tab switches crossfade; going deeper slides from the right; back slides the other way. Checked by measuring screen brightness on every frame of a recording in both themes.
 - Only transform, opacity and filter animate. `prefers-reduced-motion` drops movement and keeps colour and press feedback.
 
 ## Goo

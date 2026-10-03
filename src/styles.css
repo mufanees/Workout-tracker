@@ -5646,6 +5646,8 @@ label.setting:active {
    which would otherwise trap a screen's sheets under the tab bar. */
 html.vt .app > :is(.screen, .live) {
   view-transition-name: screen;
+  /* solid, so the crossfade is a true blend of two pictures, never a double exposure */
+  background: var(--bg);
 }
 .tabbar {
   view-transition-name: tabbar;
@@ -5698,14 +5700,14 @@ html.vt .app > :is(.screen, .live) {
 ::view-transition-group(tab-4) {
   z-index: 2;
 }
-/* An even crossfade (same duration, additive blend) so an icon never dips out mid-way. */
+/* The old icon stays solid underneath and the new one fades in on top, so an icon never dips
+   out mid-way (no blend modes, which some web views don't support). */
 ::view-transition-old(tab-0),
 ::view-transition-old(tab-1),
 ::view-transition-old(tab-2),
 ::view-transition-old(tab-3),
 ::view-transition-old(tab-4) {
-  animation: vt-out 300ms var(--ease) both;
-  mix-blend-mode: plus-lighter;
+  animation: none;
 }
 ::view-transition-new(tab-0),
 ::view-transition-new(tab-1),
@@ -5713,7 +5715,6 @@ html.vt .app > :is(.screen, .live) {
 ::view-transition-new(tab-3),
 ::view-transition-new(tab-4) {
   animation: vt-in 300ms var(--ease) both;
-  mix-blend-mode: plus-lighter;
 }
 ::view-transition-image-pair(tab-0),
 ::view-transition-image-pair(tab-1),
@@ -5722,41 +5723,41 @@ html.vt .app > :is(.screen, .live) {
 ::view-transition-image-pair(tab-4) {
   isolation: isolate;
 }
-/* screens */
+/* screens: the old screen stays fully opaque underneath (it only slides) and the new one fades
+   in on top of it, so the picture never dips toward the background mid-way. Fading both at once
+   (a quick exit under a slower entrance) left both half see-through: a flash, worst in light
+   mode where white cards dimmed toward the grey page. No blend modes needed, so it holds on
+   every browser and web view. */
 ::view-transition-old(screen) {
-  animation: vt-out 150ms ease-out both;
+  animation: none;
 }
 ::view-transition-new(screen) {
   animation: vt-in-up 300ms var(--ease) both;
 }
-/* Tab switches: an even crossfade (same curve, additive blend) so brightness holds steady.
-   A quick exit plus a slower entrance left both screens half transparent mid-way: a flicker. */
-html[data-nav='tab']::view-transition-old(screen),
 html[data-nav='tab']::view-transition-new(screen) {
-  animation-duration: 260ms;
-  animation-timing-function: var(--ease);
-  mix-blend-mode: plus-lighter;
-}
-html[data-nav='tab']::view-transition-old(screen) {
-  animation-name: vt-out;
-}
-html[data-nav='tab']::view-transition-new(screen) {
-  animation-name: vt-in;
-}
-html[data-nav='tab']::view-transition-image-pair(screen) {
-  isolation: isolate;
+  animation: vt-in 260ms var(--ease) both;
 }
 html[data-nav='forward']::view-transition-new(screen) {
-  animation-name: vt-in-right;
+  animation: vt-in-right 300ms var(--ease) both;
 }
 html[data-nav='forward']::view-transition-old(screen) {
-  animation-name: vt-out-left;
+  animation: vt-slide-left 300ms var(--ease) both;
 }
 html[data-nav='back']::view-transition-new(screen) {
-  animation-name: vt-in-left;
+  animation: vt-in-left 300ms var(--ease) both;
 }
 html[data-nav='back']::view-transition-old(screen) {
-  animation-name: vt-out-right;
+  animation: vt-slide-right 300ms var(--ease) both;
+}
+@keyframes vt-slide-left {
+  to {
+    transform: translateX(-12px);
+  }
+}
+@keyframes vt-slide-right {
+  to {
+    transform: translateX(12px);
+  }
 }
 @keyframes vt-out {
   to {
