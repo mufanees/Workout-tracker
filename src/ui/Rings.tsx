@@ -6,6 +6,7 @@ import { MOVE_GOALS, moveGoal, nudge, ringsFor, thisWeekDays, zone2Minutes } fro
 import type { Milestone } from '../milestones'
 import { startOfDay } from '../util'
 import { Icon } from './icons'
+import { GooBurst } from './Goo'
 import { actionSheet } from './overlay'
 import { useNow } from './Fasting'
 
@@ -186,6 +187,7 @@ export function CelebrationHero({
 }) {
   return (
     <section class="cel-hero">
+      <GooBurst />
       <div class="ch-top">
         <span class="ch-eyebrow">{eyebrow}</span>
       </div>

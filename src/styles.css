@@ -6603,3 +6603,323 @@ html[data-nav='back']::view-transition-old(screen) {
   font-size: var(--fs-34);
   line-height: 1.05;
 }
+
+/* =====================================================================================
+   Squircle cards (46 px). Only where the browser draws true squircles (Chrome, Android);
+   elsewhere (Safari today) cards keep their regular rounded corners.
+   ===================================================================================== */
+@supports (corner-shape: squircle) {
+  :root {
+    --radius: 46px;
+    --r-xl: 46px;
+    --r-2xl: 58px;
+    --r-lg: 30px;
+  }
+  .card,
+  .goal-card,
+  .plan-card,
+  .today-rings,
+  .hero-quote,
+  .workout-card,
+  .routine-card,
+  .win-card,
+  .week-card,
+  .ex-card,
+  .ss-group,
+  .goal-stats > div,
+  .checkin,
+  .cel-hero,
+  .goal-hero,
+  .when-row,
+  .sheet,
+  .modal {
+    corner-shape: squircle;
+  }
+}
+
+/* =====================================================================================
+   Goo. Lime is liquid: blobs melt together (SVG filter #goo in src/ui/Goo.tsx), lime
+   buttons squish like jelly, picked chips ooze into place, the tab pill stretches between
+   tabs. Kept quick so nothing slows down logging; off with reduced motion.
+   ===================================================================================== */
+:root {
+  /* a springy overshoot: stretches past, wobbles back */
+  --spring: linear(0, 0.22 7%, 0.66 16%, 1.07 28%, 1.16 35%, 1.12 42%, 1.01 54%, 0.97 63%, 0.99 78%, 1);
+}
+.goo-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* set tick splash */
+.goo-splash {
+  position: absolute;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  filter: url(#goo);
+}
+.goo-splash i,
+.goo-splash b {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.goo-splash i {
+  animation: goo-out 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.goo-splash b {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  animation: goo-core 720ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+@keyframes goo-out {
+  0% {
+    transform: translate(0, 0) scale(1.2);
+  }
+  55% {
+    transform: translate(var(--dx), var(--dy)) scale(var(--s));
+  }
+  100% {
+    transform: translate(calc(var(--dx) * 1.35), calc(var(--dy) * 1.35)) scale(0);
+  }
+}
+@keyframes goo-core {
+  0% {
+    transform: scale(0.6);
+  }
+  30% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(0);
+  }
+}
+
+/* jelly: lime things squash when pressed and wobble back */
+:is(.btn-primary, .check.on, .plan-card .btn, .effort-opt.on, .tab.on, .goal-state.on-track, .fab) {
+  transition-property: scale, background-color, color, box-shadow;
+  transition-duration: 620ms;
+  transition-timing-function: var(--spring);
+}
+:is(.btn-primary, .plan-card .btn, .check):active:not(:disabled) {
+  scale: 1.05 0.9;
+  transition-duration: 110ms;
+  transition-timing-function: ease-out;
+}
+.check.on {
+  animation: jelly 560ms var(--spring);
+}
+@keyframes jelly {
+  0% {
+    scale: 1.18 0.82;
+  }
+  40% {
+    scale: 0.92 1.1;
+  }
+  100% {
+    scale: 1 1;
+  }
+}
+
+/* picked chips ooze into place */
+:is(.chip.on, .effort-opt.on, .fb-opt.on, .when-days .chip.on, .proto.on) {
+  animation: ooze 520ms var(--spring);
+}
+@keyframes ooze {
+  0% {
+    scale: 0.82 0.9;
+    border-radius: 42% 58% 52% 48% / 60% 44% 56% 40%;
+  }
+  45% {
+    scale: 1.06 0.95;
+    border-radius: 55% 45% 40% 60% / 45% 60% 40% 55%;
+  }
+}
+
+/* the tab pill stretches and wobbles between tabs */
+::view-transition-group(tab-pill) {
+  animation-duration: 520ms;
+  animation-timing-function: var(--spring);
+}
+.tab.on .tab-pill {
+  animation: jelly 600ms var(--spring);
+}
+
+/* lava lamp inside the lime workout card */
+.lava {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  corner-shape: inherit;
+  pointer-events: none;
+  filter: url(#goo-soft);
+  opacity: 0.55;
+}
+.lava i {
+  position: absolute;
+  border-radius: 50%;
+  background: #e4ff7a;
+  will-change: transform;
+}
+.lava .l1 {
+  width: 120px;
+  height: 120px;
+  left: 58%;
+  top: 8%;
+  animation: lava-a 15s ease-in-out infinite alternate;
+}
+.lava .l2 {
+  width: 90px;
+  height: 90px;
+  left: 70%;
+  top: 46%;
+  animation: lava-b 19s ease-in-out infinite alternate;
+}
+.lava .l3 {
+  width: 70px;
+  height: 70px;
+  left: 40%;
+  top: 62%;
+  animation: lava-c 13s ease-in-out infinite alternate;
+}
+.lava .l4 {
+  width: 54px;
+  height: 54px;
+  left: 82%;
+  top: 22%;
+  background: #a9d61c;
+  animation: lava-b 11s ease-in-out infinite alternate-reverse;
+}
+@keyframes lava-a {
+  50% {
+    transform: translate(-46px, 60px) scale(1.15, 0.9);
+  }
+  100% {
+    transform: translate(-90px, 18px) scale(0.9, 1.1);
+  }
+}
+@keyframes lava-b {
+  50% {
+    transform: translate(-60px, -50px) scale(0.85, 1.15);
+  }
+  100% {
+    transform: translate(-20px, -90px) scale(1.1, 0.95);
+  }
+}
+@keyframes lava-c {
+  50% {
+    transform: translate(70px, -40px) scale(1.2);
+  }
+  100% {
+    transform: translate(30px, -110px) scale(0.85);
+  }
+}
+.plan-card > .lava {
+  position: absolute;
+  z-index: 0;
+}
+
+/* celebration: lime blobs rise from the bottom and melt together */
+.goo-burst {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 70%;
+  z-index: -1;
+  pointer-events: none;
+  filter: url(#goo-soft);
+  opacity: 0.32;
+  overflow: hidden;
+}
+.goo-burst i {
+  position: absolute;
+  left: var(--x);
+  bottom: -40px;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: goo-rise 2.6s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d) both, goo-bob 5s ease-in-out calc(var(--d) + 2.6s) infinite alternate;
+}
+@keyframes goo-rise {
+  0% {
+    transform: translateY(40px) scale(0.4);
+  }
+  60% {
+    transform: translateY(calc(var(--h) * -1)) scale(1.1, 0.9);
+  }
+  100% {
+    transform: translateY(calc(var(--h) * -0.7)) scale(1);
+  }
+}
+@keyframes goo-bob {
+  to {
+    transform: translateY(calc(var(--h) * -0.55)) scale(1.15, 0.9);
+  }
+}
+
+/* coach thinking: three blobs merge and split */
+.goo-dots {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 24px;
+  filter: url(#goo-sm);
+  vertical-align: middle;
+}
+.goo-dots i {
+  position: absolute;
+  top: 5px;
+  left: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: goo-dot 1.4s ease-in-out infinite;
+}
+.goo-dots i:nth-child(2) {
+  left: 23px;
+  animation-name: goo-dot-mid;
+}
+.goo-dots i:nth-child(3) {
+  left: 42px;
+  animation-direction: reverse;
+}
+@keyframes goo-dot {
+  50% {
+    transform: translateX(19px) scale(1.2);
+  }
+}
+@keyframes goo-dot-mid {
+  50% {
+    transform: scale(0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lava,
+  .goo-burst,
+  .goo-splash {
+    display: none;
+  }
+  .check.on,
+  .tab.on .tab-pill,
+  :is(.chip.on, .effort-opt.on, .fb-opt.on, .when-days .chip.on, .proto.on) {
+    animation: none;
+  }
+  .goo-dots i {
+    animation: none;
+  }
+}

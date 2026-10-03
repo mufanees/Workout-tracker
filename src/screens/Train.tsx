@@ -17,6 +17,7 @@ import { Elapsed } from './Live'
 import { TodayRings } from '../ui/Rings'
 import { BlockCard, GoalCard } from './Goal'
 import { CheckinCard } from '../ui/Checkin'
+import { Lava } from '../ui/Goo'
 
 export function Train() {
   const groups = new Map<string, Routine[]>()
@@ -167,6 +168,7 @@ function ProgramCard() {
     })
   return (
     <section class={'plan-card' + (s.restDay ? ' rest' : '')}>
+      {!s.restDay && <Lava />}
       <div class="plan-top">
         <button class="plan-eyebrow" onClick={menu} aria-label={`Week ${s.week} of ${s.program.name}. Options`}>
           Week {s.week} · {s.program.name} <Icon name="down" size={14} />
@@ -210,6 +212,7 @@ function PlanCard() {
     })
   return (
     <section class={'plan-card' + (p.restDay ? ' rest' : '')}>
+      {!p.restDay && <Lava />}
       <div class="plan-top">
         <button class="plan-eyebrow" onClick={pickWeek} aria-label={`Week ${Math.min(p.week, 12)} of 12, phase ${p.phase.n} ${p.phase.name}. Change week`}>
           Week {Math.min(p.week, 12)} of 12 · {p.phase.name} <Icon name="down" size={14} />

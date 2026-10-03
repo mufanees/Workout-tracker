@@ -7,7 +7,7 @@ One set of tokens drives every screen. They live at the top of `src/styles.css`;
 - **Glanceable mid-set.** The numbers you act on (weight, reps, time, rest) are the largest thing on screen, in tabular figures.
 - **One accent.** Lime (`--accent`) means "do this" or "done": primary buttons, completed sets, the active tab, closed rings. Everything else is neutral.
 - **Space groups things.** Tight inside a group, open between groups: the gap between groups is at least twice the gap inside one.
-- **Motion explains, it doesn't decorate.** One arrival curve, quicker exits, nothing that slows logging a set.
+- **Motion explains, and the lime is liquid.** One arrival curve, quicker exits, nothing that slows logging a set. Lime things behave like goo: they squash when pressed, wobble back, and melt into each other (see Goo).
 
 ## Color
 
@@ -85,6 +85,8 @@ Concentric: an inner element's radius is the outer radius minus the padding betw
 | `--r-2xl` | 28 | Hero cards, superset blocks |
 | `--r-pill` | 999 | Buttons, pills, tab bar |
 
+Squircle cards: where the browser supports `corner-shape: squircle` (Chrome / Android 139+), cards, sheets and hero blocks use a continuous squircle corner and the card radii grow so it reads (`--r-lg` 30, `--r-xl` 46, `--r-2xl` 58). Other browsers (Safari today) keep the round radii above. One `@supports` block in `styles.css` holds the list.
+
 ## Sizes
 
 Touch targets are at least 44px: `--h-sm` 36 (secondary chips only), `--h-md` 44 (buttons, icon buttons), `--h-lg` 54 (primary actions). Set rows are 56px tall with 46px inputs and a 50px check.
@@ -97,6 +99,19 @@ Touch targets are at least 44px: `--h-sm` 36 (secondary chips only), `--h-md` 44
 - Icon swaps (a set's check): from `scale 0.25`, `blur(4px)`.
 - Screens and the tab pill: View Transitions API (`transition()` in `src/router.ts`). Tab switches fade; going deeper slides from the right; back slides the other way.
 - Only transform, opacity and filter animate. `prefers-reduced-motion` drops movement and keeps colour and press feedback.
+
+## Goo
+
+The gooey layer (`src/ui/Goo.tsx`, the "goo" block at the end of `styles.css`). All of it is decoration: `aria-hidden`, `pointer-events: none`, off under `prefers-reduced-motion`.
+
+- **Metaball filters** (`<GooDefs />`, mounted once in App): blur, then a hard alpha cut, so nearby blobs melt into one shape. `#goo` (blur 7) for splashes and bursts, `#goo-sm` (blur 3.2) for small things such as the coach dots, `#goo-soft` (blur 14, no edge composite) for lava.
+- **Spring**: `--spring`, a CSS `linear()` curve that overshoots about 16% and settles. Used for the jelly release, the tab pill and the ooze on chips.
+- **Jelly press**: lime buttons and the set check squash to `scale: 1.05 0.9` while held and spring back; a check that turns on wobbles.
+- **Ooze**: selected chips (check-in, effort, feedback, fasting day and plan chips) swell and settle with the spring.
+- **Splash** (`gooSplash(el, host)`): ticking a set throws seven lime droplets out of the check that melt back in (~720ms). Drawn inside the exercise card so it scrolls with the row.
+- **Tab pill**: the lime pill stretches across to the new tab (view transition `tab-pill`, 520ms on the spring) and jiggles on arrival.
+- **Lava**: four slow blobs drifting behind the plan / program card on training days (opacity .55, 11–19s loops).
+- **Burst**: blobs rise and merge behind the celebration hero. **Dots**: the coach's "thinking" indicator is three blobs that merge and split.
 
 ## Components
 

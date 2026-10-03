@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { openGoals } from '../goals'
+import { GooDots } from '../ui/Goo'
 import { route, navigate } from '../router'
 import { getToken, syncNow } from '../sync'
 import { exMap, workouts } from '../store'
@@ -304,7 +305,7 @@ export function Coach() {
             <div class="bubble user">{m.content}</div>
           ) : (
             <div class="bubble coach">
-              {m.content ? <Markdown text={m.content} /> : busy && i === msgs.length - 1 ? <span class="typing" aria-label="Thinking" /> : null}
+              {m.content ? <Markdown text={m.content} /> : busy && i === msgs.length - 1 ? <GooDots /> : null}
               {busy && i === msgs.length - 1 && status && (
                 <span class="coach-status">
                   <span class="spinner" aria-hidden="true" /> {status}…

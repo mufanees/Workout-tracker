@@ -6,6 +6,7 @@ import { matchPrevious, previousSets, stalledAt } from '../stats'
 import { navigate } from '../router'
 import type { Exercise, SetKind, WExercise, WSet } from '../types'
 import { clone, fmtNum, fmtRest, fromDisplay, haptic, newSet, newWExercise, supersetColor, targetTop, toDisplay, uid, youtubeUrl } from '../util'
+import { gooSplash } from './Goo'
 import { Icon } from './icons'
 import { NumInput } from './inputs'
 import { actionSheet, AutoText, toast } from './overlay'
@@ -403,6 +404,7 @@ function ExerciseCard({
       return
     }
     haptic(12)
+    gooSplash(cardRef.current?.querySelectorAll('button.check')[i], cardRef.current)
     mutSet(s.id, (t) => Object.assign(t, next))
     onSetDone()
   }

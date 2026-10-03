@@ -13,6 +13,7 @@ import { Coach } from './screens/Coach'
 import { CoachMemory } from './screens/CoachMemory'
 import { Fast } from './screens/Fast'
 import { FastDone } from './screens/FastDone'
+import { GooDefs } from './ui/Goo'
 import { BlockScreen, GoalDetail, GoalsScreen } from './screens/Goal'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
@@ -91,6 +92,7 @@ export function App() {
         </nav>
       )}
       <OverlayHost />
+      <GooDefs />
     </div>
   )
 }
