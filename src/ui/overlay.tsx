@@ -210,12 +210,16 @@ export function OverlayHost() {
 
 export function AutoText(props: { value: string; onInput: (v: string) => void; placeholder?: string; class?: string; autoFocus?: boolean; label?: string }) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  // Grow with the text, but never shorter than the empty box with its placeholder,
+  // so typing the first words doesn't make the field jump.
+  const minH = useRef(0)
   useEffect(() => {
     const el = ref.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }, [props.value])
+    if (!props.value) minH.current = el.scrollHeight
+    el.style.height = Math.max(el.scrollHeight, minH.current) + 'px'
+  }, [props.value, props.placeholder])
   useEffect(() => {
     if (props.autoFocus) ref.current?.focus()
   }, [])

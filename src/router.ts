@@ -99,6 +99,13 @@ export function back(fallback: string) {
   if (inMemoryDepth > 0) {
     inMemoryDepth--
     transition(() => go(fallback, { replace: true }), 'back')
-  } else if ((history.state?.depth || 0) > 0) history.back()
-  else transition(() => go(fallback, { replace: true }), 'back')
+  } else if ((history.state?.depth || 0) > 0) {
+    // Inside some embedded frames (like Claude's) history.back() is silently ignored.
+    // If the screen hasn't changed shortly after, go to the parent screen ourselves.
+    const from = route.value.path
+    history.back()
+    setTimeout(() => {
+      if (route.value.path === from && !navPending()) transition(() => go(fallback, { replace: true }), 'back')
+    }, 400)
+  } else transition(() => go(fallback, { replace: true }), 'back')
 }

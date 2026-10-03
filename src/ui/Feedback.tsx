@@ -101,7 +101,7 @@ export function FeedbackCard({ w, open: startOpen }: { w: Workout; open?: boolea
           <Choice label="Cool-down" value={fb.cooldown} options={PHASE} onChange={(v) => setFb({ ...fb, cooldown: v })} />
         </div>
       )}
-      <AutoText value={fb.note || ''} onInput={(v) => setFb({ ...fb, note: v })} placeholder="Anything else? What felt off, what you'd rather do, how much time you have…" class="input-like" label="Note for your coach" />
+      <AutoText value={fb.note || ''} onInput={(v) => setFb({ ...fb, note: v })} placeholder="What felt off? How much time do you have?" class="input-like" label="Note for your coach" />
       <div class="row gap">
         <button
           class="btn btn-secondary fb-save"
