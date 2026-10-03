@@ -3,7 +3,7 @@
 // it's hidden from screen readers and switched off for people who prefer reduced motion.
 import { gsap } from 'gsap'
 import { CustomEase } from 'gsap/CustomEase'
-import { goo, gt, wobbleEase } from '../gooConfig'
+import { glideCurve, goo, gt, wobbleEase } from '../gooConfig'
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks'
 
 /** Put once in the app. Elements with `filter: url(#goo)` merge their blobs. Also makes every
@@ -200,12 +200,23 @@ gsap.registerPlugin(CustomEase)
 // carry on from where the motion was instead of jumping ahead to catch up: a gap over 100ms
 // counts as one frame. Jumps are what make motion feel un-smooth.
 gsap.ticker.lagSmoothing(100, 16)
-// One family of curves for all goo, so every piece moves alike. `goo-move`: a gentle ramp-up
-// into a long, soft deceleration with no overshoot (reversing direction reads as a jolt).
-// `goo-size`: the same feel, a little quicker, for size changes.
-const GOO_MOVE = CustomEase.create('goo-move', 'M0,0 C0.32,0.04 0.14,1 1,1')
-const GOO_SIZE = CustomEase.create('goo-size', 'M0,0 C0.3,0.06 0.18,1 1,1')
-export const gooEase = { move: GOO_MOVE, size: GOO_SIZE }
+// One family of curves for all goo, so every piece moves alike, shaped by Settings → Goo →
+// Easing (glideCurve in gooConfig.ts): a push off the mark, a sweep through the middle and a
+// long, slow landing, never overshooting (reversing direction reads as a jolt).
+let curveKey = ''
+const curves = { move: 'power3.inOut', size: 'power3.inOut', seconds: 1 }
+function eases() {
+  const c = glideCurve()
+  const key = c.move + c.size
+  if (key !== curveKey) {
+    curveKey = key
+    curves.move = CustomEase.create('goo-move', c.move) as unknown as string
+    curves.size = CustomEase.create('goo-size', c.size) as unknown as string
+  }
+  curves.seconds = c.seconds
+  return curves
+}
+export const gooEase = eases
 export const gooReduced = () => reduced() || !goo.enabled
 
 export interface GooRect {
@@ -350,11 +361,12 @@ export class GooTrack {
     const k = Math.min(1.2, Math.min(from.h, to.h) / 48)
     const L = goo.lumps
     const T = goo.trail
-    const glide = gt(0.95)
+    const E = eases()
+    const glide = gt(E.seconds)
 
     // 1. The highlight glides there on one long, soft curve.
-    gsap.to(this.head, { x: to.x, y: to.y, duration: glide, ease: GOO_MOVE, overwrite: 'auto' })
-    gsap.to(this.head, { width: to.w, height: to.h, borderRadius: `${to.r ?? to.h / 2}px`, duration: gt(0.8), ease: GOO_SIZE, overwrite: 'auto' })
+    gsap.to(this.head, { x: to.x, y: to.y, duration: glide, ease: E.move, overwrite: 'auto' })
+    gsap.to(this.head, { width: to.w, height: to.h, borderRadius: `${to.r ?? to.h / 2}px`, duration: glide * 0.85, ease: E.size, overwrite: 'auto' })
 
     if (L > 0.02) {
       // 2. A puddle stays where it was and is drawn thin towards where it went.
@@ -385,13 +397,14 @@ export class GooTrack {
     // 4. Drops string out behind it on the same curve and catch up.
     const ts = this.sizes(TRAIL, to)
     this.trail.forEach((el, i) => {
-      gsap.to(el, { x: tc.x, y: tc.y, width: ts[i], height: ts[i], duration: glide + gt(i * 0.06 * T), delay: gt((0.03 + i * 0.035) * T), ease: GOO_MOVE, overwrite: 'auto' })
+      gsap.to(el, { x: tc.x, y: tc.y, width: ts[i], height: ts[i], duration: glide + gt(i * 0.06 * T), delay: gt((0.03 + i * 0.035) * T), ease: E.move, overwrite: 'auto' })
       gsap.fromTo(el, { scale: 1 }, { scale: 1 - (0.25 + i * 0.1) * Math.min(T, 1.5), duration: gt(0.45), delay: gt(i * 0.035 * T), ease: 'sine.inOut', yoyo: true, repeat: 1 })
     })
 
     // 5. It lands lumpy, then rests as an exact copy of the target.
     const w = wobbleEase()
-    const landAt = gt(0.3)
+    // bulge as it arrives: with a dramatic curve that is well into the glide
+    const landAt = glide * (0.3 + 0.12 * Math.min(2, goo.drama))
     if (L > 0.02) this.land(to, u, landAt)
     this.restAfter(Math.max(glide + gt(0.06 * 4 * T + 0.18 * T), landAt + gt(0.3 + 0.1) + w.duration) + 0.05)
   }
@@ -432,8 +445,8 @@ export class GooTrack {
       const w = Number(gsap.getProperty(this.head, 'width'))
       const h = Number(gsap.getProperty(this.head, 'height'))
       if (Math.abs(x - to.x) + Math.abs(y - to.y) + Math.abs(w - to.w) + Math.abs(h - to.h) < 0.5) return
-      gsap.to(this.head, { x: to.x, y: to.y, width: to.w, height: to.h, borderRadius: `${to.r ?? to.h / 2}px`, duration: gt(0.45), ease: GOO_SIZE, overwrite: 'auto' })
-      this.trail.forEach((el) => gsap.to(el, { x: to.x + to.w / 2, y: to.y + to.h / 2, duration: gt(0.45), ease: GOO_SIZE, overwrite: 'auto' }))
+      gsap.to(this.head, { x: to.x, y: to.y, width: to.w, height: to.h, borderRadius: `${to.r ?? to.h / 2}px`, duration: gt(0.45), ease: eases().size, overwrite: 'auto' })
+      this.trail.forEach((el) => gsap.to(el, { x: to.x + to.w / 2, y: to.y + to.h / 2, duration: gt(0.45), ease: eases().size, overwrite: 'auto' }))
     }
     // nothing moved: leave the glide alone (it rests on its own when it finishes)
     if (!same) go()

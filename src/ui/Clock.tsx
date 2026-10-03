@@ -108,8 +108,9 @@ export function ClockPicker({ value, onChange, label }: { value: number; onChang
       st.d.forEach((d, i) => gsap.to(d, { a, r, duration: gt(0.2 + i * 0.08 * gooCfg.trail), ease: 'sine.out', overwrite: 'auto', onUpdate: draw }))
       return
     }
-    gsap.to(st.k, { a, r, duration: gt(0.85), ease: gooEase.move, overwrite: 'auto', onUpdate: draw })
-    st.d.forEach((d, i) => gsap.to(d, { a, r, duration: gt(0.85 + i * 0.06 * gooCfg.trail), delay: gt((0.03 + i * 0.035) * gooCfg.trail), ease: gooEase.move, overwrite: 'auto', onUpdate: draw }))
+    const E = gooEase()
+    gsap.to(st.k, { a, r, duration: gt(E.seconds * 0.9), ease: E.move, overwrite: 'auto', onUpdate: draw })
+    st.d.forEach((d, i) => gsap.to(d, { a, r, duration: gt(E.seconds * 0.9 + i * 0.06 * gooCfg.trail), delay: gt((0.03 + i * 0.035) * gooCfg.trail), ease: E.move, overwrite: 'auto', onUpdate: draw }))
     drops.forEach((el, i) => gsap.fromTo(el, { scale: 1 }, { scale: 1 - (0.3 + i * 0.1) * Math.min(gooCfg.trail, 1.5), duration: gt(0.42), delay: gt(i * 0.035 * gooCfg.trail), ease: 'sine.inOut', yoyo: true, repeat: 1 }))
     // land lumpy: blobs bulge out of the knob, then wobble back in
     const ur = { x: Math.sin(rad(a)), y: -Math.cos(rad(a)) }

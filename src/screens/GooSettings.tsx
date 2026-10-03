@@ -27,10 +27,11 @@ export function AccentPicker() {
   )
 }
 
-type Num = 'intensity' | 'speed' | 'lumps' | 'wobble' | 'trail'
+type Num = 'intensity' | 'speed' | 'drama' | 'lumps' | 'wobble' | 'trail'
 const SLIDERS: [Num, string, number, number, (v: number) => string][] = [
   ['intensity', 'Gooeyness', 0.4, 1.8, (v) => (v < 0.75 ? 'Subtle' : v < 1.25 ? 'Gooey' : 'Molten')],
   ['speed', 'Speed', 0.5, 2, (v) => `${v.toFixed(1)}×`],
+  ['drama', 'Easing', 0, 2, (v) => (v < 0.5 ? 'Soft' : v < 1 ? 'Smooth' : v < 1.5 ? 'Dramatic' : 'Very dramatic')],
   ['lumps', 'Lumpiness', 0, 2, (v) => (v < 0.05 ? 'None' : v < 0.75 ? 'A little' : v < 1.3 ? 'Lumpy' : 'Very lumpy')],
   ['wobble', 'Wobble', 0, 2, (v) => (v < 0.05 ? 'None' : v < 0.75 ? 'Gentle' : v < 1.3 ? 'Wobbly' : 'Jelly')],
   ['trail', 'Trail', 0, 2, (v) => (v < 0.05 ? 'None' : v < 0.75 ? 'Short' : v < 1.3 ? 'Long' : 'Stringy')],
