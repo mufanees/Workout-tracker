@@ -6,6 +6,7 @@ A small, fast workout tracker you install on your phone. It covers the parts of 
 
 It also does:
 
+- **Import from Wahoo, Garmin, Zwift and others**: History → upload button takes a `.fit` file and adds it as a cardio workout with its heart rate trace and zones (counts toward Move and Zone 2).
 - **Heart rate** from a Bluetooth strap (Garmin HRM-Dual or any standard one) during any workout, with live zones, an optional target zone that buzzes when you drift out, time in each zone per workout, and weekly zone trends. Zone 2 cardio has its own quick start.
 - **Body weight** with a 7-day average, weekly and monthly change, and a chart.
 - **Intermittent fasting**: plans from 13:11 to OMAD and 36 h, a live ring with the metabolic stages (digesting, blood sugar falling, fat burning, ketosis…), back-dated start and end, past fasts with notes, streaks and stats, and a reminder before your eating window closes.

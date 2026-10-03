@@ -20,6 +20,8 @@ import { ringsFor } from '../rings'
 import { milestonesFor, nextWorkoutMilestone } from '../milestones'
 import { QuoteCard } from '../ui/Quote'
 import type { Workout } from '../types'
+import { fitToWorkout, parseFit } from '../fit'
+import { summarizeHR as hrSummary } from '../hr'
 import { counts, doneSets, startOfDay, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
 
 const WEEK = 7 * 86400000
@@ -79,6 +81,7 @@ export function History() {
     <div class="screen">
       <header class="page-head">
         <h1>History</h1>
+        <FitImportButton />
         <div class="segmented view-toggle" role="radiogroup" aria-label="View">
           <button role="radio" aria-checked={view === 'list'} class={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="List">
             <Icon name="layoutList" size={18} />
@@ -560,6 +563,50 @@ function WorkoutCelebration({ w, number, prCount }: { w: Workout; number: number
         <QuoteCard compact seed={3} />
       </section>
       <MilestoneList list={earned} />
+    </>
+  )
+}
+
+/** Import a .FIT file (Wahoo, Garmin, Zwift…) as a finished cardio workout with its heart rate. */
+function FitImportButton() {
+  const input = useRef<HTMLInputElement>(null)
+  const onFile = async (file: File) => {
+    let w: Workout
+    try {
+      w = fitToWorkout(parseFit(await file.arrayBuffer()))
+    } catch (e) {
+      toast(`Couldn’t read that file. ${(e as Error).message || ''}`.trim())
+      return
+    }
+    const mins = Math.max(1, Math.round(((w.end || w.start) - w.start) / 60000))
+    const hr = hrSummary(w.hr)
+    const exists = workouts.value.some((x) => x.id === w.id)
+    const ok = await confirmDialog({
+      title: exists ? `Replace ${w.name}?` : `Add ${w.name}?`,
+      message: [`${fmtDay(w.start)}, ${fmtTime(w.start)} · ${mins} min`, hr ? `Heart rate avg ${hr.avg}, max ${hr.max} · ${Math.round(hr.zoneSeconds[1] / 60)} min in zone 2` : 'No heart rate in this file', exists ? 'You imported this one before; this replaces it.' : ''].filter(Boolean).join('\n'),
+      confirm: exists ? 'Replace' : 'Add workout',
+    })
+    if (!ok) return
+    await saveWorkout(w)
+    toast(`${w.name} added`)
+    navigate(`/history/${w.id}`)
+  }
+  return (
+    <>
+      <button class="icon-btn head-import" aria-label="Import a workout file (.fit) from Wahoo, Garmin or Zwift" title="Import a .fit file" onClick={() => input.current?.click()}>
+        <Icon name="upload" size={20} />
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept=".fit,.FIT,application/vnd.ant.fit,application/octet-stream"
+        hidden
+        onChange={(e) => {
+          const f = e.currentTarget.files?.[0]
+          e.currentTarget.value = ''
+          if (f) void onFile(f)
+        }}
+      />
     </>
   )
 }

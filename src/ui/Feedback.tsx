@@ -104,7 +104,7 @@ export function FeedbackCard({ w, open: startOpen }: { w: Workout; open?: boolea
       <AutoText value={fb.note || ''} onInput={(v) => setFb({ ...fb, note: v })} placeholder="Anything else? What felt off, what you'd rather do, how much time you have…" class="input-like" label="Note for your coach" />
       <div class="row gap">
         <button
-          class="btn btn-secondary grow"
+          class="btn btn-secondary fb-save"
           disabled={!touched}
           onClick={async () => {
             await save()

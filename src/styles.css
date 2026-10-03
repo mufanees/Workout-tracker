@@ -5868,3 +5868,15 @@ html[data-nav='back']::view-transition-old(screen) {
 .when-row .wheel-band {
   background: var(--bg);
 }
+.modal p {
+  white-space: pre-line;
+}
+.fb-save {
+  flex: none;
+  padding-inline: var(--sp-6);
+}
+/* A closing sheet or dialog never catches taps. */
+.sheet-root:not(.shown),
+.modal-root:not(.shown) {
+  pointer-events: none;
+}

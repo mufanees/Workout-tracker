@@ -99,6 +99,10 @@ function closeDialog(ok = false) {
   const d = dialog.value
   if (d?.kind === 'confirm') d.resolve(ok)
   dialogOpen.value = false
+  // Unmount once the exit animation is done, so nothing invisible is left over the screen.
+  setTimeout(() => {
+    if (!dialogOpen.value && dialog.value === d) dialog.value = null
+  }, 320)
 }
 
 function DialogHost() {
