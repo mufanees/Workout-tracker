@@ -20,7 +20,7 @@ import { OverlayHost } from './ui/overlay'
 
 const TABS = [
   { path: '/train', label: 'Train', icon: 'dumbbell' },
-  { path: '/history', label: 'History', icon: 'history' },
+  { path: '/history', label: 'Log', icon: 'log' },
   { path: '/exercises', label: 'Exercises', icon: 'list' },
   { path: '/body', label: 'Body', icon: 'activity' },
   { path: '/coach', label: 'Coach', icon: 'coach' },

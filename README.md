@@ -6,16 +6,16 @@ A small, fast workout tracker you install on your phone. It covers the parts of 
 
 It also does:
 
-- **Import from Wahoo, Garmin, Zwift and others**: History → upload button takes a `.fit` file and adds it as a cardio workout with its heart rate trace and zones (counts toward Move and Zone 2).
+- **Import from Wahoo, Garmin, Zwift and others**: Log → upload button takes a `.fit` file and adds it as a cardio workout with its heart rate trace and zones (counts toward Move and Zone 2).
 - **Heart rate** from a Bluetooth strap (Garmin HRM-Dual or any standard one) during any workout, with live zones, an optional target zone that buzzes when you drift out, time in each zone per workout, and weekly zone trends. Zone 2 cardio has its own quick start.
 - **Body weight** with a 7-day average, weekly and monthly change, and a chart.
 - **Intermittent fasting**: plans from 13:11 to OMAD and 36 h, a live ring with the metabolic stages (digesting, blood sugar falling, fat burning, ketosis…), back-dated start and end, past fasts with notes, streaks and stats, and a reminder before your eating window closes.
-- **Time budget**: every routine has an estimated length (warm-up moves, sets, rest, cool-down), or set your own in the routine editor. During a workout the timer shows "of 30 min · 4 min behind"; afterwards you see planned vs actual, and History shows the trend. Turn it off in Settings.
+- **Time budget**: every routine has an estimated length (warm-up moves, sets, rest, cool-down), or set your own in the routine editor. During a workout the timer shows "of 30 min · 4 min behind"; afterwards you see planned vs actual, and the Log tab shows the trend. Turn it off in Settings.
 - **Workout feedback**: after a workout, rate the session length, the warm-up and cool-down (their actual minutes are logged as you tick them) and each exercise (easy, right, hard, hurt), add a note, and tap **Ask coach to adjust**. The coach proposes a reworked routine (shorter warm-up, swaps for what hurt, new targets) that you approve with one tap, and remembers what matters.
 - **Daily rings** on the Train screen: Fast (hours toward your plan), Move (minutes of any workout, strength or cardio, toward 30) and Zone 2 (minutes this week). Any workout earns the day, even five minutes when you have to stop early, and the week strip shows a check for every day you showed up.
 - **Celebrations** when you finish a workout or a fast: rings, streaks, personal bests and milestones (first fast at goal, 25 workouts, a 4-week streak, your first 20-hour fast…).
 - **How-to videos** for every exercise and every warm-up and cool-down movement (opens a YouTube search).
-- **Calendar**: History → calendar shows every month at a glance: workout days filled in with the workout name, hours fasted, weigh-ins and notes. Tap a day for its journal: workouts, fasts, weight, morning check and a note for the day.
+- **Calendar**: Log → calendar shows every month at a glance: workout days filled in with the workout name, hours fasted, weigh-ins and notes. Tap a day for its journal: workouts, fasts, weight, morning check and a note for the day.
 - **Target weight** with start → target progress.
 - **A library of about 930 exercises**, so you can build your own routines.
 - **Morning check**: a one-minute resting heart rate and HRV (RMSSD) reading with the strap, compared with your 30-day baseline ("keep today easy" / "recovered").

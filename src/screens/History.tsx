@@ -81,7 +81,7 @@ export function History() {
   return (
     <div class="screen">
       <header class="page-head">
-        <h1>History</h1>
+        <h1>Log</h1>
         <FitImportButton />
         <div class="segmented view-toggle" role="radiogroup" aria-label="View">
           <button role="radio" aria-checked={view === 'list'} class={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="List">
