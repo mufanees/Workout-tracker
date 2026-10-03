@@ -92,7 +92,7 @@ export function HeroQuote({ tag }: { tag?: string }) {
         </span>
       </span>
       <span class="hq-foot">
-        <span class="hq-author">{q.author || q.tag || 'Keep going'}</span>
+        <span class="hq-author">{q.author || ''}</span>
         <span class="hq-count">
           {(i % order.length) + 1}/{order.length}
         </span>
