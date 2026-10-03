@@ -1,0 +1,38 @@
+// Squircle coverage: summary stats strip and other cards that use the larger radii.
+const { chromium } = require(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright')
+const { installFakeClaude } = require('./fake-claude.cjs')
+const URL = process.env.URL || 'http://localhost:4173/'
+const OUT = __dirname + '/shots16/'
+require('fs').mkdirSync(OUT, { recursive: true })
+;(async () => {
+  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' })
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark' })
+  await installFakeClaude(ctx, { store: new Map(), sample: async () => ({ text: '{}' }) })
+  const page = await ctx.newPage()
+  await page.goto(URL + '#/train')
+  await page.waitForSelector('.routine-card')
+  await page.locator('.routine-card').first().locator('button', { hasText: 'Start' }).tap()
+  await page.waitForSelector('.live')
+  const ex = page.locator('.ex-card').first()
+  await ex.locator('input').nth(0).fill('16')
+  await ex.locator('input').nth(1).fill('10')
+  await ex.locator('.check').first().tap()
+  await page.locator('.live-head .btn-primary').tap()
+  await page.waitForTimeout(400)
+  const sheetBtn = page.locator('.sheet-foot .btn-primary')
+  if (await sheetBtn.count()) await sheetBtn.tap()
+  await page.waitForTimeout(1500)
+  await page.waitForSelector('.summary-stats')
+  await page.locator('.summary-stats').last().scrollIntoViewIfNeeded()
+  await page.waitForTimeout(600)
+  await page.locator('.summary-stats').last().screenshot({ path: OUT + 'stats.png' })
+  const unshaped = await page.evaluate(() => [...document.querySelectorAll('*')].filter((e) => { const v = parseFloat(getComputedStyle(e).borderTopLeftRadius); const r = e.getBoundingClientRect(); return v >= 30 && v < Math.min(r.width, r.height) / 2 - 1 && getComputedStyle(e).cornerShape !== 'squircle' }).map((e) => e.className))
+  console.log('round corners >=30 without squircle (summary):', unshaped)
+  for (const r of ['fast', 'body', 'coach', 'settings']) {
+    await page.goto(URL + '#/' + r); await page.waitForTimeout(900)
+    await page.screenshot({ path: OUT + r + '.png' })
+    const u = await page.evaluate(() => [...document.querySelectorAll('*')].filter((e) => { const v = parseFloat(getComputedStyle(e).borderTopLeftRadius); const r = e.getBoundingClientRect(); return v >= 30 && v < Math.min(r.width, r.height) / 2 - 1 && getComputedStyle(e).cornerShape !== 'squircle' }).map((e) => e.className))
+    console.log(r, u)
+  }
+  await browser.close()
+})()

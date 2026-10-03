@@ -1896,7 +1896,7 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: var(--sp-4) var(--sp-4);
+  padding: var(--sp-4) var(--sp-6);
 }
 .sheet .summary-stats {
   background: var(--surface-2);
@@ -6609,6 +6609,8 @@ html[data-nav='back']::view-transition-old(screen) {
    elsewhere (Safari today) cards keep their regular rounded corners.
    ===================================================================================== */
 @supports (corner-shape: squircle) {
+  /* The larger radii only read right with the squircle's flatter curve, so every
+     element that uses them takes the shape (a round 46px corner would be a pill). */
   :root {
     --radius: 46px;
     --r-xl: 46px;
@@ -6626,13 +6628,50 @@ html[data-nav='back']::view-transition-old(screen) {
   .week-card,
   .ex-card,
   .ss-group,
+  .ss-rest,
   .goal-stats > div,
+  .goal-row,
+  .goal-hero,
   .checkin,
   .cel-hero,
-  .goal-hero,
   .when-row,
+  .wheels,
   .sheet,
-  .modal {
+  .modal,
+  .mini-bar,
+  .empty-card,
+  .rest-bar,
+  .action-list,
+  .toast,
+  .summary-stats,
+  .update-card,
+  .detail-ex,
+  .record,
+  .history-item,
+  .settings-group,
+  .pending-card,
+  .hr-connect,
+  .hr-panel,
+  .fast-card,
+  .weight-card,
+  .weight-input,
+  .checklist,
+  .body-card,
+  .verdict,
+  .coach-off,
+  .bubble,
+  .composer,
+  .proposal,
+  .weekly-card,
+  .coach-card,
+  .fast-times > *,
+  .stage-icon,
+  .stat-grid > div,
+  .proto,
+  .proto-custom,
+  .cal-stats,
+  .day-workout,
+  .milestone {
     corner-shape: squircle;
   }
 }
