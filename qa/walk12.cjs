@@ -41,7 +41,18 @@ require('fs').mkdirSync(OUT, { recursive: true })
     {
       const t = new Date(Date.now() - 16 * 3600000 - 12 * 60000)
       if (t.getDate() !== new Date().getDate()) await page.locator('.sheet .when-days .chip', { hasText: 'Yesterday' }).tap()
-      await page.locator('.sheet .when-clock input').fill(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`)
+      // scroll each wheel like a flick and let it settle
+      const setWheel = async (label, text) => {
+        const w = page.locator(`.sheet .wheel[aria-label="${label}"]`)
+        if (!(await w.count())) return
+        const i = await w.locator('.wheel-row').evaluateAll((els, x) => els.findIndex((e) => e.textContent === x), text)
+        await w.evaluate((el, i) => (el.scrollTop = i * 56), i)
+        await page.waitForTimeout(450)
+      }
+      const h12 = (await page.locator('.sheet .wheels.h12').count()) > 0
+      await setWheel('Hour', String(h12 ? t.getHours() % 12 || 12 : t.getHours()))
+      await setWheel('AM or PM', t.getHours() >= 12 ? 'PM' : 'AM')
+      await setWheel('Minute', String(Math.floor(t.getMinutes() / 5) * 5).padStart(2, '0'))
     }
     await page.locator('.sheet-foot .btn-primary').tap()
     await page.waitForTimeout(500)
