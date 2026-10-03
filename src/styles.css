@@ -6559,3 +6559,24 @@ html[data-nav='back']::view-transition-old(screen) {
 .lg-cardio {
   background: var(--ring-z2);
 }
+/* The hours pill hangs off the bottom of the fasting ring, as if the ring flows into it. */
+.cal-day .cal-ring + .cal-fast:not(.none) {
+  position: relative;
+  z-index: 1;
+  margin-top: -11px;
+}
+.cal-day .cal-ring + .cal-fast.none {
+  margin-top: -11px;
+}
+.cal-day .cal-ring + .cal-fast {
+  background: color-mix(in srgb, var(--blue) 28%, var(--bg));
+}
+.cal-day .cal-ring + .cal-fast.hit {
+  background: var(--blue);
+}
+.cal-day .cal-ring + .cal-fast.live {
+  background: repeating-linear-gradient(-45deg, var(--blue) 0 5px, color-mix(in srgb, var(--blue) 60%, var(--bg)) 5px 10px);
+}
+.cal-day .cal-ring + .cal-fast.none {
+  background: none;
+}
