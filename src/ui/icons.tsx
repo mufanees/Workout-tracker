@@ -1,4 +1,5 @@
-// All icons come from Lucide (lucide.dev). Names here are the short aliases used across the app.
+// Icons come from Lucide (lucide.dev), plus one drawn in Lucide's style where Lucide has none
+// (Elliptical). Names here are the short aliases used across the app.
 import {
   ArrowDown,
   Utensils,
@@ -63,6 +64,26 @@ import {
   type LucideIcon,
 } from 'lucide-preact'
 
+/**
+ * Elliptical trainer, drawn to Lucide's grid (24 x 24, 2px round strokes): flywheel, pedal
+ * rail, swinging handle arm and upright. No icon library has one.
+ */
+function EllipticalIcon({ size = 24, strokeWidth = 2, class: cls }: { size?: number | string; strokeWidth?: number | string; class?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" class={cls} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={strokeWidth} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 21h18" />
+      <circle cx="17" cy="15.5" r="2.5" />
+      <path d="M17 15.5 5 18" />
+      <path d="m17.5 13-1.5-10" />
+      <path d="M16 3h-3" />
+      <path d="M8 17.4 11 5" />
+      <path d="M9.5 5H12" />
+      <path d="M18.5 18v3" />
+    </svg>
+  )
+}
+const Elliptical = EllipticalIcon as unknown as LucideIcon
+
 const ICONS = {
   plus: Plus,
   check: Check,
@@ -80,6 +101,7 @@ const ICONS = {
   video: SquarePlay,
   dumbbell: Dumbbell,
   footprints: Footprints,
+  elliptical: Elliptical,
   bike: Bike,
   swim: WavesLadder,
   row: WavesHorizontal,

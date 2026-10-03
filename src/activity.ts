@@ -9,7 +9,7 @@ export interface Activity {
 }
 
 const CARDIO: [RegExp, string, string][] = [
-  [/ellip|cross.?trainer/i, 'footprints', 'Elliptical'],
+  [/ellip|cross.?trainer/i, 'elliptical', 'Elliptical'],
   [/run|jog|treadmill|walk|stair/i, 'footprints', 'Run or walk'],
   [/ride|cycl|bike|spin/i, 'bike', 'Ride'],
   [/swim/i, 'swim', 'Swim'],
