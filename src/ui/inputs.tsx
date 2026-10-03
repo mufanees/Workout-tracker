@@ -90,7 +90,7 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
 
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
   return (
-    <div class="segmented" role="radiogroup" aria-label={label}>
+    <div class="segmented" data-goo role="radiogroup" aria-label={label}>
       {options.map(([v, l]) => (
         <button role="radio" aria-checked={v === value} class={v === value ? 'on' : ''} onClick={() => onChange(v)}>
           {l}

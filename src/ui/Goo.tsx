@@ -11,7 +11,11 @@ export function GooDefs() {
   useEffect(() => {
     // capture, so it still runs when a handler stops the click
     document.addEventListener('click', onTap, true)
-    return () => document.removeEventListener('click', onTap, true)
+    const stop = watchGroups()
+    return () => {
+      document.removeEventListener('click', onTap, true)
+      stop()
+    }
   }, [])
   return (
     <svg class="goo-defs" aria-hidden="true" focusable="false">
@@ -69,6 +73,10 @@ const SKIP = '.check, [data-no-goo], input, textarea, select'
 let live = 0
 
 function onTap(e: MouseEvent) {
+  // An option in a goo group: start its goo now rather than after the app re-renders. It has
+  // its own goo, so no droplets.
+  const opt = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-goo] > :is(button, .chip, .proto-custom)') : null
+  if (opt && !(opt as HTMLButtonElement).disabled && opt.parentElement) return gooPick(opt.parentElement, opt)
   const t = e.target instanceof Element ? e.target.closest(TAPPABLE) : null
   if (!t || t.closest(SKIP) || (t as HTMLButtonElement).disabled) return
   // Droplets bud off the control's top edge, above your finger, so they never cover its label.
@@ -190,164 +198,377 @@ gsap.registerPlugin(CustomEase)
 // dead; its size doesn't overshoot, so the shape stays a pill.
 const GOO_MOVE = CustomEase.create('goo-move', 'M0,0 C0.3,0 0.1,1.08 0.62,1.045 0.86,1.028 0.9,1 1,1')
 const GOO_SIZE = CustomEase.create('goo-size', 'M0,0 C0.3,0 0.12,1 1,1')
+export const gooEase = { move: GOO_MOVE, size: GOO_SIZE }
+export const gooReduced = () => reduced()
+
+export interface GooRect {
+  x: number
+  y: number
+  w: number
+  h: number
+  /** corner radius; a pill (h / 2) if left out */
+  r?: number
+}
+
+const LUMP = [30, 24, 18]
+const TRAIL = [40, 24, 24, 16, 11]
+const BULGE = [30, 24, 20]
+
+/**
+ * The gooey move, for anything that marks one selected thing in a row or grid (the tab pill,
+ * chip groups, AM / PM, the clock's hour and minute boxes). It lives in a `layer` under a goo
+ * filter and is a highlight shape plus blobs. On a move the highlight launches at once and
+ * glides (CustomEase with a small overshoot); the place it leaves swells into lumps that are
+ * pulled after it and thin away; a puddle there is sucked thin; drops string out behind and
+ * catch up; and it lands lumpy, blobs bulging past its edges and wobbling back in. Sizes scale
+ * with the highlight's height (designed at 48px), and it works in any direction.
+ */
+export class GooTrack {
+  readonly layer: HTMLElement
+  private head: HTMLElement
+  private origin: HTMLElement
+  private lumps: HTMLElement[]
+  private trail: HTMLElement[]
+  private bulges: HTMLElement[]
+  cur: GooRect | null = null
+  private raf = 0
+
+  constructor(layer: HTMLElement) {
+    this.layer = layer
+    layer.classList.add('goo-track')
+    const mk = (cls: string) => {
+      const e = document.createElement('i')
+      e.className = cls
+      layer.appendChild(e)
+      return e
+    }
+    this.origin = mk('gt-origin')
+    this.lumps = LUMP.map(() => mk('gt-blob'))
+    this.head = mk('gt-head')
+    this.trail = TRAIL.map(() => mk('gt-blob'))
+    this.bulges = BULGE.map(() => mk('gt-blob'))
+    gsap.set([this.origin, this.head, ...this.lumps, ...this.trail, ...this.bulges], { autoAlpha: 0 })
+    gsap.set([...this.lumps, ...this.trail, ...this.bulges], { xPercent: -50, yPercent: -50 })
+  }
+
+  private all() {
+    return [this.head, this.origin, ...this.lumps, ...this.trail, ...this.bulges]
+  }
+
+  private sizes(list: number[], r: GooRect) {
+    const k = Math.min(1.2, r.h / 48)
+    const cap = Math.min(r.w, r.h)
+    return list.map((s) => Math.min(cap, s * k))
+  }
+
+  /** Put the highlight on `r` without animating (null hides it). */
+  snap(r: GooRect | null) {
+    cancelAnimationFrame(this.raf)
+    gsap.killTweensOf(this.all())
+    this.cur = r
+    gsap.set([this.origin, ...this.lumps, ...this.bulges], { autoAlpha: 0 })
+    if (!r) return gsap.set([this.head, ...this.trail], { autoAlpha: 0 })
+    gsap.set(this.head, { x: r.x, y: r.y, width: r.w, height: r.h, borderRadius: r.r ?? r.h / 2, scale: 1, autoAlpha: 1 })
+    const ts = this.sizes(TRAIL, r)
+    this.trail.forEach((el, i) => gsap.set(el, { x: r.x + r.w / 2, y: r.y + r.h / 2, width: ts[i], height: ts[i], scale: 1, autoAlpha: 1 }))
+  }
+
+  /** The highlight is gone (nothing selected): it shrinks away. */
+  hide() {
+    if (!this.cur) return
+    this.cur = null
+    if (reduced()) return this.snap(null)
+    gsap.to([this.head, ...this.trail], { scale: 0, autoAlpha: 0, duration: 0.32, ease: 'sine.in', overwrite: 'auto' })
+  }
+
+  /** Something got selected where nothing was: it wells up there, lumpy, and settles. */
+  appear(to: GooRect) {
+    this.snap(to)
+    if (reduced()) return
+    gsap.fromTo(this.head, { scale: 0.55 }, { scale: 1, duration: 0.8, ease: 'elastic.out(1, 0.5)' })
+    gsap.fromTo(this.trail, { scale: 0.4 }, { scale: 1, duration: 0.6, ease: 'sine.out' })
+    this.land(to, { x: 0, y: -1 }, 0)
+  }
+
+  /** Glide, goo and all, from where it is to `to`. */
+  move(to: GooRect) {
+    const f = this.cur
+    if (!f) return this.appear(to)
+    if (reduced()) return this.snap(to)
+    this.cur = to
+    cancelAnimationFrame(this.raf)
+    const fc = { x: f.x + f.w / 2, y: f.y + f.h / 2 }
+    const tc = { x: to.x + to.w / 2, y: to.y + to.h / 2 }
+    const dist = Math.hypot(tc.x - fc.x, tc.y - fc.y) || 1
+    const u = { x: (tc.x - fc.x) / dist, y: (tc.y - fc.y) / dist }
+    const n = { x: -u.y, y: u.x }
+    const along = (r: GooRect) => Math.abs(u.x) * r.w + Math.abs(u.y) * r.h
+    const k = Math.min(1.2, Math.min(f.h, to.h) / 48)
+    gsap.killTweensOf([this.origin, ...this.lumps, ...this.bulges])
+
+    // 1. The highlight launches at once, glides, overshoots a touch and settles.
+    gsap.to(this.head, { x: to.x, y: to.y, duration: 0.75, ease: GOO_MOVE, overwrite: 'auto' })
+    gsap.to(this.head, { width: to.w, height: to.h, borderRadius: to.r ?? to.h / 2, duration: 0.6, ease: GOO_SIZE })
+
+    // 2. A puddle stays where it was and is sucked thin towards where it went.
+    const horizontal = Math.abs(u.x) >= Math.abs(u.y)
+    const stub = 22 * k
+    const sw = horizontal ? stub : f.w
+    const sh = horizontal ? f.h : stub
+    const lead = { x: fc.x + u.x * (along(f) / 2 - stub / 2), y: fc.y + u.y * (along(f) / 2 - stub / 2) }
+    gsap.set(this.origin, { x: f.x, y: f.y, width: f.w, height: f.h, borderRadius: f.r ?? f.h / 2, scale: 1, autoAlpha: 1 })
+    gsap.to(this.origin, { x: lead.x - sw / 2, y: lead.y - sh / 2, width: sw, height: sh, duration: 0.4, ease: 'power2.inOut' })
+    gsap.to(this.origin, { scale: 0, duration: 0.42, delay: 0.08, ease: 'sine.in' })
+
+    // 3. The place it leaves swells into lumps, drawn after it and melting away.
+    const ls = this.sizes(LUMP, f)
+    this.lumps.forEach((el, i) => {
+      const a = (i - 1) * along(f) * 0.28 + (Math.random() - 0.5) * 8 * k
+      const b = (i % 2 ? 1 : -1) * (6 + Math.random() * 5) * k
+      gsap
+        .timeline()
+        .set(el, { x: fc.x, y: fc.y, width: ls[i], height: ls[i], scale: 0.5, autoAlpha: 1 })
+        .to(el, { x: fc.x + u.x * a + n.x * b, y: fc.y + u.y * a + n.y * b, scale: 1.1, duration: 0.22, ease: 'sine.out' })
+        .to(el, { x: tc.x, y: tc.y, duration: 0.5 + i * 0.05, ease: 'power2.inOut' }, 0.14 + i * 0.04)
+        .to(el, { scale: 0, duration: 0.42 + i * 0.05, ease: 'sine.inOut' }, 0.2 + i * 0.04)
+        .set(el, { autoAlpha: 0 })
+    })
+
+    // 4. Drops string out behind it on the same curve and catch up.
+    const ts = this.sizes(TRAIL, to)
+    this.trail.forEach((el, i) => {
+      gsap.to(el, { x: tc.x, y: tc.y, width: ts[i], height: ts[i], duration: 0.75 + i * 0.05, delay: 0.03 + i * 0.03, ease: GOO_MOVE, overwrite: 'auto' })
+      gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.35, delay: i * 0.03, ease: 'sine.inOut', yoyo: true, repeat: 1 })
+    })
+
+    // 5. It lands lumpy.
+    this.land(to, u, 0.16)
+  }
+
+  /** Blobs bulge out past the highlight's edges, then wobble softly back in as it settles. */
+  private land(to: GooRect, u: { x: number; y: number }, delay: number) {
+    const tc = { x: to.x + to.w / 2, y: to.y + to.h / 2 }
+    const n = { x: -u.y, y: u.x }
+    const along = Math.abs(u.x) * to.w + Math.abs(u.y) * to.h
+    const across = Math.abs(n.x) * to.w + Math.abs(n.y) * to.h
+    const k = Math.min(1.2, to.h / 48)
+    const bs = this.sizes(BULGE, to)
+    this.bulges.forEach((el, i) => {
+      const a = (i - 1) * along * 0.3 + 6 * k
+      const b = (i % 2 ? 1 : -1) * (across * 0.4 + Math.random() * 5 * k)
+      gsap
+        .timeline({ delay: delay + i * 0.05 })
+        .set(el, { x: tc.x - u.x * 18 * k, y: tc.y - u.y * 18 * k, width: bs[i], height: bs[i], scale: 0.4, autoAlpha: 1 })
+        .to(el, { x: tc.x + u.x * a + n.x * b, y: tc.y + u.y * a + n.y * b, scale: 1.1, duration: 0.24, ease: 'sine.out' })
+        .to(el, { x: tc.x + u.x * a * 0.35, y: tc.y + u.y * a * 0.35, scale: 0.65, duration: 1.1, ease: 'elastic.out(0.9, 0.55)' })
+        .set(el, { autoAlpha: 0 })
+    })
+  }
+
+  /** The target moved under it (layout change): slide onto it once any move has finished. */
+  settle(to: GooRect | null) {
+    cancelAnimationFrame(this.raf)
+    if (!to) return this.snap(null)
+    if (!this.cur || reduced()) return this.snap(to)
+    this.cur = to
+    const go = () => {
+      if (gsap.isTweening(this.head)) return void (this.raf = requestAnimationFrame(go))
+      const x = Number(gsap.getProperty(this.head, 'x'))
+      const y = Number(gsap.getProperty(this.head, 'y'))
+      const w = Number(gsap.getProperty(this.head, 'width'))
+      const h = Number(gsap.getProperty(this.head, 'height'))
+      if (Math.abs(x - to.x) + Math.abs(y - to.y) + Math.abs(w - to.w) + Math.abs(h - to.h) < 0.5) return
+      gsap.to(this.head, { x: to.x, y: to.y, width: to.w, height: to.h, borderRadius: to.r ?? to.h / 2, duration: 0.22, ease: 'power2.out', overwrite: 'auto' })
+      this.trail.forEach((el) => gsap.to(el, { x: to.x + to.w / 2, y: to.y + to.h / 2, duration: 0.22, ease: 'power2.out' }))
+    }
+    go()
+  }
+
+  kill() {
+    cancelAnimationFrame(this.raf)
+    gsap.killTweensOf(this.all())
+  }
+}
 
 /** Starts the tab pill moving the moment a tab is tapped (set by TabGoo). */
 let tabGooTo: ((index: number) => void) | null = null
 export const gooTab = (index: number) => tabGooTo?.(index)
 
-// Blobs that make the goo lumpy: three at the tab being left, three that bulge out of the pill
-// where it lands. Sizes in px.
-const ORIGIN = [30, 24, 18]
-const BULGE = [30, 24, 20]
-
-/**
- * The lime pill under the tab bar: a pill plus blobs inside one goo filter (blur, alpha cut,
- * crisp shapes merged back on top), moved by GSAP. On a switch the pill launches at once; the
- * tab it leaves bulges into lumps that are pulled after it, drops string out behind and get
- * absorbed, and the pill lands lumpy and wobbles back into shape.
- */
+/** The lime pill under the tab bar: a GooTrack aimed at the active tab. */
 export function TabGoo({ index }: { index: number }) {
   const ref = useRef<HTMLSpanElement>(null)
-  const placed = useRef(false)
+  const track = useRef<GooTrack | null>(null)
   const heading = useRef(-1)
   useLayoutEffect(() => {
     const layer = ref.current
     const nav = layer?.parentElement
     if (!layer || !nav) return
-    const q = <T extends Element>(sel: string) => Array.from(layer.querySelectorAll<HTMLElement>(sel)) as unknown as T[]
-    const head = layer.querySelector<HTMLElement>('.tg-head')!
-    const origin = layer.querySelector<HTMLElement>('.tg-origin')!
-    const trail = q<HTMLElement>('.tg-trail')
-    const lumps = q<HTMLElement>('.tg-lump')
-    const bulges = q<HTMLElement>('.tg-bulge')
+    const t = (track.current ||= new GooTrack(layer))
     const tabs = () => Array.from(nav.querySelectorAll<HTMLElement>('.tab'))
-    const measured = (i: number) => {
+    const H = 48
+    const measured = (i: number): GooRect | null => {
       const tab = tabs()[i]
-      return tab ? { x: tab.offsetLeft, w: tab.offsetWidth } : null
+      return tab ? { x: tab.offsetLeft, y: 0, w: tab.offsetWidth, h: H } : null
     }
     // Where tab `to` will sit once it's the active one, worked out before the app re-renders:
     // the active tab loses its label and 4px of padding each side, the new one gains them.
-    const predicted = (to: number) => {
+    const predicted = (to: number): GooRect | null => {
       const ts = tabs()
-      const cur = ts.findIndex((t) => t.classList.contains('on'))
+      const cur = ts.findIndex((x) => x.classList.contains('on'))
       if (cur < 0 || !ts[to]) return measured(to)
       const gap = parseFloat(getComputedStyle(nav).columnGap) || 0
-      const label = (t: HTMLElement) => (t.querySelector<HTMLElement>('.tab-label')?.scrollWidth || 0) + 16
-      const widths = ts.map((t, i) => t.offsetWidth - (i === cur ? label(t) : 0) + (i === to ? label(t) : 0))
+      const label = (x: HTMLElement) => (x.querySelector<HTMLElement>('.tab-label')?.scrollWidth || 0) + 16
+      const widths = ts.map((x, i) => x.offsetWidth - (i === cur ? label(x) : 0) + (i === to ? label(x) : 0))
       let x = ts[0].offsetLeft
       for (let i = 0; i < to; i++) x += widths[i] + gap
-      return { x, w: widths[to] }
-    }
-    const hideExtras = () => gsap.set([origin, ...lumps, ...bulges], { autoAlpha: 0, scale: 0 })
-    const snap = (t: { x: number; w: number }) => {
-      gsap.killTweensOf([head, origin, ...trail, ...lumps, ...bulges])
-      gsap.set(head, { x: t.x, width: t.w })
-      gsap.set(trail, { x: t.x + t.w / 2, scale: 1 })
-      hideExtras()
+      return { x, y: 0, w: widths[to], h: H }
     }
     const go = (to: number) => {
-      const t = predicted(to)
-      if (!t) return
+      const r = predicted(to)
+      if (!r) return
       heading.current = to
-      if (reduced()) return snap(t)
-      const fx = Number(gsap.getProperty(head, 'x'))
-      const fw = Number(gsap.getProperty(head, 'width'))
-      const fcx = fx + fw / 2
-      const tcx = t.x + t.w / 2
-      const dir = Math.sign(tcx - fcx) || 1
-      gsap.killTweensOf([origin, ...lumps, ...bulges])
-
-      // 1. The pill launches at once, ramps up briefly, glides, overshoots a touch and settles.
-      gsap.to(head, { x: t.x, duration: 0.75, ease: GOO_MOVE, overwrite: 'auto' })
-      gsap.to(head, { width: t.w, duration: 0.6, ease: GOO_SIZE })
-      // 2. A puddle stays where it was and is sucked thin after it, shrinking away smoothly.
-      gsap.set(origin, { x: fx, width: fw, scale: 1, scaleY: 1, autoAlpha: 1 })
-      gsap.to(origin, { x: dir > 0 ? fx + fw - 22 : fx, width: 22, duration: 0.4, ease: 'power2.inOut' })
-      gsap.to(origin, { scaleY: 0, scaleX: 0.4, duration: 0.42, delay: 0.08, ease: 'sine.in' })
-      // 3. The tab it leaves swells into lumps, which are drawn after the pill and melt away.
-      lumps.forEach((el, i) => {
-        const ox = (i - 1) * fw * 0.28 + (Math.random() - 0.5) * 8
-        const oy = (i % 2 ? 1 : -1) * (6 + Math.random() * 5)
-        gsap
-          .timeline()
-          .set(el, { x: fcx, y: 0, scale: 0.5, autoAlpha: 1 })
-          .to(el, { x: fcx + ox, y: oy, scale: 1.1, duration: 0.22, ease: 'sine.out' })
-          .to(el, { x: tcx, y: 0, duration: 0.5 + i * 0.05, ease: 'power2.inOut' }, 0.14 + i * 0.04)
-          .to(el, { scale: 0, duration: 0.42 + i * 0.05, ease: 'sine.inOut' }, 0.2 + i * 0.04)
-          .set(el, { autoAlpha: 0 })
-      })
-      // 4. Drops string out behind the pill on the same curve and catch up.
-      trail.forEach((el, i) => {
-        gsap.to(el, { x: tcx, duration: 0.75 + i * 0.05, delay: 0.03 + i * 0.03, ease: GOO_MOVE, overwrite: 'auto' })
-        gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.35, delay: i * 0.03, ease: 'sine.inOut', yoyo: true, repeat: 1 })
-      })
-      // 5. It lands lumpy: blobs swell past its edges, then wobble softly back in as it settles.
-      bulges.forEach((el, i) => {
-        const ox = (i - 1) * t.w * 0.3 + dir * 6
-        const oy = (i % 2 ? 1 : -1) * (19 + Math.random() * 5)
-        gsap
-          .timeline({ delay: 0.16 + i * 0.05 })
-          .set(el, { x: tcx - dir * 18, y: 0, scale: 0.4, autoAlpha: 1 })
-          .to(el, { x: tcx + ox, y: oy, scale: 1.1, duration: 0.24, ease: 'sine.out' })
-          .to(el, { x: tcx + ox * 0.35, y: 0, scale: 0.65, duration: 1.1, ease: 'elastic.out(0.9, 0.55)' })
-          .set(el, { autoAlpha: 0 })
-      })
+      t.move(r)
     }
     tabGooTo = (to: number) => to !== heading.current && go(to)
-    if (!placed.current) {
-      const t = measured(index)
-      if (t) snap(t)
+    if (heading.current < 0) {
+      t.snap(measured(index))
       heading.current = index
-      placed.current = true
     } else if (heading.current !== index) go(index)
-
-    // Tabs settle into their final sizes after a switch (and on resize): once the pill's glide
-    // ends, slide it onto the tab's real size.
-    let raf = 0
-    const follow = () => {
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        const t = measured(index)
-        if (!t) return
-        if (reduced()) return snap(t)
-        if (gsap.isTweening(head)) return follow()
-        const dx = Math.abs(Number(gsap.getProperty(head, 'x')) - t.x) + Math.abs(Number(gsap.getProperty(head, 'width')) - t.w)
-        if (dx < 0.5) return
-        gsap.to(head, { x: t.x, width: t.w, duration: 0.22, ease: 'power2.out', overwrite: 'auto' })
-        trail.forEach((el) => !gsap.isTweening(el) && gsap.to(el, { x: t.x + t.w / 2, duration: 0.22, ease: 'power2.out' }))
-      })
-    }
+    const follow = () => t.settle(measured(index))
     follow()
     const ro = new ResizeObserver(follow)
     ro.observe(nav)
     tabs().forEach((el) => ro.observe(el))
-    return () => {
-      ro.disconnect()
-      cancelAnimationFrame(raf)
-    }
+    return () => ro.disconnect()
   }, [index])
   useEffect(
     () => () => {
       tabGooTo = null
-      gsap.killTweensOf(ref.current ? Array.from(ref.current.children) : [])
+      track.current?.kill()
     },
     [],
   )
-  return (
-    <span class="tab-goo" aria-hidden="true" ref={ref}>
-      <i class="tg-origin" />
-      {ORIGIN.map((s) => (
-        <i class="tg-lump tg-blob" style={{ '--s': `${s}px` }} />
-      ))}
-      <b class="tg-head" />
-      {[40, 24, 24, 16, 11].map((s) => (
-        <i class="tg-trail tg-blob" style={{ '--s': `${s}px` }} />
-      ))}
-      {BULGE.map((s) => (
-        <i class="tg-bulge tg-blob" style={{ '--s': `${s}px` }} />
-      ))}
-    </span>
-  )
+  return <span class="tab-goo" aria-hidden="true" ref={ref} />
+}
+
+// ---- goo groups ------------------------------------------------------------------------
+// Any container with `data-goo` whose direct children are options (one has `.on`) gets a
+// GooTrack behind its options: the selection travels between them like the tab pill. The
+// options' own backgrounds move to a ::before under the goo, and their text stays on top.
+
+interface Group {
+  track: GooTrack
+  on: HTMLElement | null
+  /** tapped and already moving there, before the app marks it `.on` */
+  picked: HTMLElement | null
+  ro: ResizeObserver
+}
+const groups = new Map<HTMLElement, Group>()
+const OPTION = ':scope > :is(button, .chip, .proto-custom)'
+
+const rectOf = (el: HTMLElement): GooRect => {
+  const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0
+  return { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight, r: Math.min(r, el.offsetHeight / 2) }
+}
+
+/** Colours of a selected and an unselected option, read with the goo styles briefly off (no paint in between). */
+function paint(c: HTMLElement, on: HTMLElement | null) {
+  // goo-measure turns transitions off, or we'd read the start of a background transition
+  c.classList.add('goo-measure')
+  c.classList.remove('goo-ready')
+  const off = Array.from(c.querySelectorAll<HTMLElement>(OPTION)).find((x) => !x.classList.contains('on'))
+  const onBg = on ? getComputedStyle(on).backgroundColor : ''
+  const offBg = off ? getComputedStyle(off).backgroundColor : 'transparent'
+  c.classList.add('goo-ready')
+  void c.offsetWidth
+  c.classList.remove('goo-measure')
+  if (onBg) c.style.setProperty('--goo-c', onBg)
+  c.style.setProperty('--goo-off', offBg)
+}
+
+function initGroup(c: HTMLElement) {
+  if (groups.has(c)) return
+  const layer = document.createElement('span')
+  layer.setAttribute('aria-hidden', 'true')
+  c.prepend(layer)
+  const track = new GooTrack(layer)
+  const on = c.querySelector<HTMLElement>(':scope > .on')
+  paint(c, on)
+  track.snap(on ? rectOf(on) : null)
+  const ro = new ResizeObserver(() => {
+    const g = groups.get(c)
+    if (!g) return
+    if (!c.isConnected) return dropGroup(c)
+    g.track.settle(g.on && g.on.isConnected ? rectOf(g.on) : null)
+  })
+  ro.observe(c)
+  groups.set(c, { track, on, picked: null, ro })
+}
+
+function dropGroup(c: HTMLElement) {
+  const g = groups.get(c)
+  if (!g) return
+  g.ro.disconnect()
+  g.track.kill()
+  groups.delete(c)
+}
+
+function updateGroup(c: HTMLElement) {
+  const g = groups.get(c)
+  if (!g) return initGroup(c)
+  const on = c.querySelector<HTMLElement>(':scope > .on')
+  if (on === g.on) return
+  g.on = on
+  paint(c, on)
+  if (g.picked && on === g.picked) return void (g.picked = null) // already on its way
+  g.picked = null
+  if (on) g.track.move(rectOf(on))
+  else g.track.hide()
+}
+
+/** A tap on option `opt`: move the goo there straight away (the class change catches up). */
+function gooPick(c: HTMLElement, opt: HTMLElement) {
+  const g = groups.get(c)
+  if (!g || opt.classList.contains('on') || g.picked === opt) return
+  g.picked = opt
+  // take the colour from the option being left (or the last one used); the real one is read on re-render
+  g.track.move(rectOf(opt))
+}
+
+function watchGroups() {
+  document.querySelectorAll<HTMLElement>('[data-goo]').forEach(initGroup)
+  const mo = new MutationObserver((list) => {
+    const touched = new Set<HTMLElement>()
+    for (const m of list) {
+      if (m.type === 'attributes') {
+        const p = (m.target as HTMLElement).parentElement
+        if (p?.hasAttribute('data-goo')) touched.add(p)
+      } else {
+        const t = m.target as HTMLElement
+        if (t.hasAttribute?.('data-goo')) touched.add(t)
+        m.addedNodes.forEach((n) => {
+          if (!(n instanceof HTMLElement)) return
+          if (n.hasAttribute('data-goo')) touched.add(n)
+          n.querySelectorAll<HTMLElement>('[data-goo]').forEach((x) => touched.add(x))
+        })
+        m.removedNodes.forEach((n) => {
+          if (!(n instanceof HTMLElement)) return
+          for (const c of groups.keys()) if (!c.isConnected && (n === c || n.contains(c))) dropGroup(c)
+        })
+      }
+    }
+    touched.forEach((c) => c.isConnected && updateGroup(c))
+  })
+  mo.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] })
+  // colours follow the theme
+  const mq = matchMedia('(prefers-color-scheme: dark)')
+  const repaint = () => groups.forEach((g, c) => paint(c, g.on))
+  mq.addEventListener?.('change', repaint)
+  return () => {
+    mo.disconnect()
+    mq.removeEventListener?.('change', repaint)
+    groups.forEach((_, c) => dropGroup(c))
+  }
 }
 
 // Fixed per index so motes don't jump when the tab bar re-renders.

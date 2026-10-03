@@ -525,7 +525,7 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       {settings.value.askShoulder && (
         <div class="field">
           <span>Shoulder stiffness today</span>
-          <div class="scale-row" role="radiogroup" aria-label="Shoulder stiffness, 0 none to 10 worst">
+          <div class="scale-row" data-goo role="radiogroup" aria-label="Shoulder stiffness, 0 none to 10 worst">
             {Array.from({ length: 11 }, (_, n) => (
               <button
                 role="radio"

@@ -10,7 +10,7 @@ type Opt<T extends string> = [T, string][]
 
 function Choice<T extends string>({ value, options, onChange, label }: { value?: T; options: Opt<T>; onChange: (v: T | undefined) => void; label: string }) {
   return (
-    <div class="fb-choice" role="radiogroup" aria-label={label}>
+    <div class="fb-choice" data-goo role="radiogroup" aria-label={label}>
       {options.map(([v, l]) => (
         <button role="radio" aria-checked={value === v} class={'fb-opt' + (value === v ? ' on ' + v : '')} onClick={() => onChange(value === v ? undefined : v)}>
           {l}

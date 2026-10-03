@@ -172,7 +172,7 @@ export function ExerciseDetail({ id }: { id: string }) {
       {recs.sessions.length > 0 ? (
         <>
           <section class="card">
-            <div class="seg-row">
+            <div class="seg-row" data-goo>
               {metrics.length > 1 &&
                 metrics.map(([k, l]) => (
                   <button class={'chip' + (k === m ? ' on' : '')} aria-pressed={k === m} onClick={() => setMetric(k)}>

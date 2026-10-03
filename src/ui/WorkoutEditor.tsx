@@ -654,7 +654,7 @@ function EffortRow({ value, onPick }: { value?: number | null; onPick: (v: numbe
   return (
     <div class="effort-row" role="radiogroup" aria-label="How hard was the last set?">
       <span class="effort-q">How hard was the last set?</span>
-      <div class="effort-opts">
+      <div class="effort-opts" data-goo>
         {EFFORT.map(([v, label, sub]) => (
           <button role="radio" aria-checked={value === v} class={'effort-opt' + (value === v ? ' on' : '') + (v === 0 ? ' max' : '')} onClick={() => onPick(v)}>
             <b>{label}</b>

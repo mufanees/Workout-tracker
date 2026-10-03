@@ -2,7 +2,9 @@
 // AM / PM, and a dial you tap or drag. Hours snap to the numbers; minutes go to the exact minute
 // with labels every five. Letting go of the hour moves on to the minutes, like Android's picker.
 // 24-hour locales get an inner ring for 12–23.
-import { useRef, useState } from 'preact/hooks'
+import { gsap } from 'gsap'
+import { useLayoutEffect, useRef, useState } from 'preact/hooks'
+import { gooEase, gooReduced } from './Goo'
 
 const H12 = !new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hourCycle?.startsWith('h2')
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -21,7 +23,8 @@ export function ClockPicker({ value, onChange, label }: { value: number; onChang
   const [mode, setMode] = useState<Mode>('hour')
   const [drag, setDrag] = useState(false)
   const dial = useRef<HTMLDivElement>(null)
-  const lastAngle = useRef<number | null>(null)
+  const goo = useRef<HTMLSpanElement>(null)
+  const knobAt = useRef<{ a: number; r: number } | null>(null)
 
   const at = (hh: number, mm: number) => {
     if (hh === h && mm === m) return
@@ -32,10 +35,6 @@ export function ClockPicker({ value, onChange, label }: { value: number; onChang
   // Selected value → angle (degrees from 12 o'clock) and ring.
   const inner = !H12 && mode === 'hour' && (h === 0 || h > 12)
   const target = mode === 'hour' ? (h % 12) * 30 : m * 6
-  // Turn the short way round (11 → 1 goes through 12, not back through 6).
-  const prev = lastAngle.current ?? target
-  const angle = prev + ((((target - prev) % 360) + 540) % 360) - 180
-  lastAngle.current = angle
 
   const pick = (e: PointerEvent, release = false) => {
     const el = dial.current
@@ -69,11 +68,69 @@ export function ClockPicker({ value, onChange, label }: { value: number; onChang
           ]
   const handR = inner ? INNER : OUTER
   const between = mode === 'minute' && m % 5 !== 0
+
+  // The knob is goo: a knob, four drops and three bulges under one goo filter, moved by GSAP
+  // along the dial. A tap or a switch between hour and minute sends the knob gliding round with
+  // the drops strung out behind it, and it lands lumpy; while dragging, the drops trail the finger.
+  useLayoutEffect(() => {
+    const layer = goo.current
+    const dialEl = dial.current
+    if (!layer || !dialEl) return
+    const S = dialEl.offsetWidth
+    const c = S / 2
+    const hand = layer.querySelector<HTMLElement>('.clock-hand')!
+    const knob = layer.querySelector<HTMLElement>('.clock-knob')!
+    const drops = Array.from(layer.querySelectorAll<HTMLElement>('.ck-drop'))
+    const bulges = Array.from(layer.querySelectorAll<HTMLElement>('.ck-bulge'))
+    const rad = (a: number) => (a * Math.PI) / 180
+    const place = (el: HTMLElement, p: { a: number; r: number }) => gsap.set(el, { x: c + Math.sin(rad(p.a)) * p.r, y: c - Math.cos(rad(p.a)) * p.r })
+    const r = handR * S
+    const from = knobAt.current
+    // turn the short way round (11 → 1 goes through 12, not back through 6)
+    const a = from ? from.a + ((((target - from.a) % 360) + 540) % 360) - 180 : target
+    const st = (layer as HTMLElement & { _st?: { k: { a: number; r: number }; d: { a: number; r: number }[] } })._st || { k: { a, r }, d: drops.map(() => ({ a, r })) }
+    ;(layer as HTMLElement & { _st?: typeof st })._st = st
+    const draw = () => {
+      place(knob, st.k)
+      gsap.set(hand, { rotation: st.k.a, height: st.k.r })
+      drops.forEach((el, i) => place(el, st.d[i]))
+    }
+    knobAt.current = { a, r }
+    if (!from || gooReduced()) {
+      st.k.a = a
+      st.k.r = r
+      st.d.forEach((d) => ((d.a = a), (d.r = r)))
+      return draw()
+    }
+    if (drag) {
+      gsap.to(st.k, { a, r, duration: 0.06, ease: 'none', overwrite: 'auto', onUpdate: draw })
+      st.d.forEach((d, i) => gsap.to(d, { a, r, duration: 0.16 + i * 0.07, ease: 'power2.out', overwrite: 'auto', onUpdate: draw }))
+      return
+    }
+    gsap.to(st.k, { a, r, duration: 0.6, ease: gooEase.move, overwrite: 'auto', onUpdate: draw })
+    st.d.forEach((d, i) => gsap.to(d, { a, r, duration: 0.6 + i * 0.05, delay: 0.025 + i * 0.025, ease: gooEase.move, overwrite: 'auto', onUpdate: draw }))
+    drops.forEach((el, i) => gsap.fromTo(el, { scale: 1 }, { scale: 0.7 - i * 0.1, duration: 0.3, delay: i * 0.025, ease: 'sine.inOut', yoyo: true, repeat: 1 }))
+    // land lumpy: blobs bulge out of the knob, then wobble back in
+    const ur = { x: Math.sin(rad(a)), y: -Math.cos(rad(a)) }
+    const ut = { x: -ur.y, y: ur.x }
+    const kx = c + ur.x * r
+    const ky = c + ur.y * r
+    bulges.forEach((el, i) => {
+      const t = (i - 1) * 14
+      const o = (i % 2 ? 1 : -1) * (17 + Math.random() * 5)
+      gsap
+        .timeline({ delay: 0.16 + i * 0.05 })
+        .set(el, { x: kx, y: ky, scale: 0.4, autoAlpha: 1 })
+        .to(el, { x: kx + ut.x * t + ur.x * o, y: ky + ut.y * t + ur.y * o, scale: 1.1, duration: 0.22, ease: 'sine.out' })
+        .to(el, { x: kx + ut.x * t * 0.3, y: ky + ut.y * t * 0.3, scale: 0.6, duration: 1, ease: 'elastic.out(0.9, 0.55)' })
+        .set(el, { autoAlpha: 0 })
+    })
+  }, [target, handR, drag, mode])
   const shownH = H12 ? h % 12 || 12 : h
 
   return (
     <div class="clock" role="group" aria-label={`${label}: time`}>
-      <div class="clock-head">
+      <div class="clock-head" data-goo>
         <button class={'clock-box' + (mode === 'hour' ? ' on' : '')} aria-pressed={mode === 'hour'} aria-label={`Hour, ${shownH}`} onClick={() => setMode('hour')}>
           {pad(shownH)}
         </button>
@@ -84,7 +141,7 @@ export function ClockPicker({ value, onChange, label }: { value: number; onChang
           {pad(m)}
         </button>
         {H12 && (
-          <div class="clock-ampm" role="radiogroup" aria-label="AM or PM">
+          <div class="clock-ampm" data-goo role="radiogroup" aria-label="AM or PM">
             <button role="radio" aria-checked={!pm} class={!pm ? 'on' : ''} onClick={() => pm && at(h - 12, m)}>
               AM
             </button>
@@ -122,10 +179,18 @@ export function ClockPicker({ value, onChange, label }: { value: number; onChang
           if (e.key === 'Enter' && mode === 'hour') (e.preventDefault(), setMode('minute'))
         }}
       >
-        <span class="clock-hand" style={{ transform: `rotate(${angle}deg)`, height: `${handR * 100}%` }} aria-hidden="true">
-          <i class={'clock-knob' + (between ? ' between' : '')} />
+        <span class="clock-goo" ref={goo} aria-hidden="true">
+          <span class="clock-hand" />
+          <span class="clock-pivot" />
+          {[30, 22, 16, 11].map((d) => (
+            <i class="ck-drop" style={{ '--s': `${d}px` }} />
+          ))}
+          {[18, 15, 12].map((d) => (
+            <i class="ck-bulge" style={{ '--s': `${d}px` }} />
+          ))}
+          <i class="clock-knob" />
         </span>
-        <span class="clock-pivot" aria-hidden="true" />
+        {between && <span class="clock-between" aria-hidden="true" style={{ transform: `rotate(${target}deg)`, height: `${handR * 100}%` }} />}
         {labels.map((l) => {
           const a = l.at * (TAU / 12)
           return (

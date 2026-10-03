@@ -267,7 +267,7 @@ export function ExerciseForm({
       </label>
       <div class="field">
         <span>Tracks</span>
-        <div class="type-grid">
+        <div class="type-grid" data-goo>
           {TYPES.map(([t, l, hint]) => (
             <button class={'type-opt' + (type === t ? ' on' : '')} aria-pressed={type === t} onClick={() => setType(t)}>
               <b>{l}</b>

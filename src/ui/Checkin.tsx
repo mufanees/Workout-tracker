@@ -26,7 +26,7 @@ export function CheckinCard() {
       {ROWS.map(([f, label, words]) => (
         <div class="checkin-row" role="radiogroup" aria-label={label}>
           <span>{label}</span>
-          <div class="checkin-opts">
+          <div class="checkin-opts" data-goo>
             {words.map((w, i) => {
               const v = (i + 1) as 1 | 2 | 3
               return (

@@ -156,7 +156,7 @@ export function MorningCheck() {
       </button>
       {points.length > 1 && (
         <>
-          <div class="seg-row">
+          <div class="seg-row" data-goo>
             {(['hrv', 'rhr'] as const).map((m) => (
               <button class={'chip' + (metric === m ? ' on' : '')} aria-pressed={metric === m} onClick={() => setMetric(m)}>
                 {m === 'hrv' ? 'HRV' : 'Resting HR'}

@@ -395,35 +395,51 @@ textarea {
   top: var(--sp-1-5);
   width: 100%;
   height: 48px;
-  pointer-events: none;
-  filter: url(#goo-merge-lg);
+  --goo-c: var(--accent);
   view-transition-name: tab-goo;
 }
-.tab-goo > * {
+/* GooTrack (src/ui/Goo.tsx): a highlight plus blobs under one goo filter. */
+.goo-track {
+  pointer-events: none;
+  filter: url(#goo-merge-lg);
+}
+.goo-track > * {
   position: absolute;
   left: 0;
   top: 0;
-  height: 48px;
-  border-radius: 99px;
-  background: var(--accent);
+  border-radius: 50%;
+  background: var(--goo-c, var(--accent));
   will-change: transform;
 }
-.tab-goo .tg-head {
-  width: 52px;
+/* Goo groups ([data-goo]): the selection is a GooTrack that travels between the options.
+   Option backgrounds move to a ::before under the goo; their text stays above it. */
+[data-goo] {
+  position: relative;
+  isolation: isolate;
 }
-.tab-goo .tg-origin {
-  width: 0;
-  visibility: hidden;
+[data-goo] > .goo-track {
+  position: absolute;
+  inset: 0;
 }
-/* round blobs centred on their x, vertically centred on the pill */
-.tab-goo .tg-blob {
-  width: var(--s);
-  height: var(--s);
-  top: calc(24px - var(--s) / 2);
-  margin-left: calc(var(--s) / -2);
+.goo-ready > :is(button, .chip, .proto-custom) {
+  position: relative;
+  background-color: transparent !important;
+  /* the text turns as the goo arrives, not before (dark text on an empty chip is unreadable) */
+  transition: color 120ms linear 230ms, scale 150ms ease-out;
 }
-.tab-goo :is(.tg-lump, .tg-bulge) {
-  visibility: hidden;
+/* While the goo reads colours: no background transition (it would read the start of one), but
+   the text keeps its delayed turn so it doesn't flip before the goo arrives. */
+.goo-measure > :is(button, .chip, .proto-custom) {
+  transition: color 120ms linear 230ms, scale 150ms ease-out !important;
+}
+.goo-ready > :is(button, .chip, .proto-custom)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--goo-off, transparent);
+  z-index: -1;
+  pointer-events: none;
 }
 .tab-label {
   max-width: 0;
@@ -5940,6 +5956,87 @@ html[data-nav='back']::view-transition-old(screen) {
   cursor: pointer;
 }
 
+/* Big time wheels: 56px rows, five visible; every flick comes to rest on a row. */
+.wheels {
+  --row: 56px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: calc(var(--row) * 5);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  overflow: hidden;
+  padding: 0 var(--sp-2);
+}
+.wheels.h12 {
+  grid-template-columns: 1fr auto 1fr 1fr;
+}
+.wheel-band {
+  position: absolute;
+  left: var(--sp-2);
+  right: var(--sp-2);
+  top: calc(50% - var(--row) / 2);
+  height: var(--row);
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  pointer-events: none;
+}
+.wheel {
+  position: relative;
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: calc(var(--row) * 2) 0;
+  -webkit-mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+  mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+  outline: none;
+  touch-action: pan-y;
+}
+.wheel::-webkit-scrollbar {
+  display: none;
+}
+.wheel-row {
+  display: block;
+  width: 100%;
+  height: var(--row);
+  scroll-snap-align: center;
+  font-size: var(--fs-22);
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.15s ease, font-size 0.15s ease;
+}
+.wheel-row.on {
+  color: var(--text);
+  font-size: var(--fs-28);
+  font-weight: 700;
+}
+.wheel:focus-visible .wheel-row.on {
+  color: var(--accent-text);
+}
+.wheel-colon {
+  position: relative;
+  font-size: var(--fs-28);
+  font-weight: 700;
+  padding-bottom: 4px;
+}
+.when-row .wheels {
+  background: var(--surface-3);
+}
+.when-row .wheel-band {
+  background: var(--bg);
+}
+.picker-switch {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+  margin-top: var(--sp-1);
+}
+
 /* Clock picker (src/ui/Clock.tsx): hour and minute boxes, AM / PM, and a dial. */
 .clock {
   display: flex;
@@ -5974,8 +6071,12 @@ html[data-nav='back']::view-transition-old(screen) {
   background: var(--bg);
 }
 .clock-box.on {
-  background: var(--accent-soft);
+  /* solid, not translucent: the goo filter's alpha cut would erase a see-through tint */
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface-3));
   color: var(--accent-text);
+}
+.when-row .clock-box.on {
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg));
 }
 .clock-colon {
   font-size: 48px;
@@ -6022,52 +6123,64 @@ html[data-nav='back']::view-transition-old(screen) {
 .clock-dial:focus-visible {
   box-shadow: 0 0 0 2px var(--accent);
 }
-.clock-hand {
+/* The hand, knob and its drops live in one goo layer, moved by GSAP (Clock.tsx). */
+.clock-goo {
   position: absolute;
+  inset: 0;
+  pointer-events: none;
+  filter: url(#goo-merge);
+}
+.clock-goo > * {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: var(--accent);
+  will-change: transform;
+}
+.clock-goo .clock-hand {
   left: 50%;
+  top: auto;
   bottom: 50%;
   width: 2px;
   margin-left: -1px;
-  background: var(--accent);
   transform-origin: 50% 100%;
-  /* glides to a tapped value with a slight settle; follows the finger exactly while dragging */
-  transition: transform 320ms cubic-bezier(0.3, 1.25, 0.5, 1), height 240ms var(--ease);
-  pointer-events: none;
 }
-.clock-dial.dragging .clock-hand {
-  transition: none;
-}
-.clock-knob {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 44px;
-  height: 44px;
-  margin: -22px 0 0 -22px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.clock-knob.between::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  margin: -3px 0 0 -3px;
-  border-radius: 50%;
-  background: var(--accent-ink);
-}
-.clock-pivot {
-  position: absolute;
+.clock-goo .clock-pivot {
   left: 50%;
   top: 50%;
   width: 8px;
   height: 8px;
   margin: -4px 0 0 -4px;
   border-radius: 50%;
-  background: var(--accent);
+}
+.clock-goo :is(.clock-knob, .ck-drop, .ck-bulge) {
+  --s: 44px;
+  width: var(--s);
+  height: var(--s);
+  margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+  border-radius: 50%;
+}
+.clock-goo .ck-bulge {
+  visibility: hidden;
+}
+/* a dot on the knob when the minute sits between two labels */
+.clock-between {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 0;
+  transform-origin: 50% 100%;
   pointer-events: none;
+}
+.clock-between::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-ink);
 }
 .clock-num {
   position: absolute;

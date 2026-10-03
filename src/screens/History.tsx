@@ -83,7 +83,7 @@ export function History() {
       <header class="page-head">
         <h1>Log</h1>
         <FitImportButton />
-        <div class="segmented view-toggle" role="radiogroup" aria-label="View">
+        <div class="segmented view-toggle" data-goo role="radiogroup" aria-label="View">
           <button role="radio" aria-checked={view === 'list'} class={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="List">
             <Icon name="layoutList" size={18} />
           </button>

@@ -1,5 +1,6 @@
 // All icons come from Lucide (lucide.dev). Names here are the short aliases used across the app.
 import {
+  ChevronsUpDown,
   ArrowDown,
   Utensils,
   TrendingDown,
@@ -118,6 +119,7 @@ const ICONS = {
   recycle: Recycle,
   droplet: Droplet,
   clock: Clock,
+  wheels: ChevronsUpDown,
   calendarDays: CalendarDays,
   layoutList: LayoutList,
   sticky: StickyNote,

@@ -21,7 +21,7 @@ let release
     const clip = { x: bar.x - 4, y: bar.y - 30, width: bar.width + 8, height: bar.height + 34 }
     const check = async (name) => page.evaluate((name) => {
       const on = document.querySelector('.tab.on').getBoundingClientRect()
-      const head = document.querySelector('.tg-head').getBoundingClientRect()
+      const head = document.querySelector('.tab-goo .gt-head').getBoundingClientRect()
       return { name, dx: Math.round(head.left - on.left), dw: Math.round(head.width - on.width) }
     }, name)
     console.log(tag, JSON.stringify(await check('train')))
