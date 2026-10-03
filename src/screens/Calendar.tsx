@@ -5,6 +5,7 @@ import { bodyWeights, dayNotes, fasts, readings, saveBodyWeight, saveDayNote, se
 import { back, navigate } from '../router'
 import { DAY, HOUR, dayKey, fastsByDay, hShort, hm, parseDayKey } from '../fasting'
 import { FastEditor, FastRow, draftPastFast, useNow } from '../ui/Fasting'
+import { activityOf } from '../activity'
 import { Icon } from '../ui/icons'
 import { AutoText, toast } from '../ui/overlay'
 import type { BodyWeight, Fast, Workout } from '../types'
@@ -267,7 +268,10 @@ export function DayView({ id }: { id: string }) {
         {ws.length ? (
           ws.map((x) => (
             <button class="day-workout" onClick={() => navigate('/history/' + x.id)}>
-              <span>
+              <span class={'wc-icon ' + activityOf(x).kind} aria-hidden="true">
+                <Icon name={activityOf(x).icon} size={20} />
+              </span>
+              <span class="dw-text">
                 <b>{x.name}</b>
                 <small>
                   {fmtTime(x.start)}

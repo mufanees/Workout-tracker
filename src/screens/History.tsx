@@ -21,6 +21,7 @@ import { milestonesFor, nextWorkoutMilestone } from '../milestones'
 import { QuoteCard } from '../ui/Quote'
 import type { Workout } from '../types'
 import { fitToWorkout, parseFit } from '../fit'
+import { activityOf } from '../activity'
 import { summarizeHR as hrSummary } from '../hr'
 import { counts, doneSets, startOfDay, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
 
@@ -152,9 +153,13 @@ function WorkoutCard({ w }: { w: Workout }) {
   const u = unit.value
   const prs = prIndex.value.byWorkout.get(w.id) || 0
   const vol = workoutVolume(w)
+  const act = activityOf(w)
   return (
     <button class="workout-card" onClick={() => navigate('/history/' + w.id)}>
       <div class="wc-top">
+        <span class={'wc-icon ' + act.kind} title={act.label} aria-hidden="true">
+          <Icon name={act.icon} size={20} />
+        </span>
         <span class="wc-name">{w.name}</span>
         <span class="wc-date">{fmtDay(w.start)}</span>
       </div>

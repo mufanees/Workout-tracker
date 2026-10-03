@@ -5880,3 +5880,29 @@ html[data-nav='back']::view-transition-old(screen) {
 .modal-root:not(.shown) {
   pointer-events: none;
 }
+
+/* Activity icon on workout cards: lime for strength, orange (the zone 2 colour) for cardio. */
+.wc-top {
+  align-items: center;
+}
+.wc-name {
+  flex: 1;
+}
+.wc-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--accent-text);
+}
+.wc-icon.cardio {
+  color: var(--ring-z2);
+}
+.day-workout > .wc-icon {
+  flex: none;
+  display: grid;
+  background: var(--surface-3);
+}
