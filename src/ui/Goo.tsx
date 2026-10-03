@@ -2,6 +2,7 @@
 // into one liquid shape) and the small pieces that use it. Everything here is decoration:
 // it's hidden from screen readers and switched off for people who prefer reduced motion.
 import { gsap } from 'gsap'
+import { CustomEase } from 'gsap/CustomEase'
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks'
 
 /** Put once in the app. Elements with `filter: url(#goo)` merge their blobs. Also makes every
@@ -183,6 +184,13 @@ export function GooDots({ label = 'Thinking' }: { label?: string }) {
   )
 }
 
+gsap.registerPlugin(CustomEase)
+// The tab pill's curves. A short ramp-up (so it doesn't jerk off the mark) into a long, soft
+// deceleration. The move overshoots ~5% and eases back so the pill settles instead of stopping
+// dead; its size doesn't overshoot, so the shape stays a pill.
+const GOO_MOVE = CustomEase.create('goo-move', 'M0,0 C0.3,0 0.1,1.08 0.62,1.045 0.86,1.028 0.9,1 1,1')
+const GOO_SIZE = CustomEase.create('goo-size', 'M0,0 C0.3,0 0.12,1 1,1')
+
 /** Starts the tab pill moving the moment a tab is tapped (set by TabGoo). */
 let tabGooTo: ((index: number) => void) | null = null
 export const gooTab = (index: number) => tabGooTo?.(index)
@@ -249,39 +257,39 @@ export function TabGoo({ index }: { index: number }) {
       const dir = Math.sign(tcx - fcx) || 1
       gsap.killTweensOf([origin, ...lumps, ...bulges])
 
-      // 1. The pill launches at once (fast start, soft landing).
-      gsap.to(head, { x: t.x, width: t.w, duration: 0.6, ease: 'expo.out', overwrite: 'auto' })
-      // 2. A puddle stays where it was and is sucked thin after it.
+      // 1. The pill launches at once, ramps up briefly, glides, overshoots a touch and settles.
+      gsap.to(head, { x: t.x, duration: 0.75, ease: GOO_MOVE, overwrite: 'auto' })
+      gsap.to(head, { width: t.w, duration: 0.6, ease: GOO_SIZE })
+      // 2. A puddle stays where it was and is sucked thin after it, shrinking away smoothly.
       gsap.set(origin, { x: fx, width: fw, scale: 1, scaleY: 1, autoAlpha: 1 })
-      gsap.to(origin, { x: dir > 0 ? fx + fw - 22 : fx, width: 22, scaleY: 0.5, duration: 0.32, ease: 'power2.in' })
-      gsap.to(origin, { autoAlpha: 0, scale: 0, duration: 0.12, delay: 0.32 })
-      // 3. The tab it leaves bulges into lumps, which are then pulled along and absorbed.
+      gsap.to(origin, { x: dir > 0 ? fx + fw - 22 : fx, width: 22, duration: 0.4, ease: 'power2.inOut' })
+      gsap.to(origin, { scaleY: 0, scaleX: 0.4, duration: 0.42, delay: 0.08, ease: 'sine.in' })
+      // 3. The tab it leaves swells into lumps, which are drawn after the pill and melt away.
       lumps.forEach((el, i) => {
         const ox = (i - 1) * fw * 0.28 + (Math.random() - 0.5) * 8
         const oy = (i % 2 ? 1 : -1) * (6 + Math.random() * 5)
         gsap
           .timeline()
-          .set(el, { x: fcx, y: 0, scale: 0.6, autoAlpha: 1 })
-          .to(el, { x: fcx + ox, y: oy, scale: 1.1, duration: 0.16, ease: 'power2.out' })
-          // pulled after the pill, thinning to nothing on the way so nothing is left lying in the bar
-          .to(el, { x: tcx, y: 0, duration: 0.34 + i * 0.04, ease: 'power2.in' }, 0.12 + i * 0.03)
-          .to(el, { scale: 0, duration: 0.3 + i * 0.04, ease: 'power1.in' }, 0.16 + i * 0.03)
+          .set(el, { x: fcx, y: 0, scale: 0.5, autoAlpha: 1 })
+          .to(el, { x: fcx + ox, y: oy, scale: 1.1, duration: 0.22, ease: 'sine.out' })
+          .to(el, { x: tcx, y: 0, duration: 0.5 + i * 0.05, ease: 'power2.inOut' }, 0.14 + i * 0.04)
+          .to(el, { scale: 0, duration: 0.42 + i * 0.05, ease: 'sine.inOut' }, 0.2 + i * 0.04)
           .set(el, { autoAlpha: 0 })
       })
-      // 4. Drops string out behind the pill and catch up.
+      // 4. Drops string out behind the pill on the same curve and catch up.
       trail.forEach((el, i) => {
-        gsap.to(el, { x: tcx, duration: 0.55 + i * 0.05, delay: 0.025 + i * 0.03, ease: 'expo.out', overwrite: 'auto' })
-        gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.3, delay: i * 0.035, ease: 'sine.out', yoyo: true, repeat: 1 })
+        gsap.to(el, { x: tcx, duration: 0.75 + i * 0.05, delay: 0.03 + i * 0.03, ease: GOO_MOVE, overwrite: 'auto' })
+        gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.35, delay: i * 0.03, ease: 'sine.inOut', yoyo: true, repeat: 1 })
       })
-      // 5. It lands lumpy: blobs bulge out past its edges, then wobble back in and it settles.
+      // 5. It lands lumpy: blobs swell past its edges, then wobble softly back in as it settles.
       bulges.forEach((el, i) => {
         const ox = (i - 1) * t.w * 0.3 + dir * 6
         const oy = (i % 2 ? 1 : -1) * (19 + Math.random() * 5)
         gsap
-          .timeline({ delay: 0.14 + i * 0.04 })
-          .set(el, { x: tcx - dir * 18, y: 0, scale: 0.5, autoAlpha: 1 })
-          .to(el, { x: tcx + ox, y: oy, scale: 1.1, duration: 0.16, ease: 'power2.out' })
-          .to(el, { x: tcx + ox * 0.4, y: 0, scale: 0.7, duration: 0.8, ease: 'elastic.out(1, 0.4)' })
+          .timeline({ delay: 0.16 + i * 0.05 })
+          .set(el, { x: tcx - dir * 18, y: 0, scale: 0.4, autoAlpha: 1 })
+          .to(el, { x: tcx + ox, y: oy, scale: 1.1, duration: 0.24, ease: 'sine.out' })
+          .to(el, { x: tcx + ox * 0.35, y: 0, scale: 0.65, duration: 1.1, ease: 'elastic.out(0.9, 0.55)' })
           .set(el, { autoAlpha: 0 })
       })
     }
