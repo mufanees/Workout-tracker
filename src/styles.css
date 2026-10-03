@@ -415,30 +415,15 @@ textarea {
   width: 0;
   visibility: hidden;
 }
-.tab-goo .tg-tail,
-.tab-goo .tg-drop {
-  width: 40px;
-  height: 40px;
-  top: 4px;
-  margin-left: -20px;
+/* round blobs centred on their x, vertically centred on the pill */
+.tab-goo .tg-blob {
+  width: var(--s);
+  height: var(--s);
+  top: calc(24px - var(--s) / 2);
+  margin-left: calc(var(--s) / -2);
 }
-.tab-goo .tg-drop {
-  width: 24px;
-  height: 24px;
-  top: 12px;
-  margin-left: -12px;
-}
-.tab-goo .tg-drop.sm {
-  width: 16px;
-  height: 16px;
-  top: 16px;
-  margin-left: -8px;
-}
-.tab-goo .tg-drop.xs {
-  width: 11px;
-  height: 11px;
-  top: 18.5px;
-  margin-left: -5.5px;
+.tab-goo :is(.tg-lump, .tg-bulge) {
+  visibility: hidden;
 }
 .tab-label {
   max-width: 0;
@@ -5732,6 +5717,23 @@ html.vt .app > :is(.screen, .live) {
 }
 ::view-transition-new(screen) {
   animation: vt-in-up 300ms var(--ease) both;
+}
+/* Tab switches: an even crossfade (same curve, additive blend) so brightness holds steady.
+   A quick exit plus a slower entrance left both screens half transparent mid-way: a flicker. */
+html[data-nav='tab']::view-transition-old(screen),
+html[data-nav='tab']::view-transition-new(screen) {
+  animation-duration: 260ms;
+  animation-timing-function: var(--ease);
+  mix-blend-mode: plus-lighter;
+}
+html[data-nav='tab']::view-transition-old(screen) {
+  animation-name: vt-out;
+}
+html[data-nav='tab']::view-transition-new(screen) {
+  animation-name: vt-in;
+}
+html[data-nav='tab']::view-transition-image-pair(screen) {
+  isolation: isolate;
 }
 html[data-nav='forward']::view-transition-new(screen) {
   animation-name: vt-in-right;

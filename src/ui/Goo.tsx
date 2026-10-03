@@ -183,85 +183,161 @@ export function GooDots({ label = 'Thinking' }: { label?: string }) {
   )
 }
 
+/** Starts the tab pill moving the moment a tab is tapped (set by TabGoo). */
+let tabGooTo: ((index: number) => void) | null = null
+export const gooTab = (index: number) => tabGooTo?.(index)
+
+// Blobs that make the goo lumpy: three at the tab being left, three that bulge out of the pill
+// where it lands. Sizes in px.
+const ORIGIN = [30, 24, 18]
+const BULGE = [30, 24, 20]
+
 /**
- * The lime pill under the tab bar. It's a pill and three blobs inside one goo filter: when the
- * tab changes, the pill races ahead and the blobs follow on slower curves, so a liquid neck
- * stretches out behind it, snaps, and the drops catch up and melt back in.
+ * The lime pill under the tab bar: a pill plus blobs inside one goo filter (blur, alpha cut,
+ * crisp shapes merged back on top), moved by GSAP. On a switch the pill launches at once; the
+ * tab it leaves bulges into lumps that are pulled after it, drops string out behind and get
+ * absorbed, and the pill lands lumpy and wobbles back into shape.
  */
 export function TabGoo({ index }: { index: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const placed = useRef(false)
+  const heading = useRef(-1)
   useLayoutEffect(() => {
     const layer = ref.current
     const nav = layer?.parentElement
     if (!layer || !nav) return
-    const [origin, head, ...trail] = Array.from(layer.children) as HTMLElement[]
-    const target = () => {
-      const tab = nav.querySelectorAll<HTMLElement>('.tab')[index]
-      return tab ? { x: tab.offsetLeft, w: tab.offsetWidth, cx: tab.offsetLeft + tab.offsetWidth / 2 } : null
+    const q = <T extends Element>(sel: string) => Array.from(layer.querySelectorAll<HTMLElement>(sel)) as unknown as T[]
+    const head = layer.querySelector<HTMLElement>('.tg-head')!
+    const origin = layer.querySelector<HTMLElement>('.tg-origin')!
+    const trail = q<HTMLElement>('.tg-trail')
+    const lumps = q<HTMLElement>('.tg-lump')
+    const bulges = q<HTMLElement>('.tg-bulge')
+    const tabs = () => Array.from(nav.querySelectorAll<HTMLElement>('.tab'))
+    const measured = (i: number) => {
+      const tab = tabs()[i]
+      return tab ? { x: tab.offsetLeft, w: tab.offsetWidth } : null
     }
-    const place = (animate: boolean) => {
-      const t = target()
+    // Where tab `to` will sit once it's the active one, worked out before the app re-renders:
+    // the active tab loses its label and 4px of padding each side, the new one gains them.
+    const predicted = (to: number) => {
+      const ts = tabs()
+      const cur = ts.findIndex((t) => t.classList.contains('on'))
+      if (cur < 0 || !ts[to]) return measured(to)
+      const gap = parseFloat(getComputedStyle(nav).columnGap) || 0
+      const label = (t: HTMLElement) => (t.querySelector<HTMLElement>('.tab-label')?.scrollWidth || 0) + 16
+      const widths = ts.map((t, i) => t.offsetWidth - (i === cur ? label(t) : 0) + (i === to ? label(t) : 0))
+      let x = ts[0].offsetLeft
+      for (let i = 0; i < to; i++) x += widths[i] + gap
+      return { x, w: widths[to] }
+    }
+    const hideExtras = () => gsap.set([origin, ...lumps, ...bulges], { autoAlpha: 0, scale: 0 })
+    const snap = (t: { x: number; w: number }) => {
+      gsap.killTweensOf([head, origin, ...trail, ...lumps, ...bulges])
+      gsap.set(head, { x: t.x, width: t.w })
+      gsap.set(trail, { x: t.x + t.w / 2, scale: 1 })
+      hideExtras()
+    }
+    const go = (to: number) => {
+      const t = predicted(to)
       if (!t) return
-      if (!animate || reduced()) {
-        gsap.set(origin, { autoAlpha: 0 })
-        gsap.set(head, { x: t.x, width: t.w })
-        gsap.set(trail, { x: t.cx, scale: 1 })
-        return
-      }
-      // Where the pill is leaving from: a puddle stays there and is sucked thin after it, so a
-      // liquid neck stretches across the bar before it tears.
-      const fromX = Number(gsap.getProperty(head, 'x'))
-      const fromW = Number(gsap.getProperty(head, 'width'))
-      const dir = Math.sign(t.x - fromX) || 1
-      gsap.killTweensOf(origin)
-      gsap.set(origin, { x: fromX, width: fromW, scaleY: 1, autoAlpha: 1 })
-      gsap.to(origin, { x: dir > 0 ? fromX + fromW - 24 : fromX, width: 24, scaleY: 0.55, duration: 0.42, ease: 'power2.in' })
-      gsap.to(origin, { scaleY: 0, autoAlpha: 0, duration: 0.16, delay: 0.42, ease: 'power1.in' })
-      // The pill and its drops share one curve, each a beat behind the one ahead: close enough for
-      // the filter to bridge, far enough apart to read as a tail that pinches into drops.
-      gsap.to(head, { x: t.x, width: t.w, duration: 0.7, ease: 'power3.inOut', overwrite: 'auto' })
+      heading.current = to
+      if (reduced()) return snap(t)
+      const fx = Number(gsap.getProperty(head, 'x'))
+      const fw = Number(gsap.getProperty(head, 'width'))
+      const fcx = fx + fw / 2
+      const tcx = t.x + t.w / 2
+      const dir = Math.sign(tcx - fcx) || 1
+      gsap.killTweensOf([origin, ...lumps, ...bulges])
+
+      // 1. The pill launches at once (fast start, soft landing).
+      gsap.to(head, { x: t.x, width: t.w, duration: 0.6, ease: 'expo.out', overwrite: 'auto' })
+      // 2. A puddle stays where it was and is sucked thin after it.
+      gsap.set(origin, { x: fx, width: fw, scale: 1, scaleY: 1, autoAlpha: 1 })
+      gsap.to(origin, { x: dir > 0 ? fx + fw - 22 : fx, width: 22, scaleY: 0.5, duration: 0.32, ease: 'power2.in' })
+      gsap.to(origin, { autoAlpha: 0, scale: 0, duration: 0.12, delay: 0.32 })
+      // 3. The tab it leaves bulges into lumps, which are then pulled along and absorbed.
+      lumps.forEach((el, i) => {
+        const ox = (i - 1) * fw * 0.28 + (Math.random() - 0.5) * 8
+        const oy = (i % 2 ? 1 : -1) * (6 + Math.random() * 5)
+        gsap
+          .timeline()
+          .set(el, { x: fcx, y: 0, scale: 0.6, autoAlpha: 1 })
+          .to(el, { x: fcx + ox, y: oy, scale: 1.1, duration: 0.16, ease: 'power2.out' })
+          // pulled after the pill, thinning to nothing on the way so nothing is left lying in the bar
+          .to(el, { x: tcx, y: 0, duration: 0.34 + i * 0.04, ease: 'power2.in' }, 0.12 + i * 0.03)
+          .to(el, { scale: 0, duration: 0.3 + i * 0.04, ease: 'power1.in' }, 0.16 + i * 0.03)
+          .set(el, { autoAlpha: 0 })
+      })
+      // 4. Drops string out behind the pill and catch up.
       trail.forEach((el, i) => {
-        gsap.to(el, { x: t.cx, duration: 0.72 + i * 0.05, delay: 0.03 + i * 0.03, ease: 'power3.inOut', overwrite: 'auto' })
-        // the drops thin out as they're pulled along, then plump back up once they land
-        gsap.fromTo(el, { scale: 1 }, { scale: 0.8 - i * 0.12, duration: 0.38, delay: i * 0.03, ease: 'sine.out', yoyo: true, repeat: 1, overwrite: 'auto' })
+        gsap.to(el, { x: tcx, duration: 0.55 + i * 0.05, delay: 0.025 + i * 0.03, ease: 'expo.out', overwrite: 'auto' })
+        gsap.fromTo(el, { scale: 1 }, { scale: 0.75 - i * 0.1, duration: 0.3, delay: i * 0.035, ease: 'sine.out', yoyo: true, repeat: 1 })
+      })
+      // 5. It lands lumpy: blobs bulge out past its edges, then wobble back in and it settles.
+      bulges.forEach((el, i) => {
+        const ox = (i - 1) * t.w * 0.3 + dir * 6
+        const oy = (i % 2 ? 1 : -1) * (19 + Math.random() * 5)
+        gsap
+          .timeline({ delay: 0.14 + i * 0.04 })
+          .set(el, { x: tcx - dir * 18, y: 0, scale: 0.5, autoAlpha: 1 })
+          .to(el, { x: tcx + ox, y: oy, scale: 1.1, duration: 0.16, ease: 'power2.out' })
+          .to(el, { x: tcx + ox * 0.4, y: 0, scale: 0.7, duration: 0.8, ease: 'elastic.out(1, 0.4)' })
+          .set(el, { autoAlpha: 0 })
       })
     }
-    place(placed.current)
-    placed.current = true
-    // Tabs keep changing size after the switch (the label opens), so follow them: glide the pill
-    // (and the drops' destination) to wherever the tab settles.
+    tabGooTo = (to: number) => to !== heading.current && go(to)
+    if (!placed.current) {
+      const t = measured(index)
+      if (t) snap(t)
+      heading.current = index
+      placed.current = true
+    } else if (heading.current !== index) go(index)
+
+    // Tabs settle into their final sizes after a switch (and on resize): once the pill's glide
+    // ends, slide it onto the tab's real size.
     let raf = 0
     const follow = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        const t = target()
+        const t = measured(index)
         if (!t) return
-        if (reduced()) return place(false)
-        // let a switch finish its glide (so the tail stays attached), then settle onto the tab's final size
+        if (reduced()) return snap(t)
         if (gsap.isTweening(head)) return follow()
-        gsap.to(head, { x: t.x, width: t.w, duration: 0.25, ease: 'power2.out', overwrite: 'auto' })
-        trail.forEach((el) => !gsap.isTweening(el) && gsap.to(el, { x: t.cx, duration: 0.25, ease: 'power2.out' }))
+        const dx = Math.abs(Number(gsap.getProperty(head, 'x')) - t.x) + Math.abs(Number(gsap.getProperty(head, 'width')) - t.w)
+        if (dx < 0.5) return
+        gsap.to(head, { x: t.x, width: t.w, duration: 0.22, ease: 'power2.out', overwrite: 'auto' })
+        trail.forEach((el) => !gsap.isTweening(el) && gsap.to(el, { x: t.x + t.w / 2, duration: 0.22, ease: 'power2.out' }))
       })
     }
+    follow()
     const ro = new ResizeObserver(follow)
     ro.observe(nav)
-    nav.querySelectorAll('.tab').forEach((el) => ro.observe(el))
+    tabs().forEach((el) => ro.observe(el))
     return () => {
       ro.disconnect()
       cancelAnimationFrame(raf)
     }
   }, [index])
-  useEffect(() => () => gsap.killTweensOf(ref.current ? Array.from(ref.current.children) : []), [])
+  useEffect(
+    () => () => {
+      tabGooTo = null
+      gsap.killTweensOf(ref.current ? Array.from(ref.current.children) : [])
+    },
+    [],
+  )
   return (
     <span class="tab-goo" aria-hidden="true" ref={ref}>
       <i class="tg-origin" />
+      {ORIGIN.map((s) => (
+        <i class="tg-lump tg-blob" style={{ '--s': `${s}px` }} />
+      ))}
       <b class="tg-head" />
-      <i class="tg-tail" />
-      <i class="tg-drop" />
-      <i class="tg-drop" />
-      <i class="tg-drop sm" />
-      <i class="tg-drop xs" />
+      {[40, 24, 24, 16, 11].map((s) => (
+        <i class="tg-trail tg-blob" style={{ '--s': `${s}px` }} />
+      ))}
+      {BULGE.map((s) => (
+        <i class="tg-bulge tg-blob" style={{ '--s': `${s}px` }} />
+      ))}
     </span>
   )
 }
