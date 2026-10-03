@@ -5919,3 +5919,367 @@ html[data-nav='back']::view-transition-old(screen) {
   visibility: hidden;
   animation: none;
 }
+
+/* =====================================================================================
+   Goals: card on Train, list, detail (src/screens/Goal.tsx)
+   ===================================================================================== */
+.goal-card,
+.goal-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--pad-card);
+}
+.goal-card .eyebrow {
+  color: var(--accent-text);
+}
+.gc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.gc-title {
+  font-size: var(--fs-20);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.gc-lift {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: var(--fs-15);
+  color: var(--muted);
+}
+.gc-lift > span:last-child {
+  color: var(--text);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.gc-lift small {
+  color: var(--muted);
+  font-weight: 600;
+}
+.gc-bar {
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.gc-bar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transform-origin: left;
+  animation: bar-in 0.9s var(--ease, ease) both 0.15s;
+}
+.gc-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.gc-empty {
+  font-family: var(--font-read);
+  color: var(--muted);
+  font-size: var(--fs-15);
+  line-height: 1.4;
+}
+.goal-state {
+  flex: none;
+  padding: var(--sp-1) var(--sp-2-5, 10px);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-12);
+  font-weight: 700;
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.goal-state.reached,
+.goal-state.ahead,
+.goal-state.on-track {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.goal-state.behind {
+  background: rgba(255, 181, 71, 0.16);
+  color: var(--warn);
+}
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-list);
+  margin-bottom: var(--gap-section);
+}
+
+/* detail */
+.goal-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--r-2xl);
+  padding: var(--sp-5);
+}
+.goal-hero::before {
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 75%;
+  height: 160%;
+  background: repeating-linear-gradient(115deg, rgba(198, 244, 50, 0.14) 0 14px, transparent 14px 34px);
+  transform: rotate(8deg);
+  z-index: -1;
+  mask-image: linear-gradient(to left, #000 20%, transparent 85%);
+}
+.gh-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.gh-eyebrow {
+  color: var(--accent);
+  font-size: var(--fs-11);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.gh-title {
+  font-size: var(--fs-28);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.gh-bar {
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.gh-bar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transform-origin: left;
+  animation: bar-in 0.9s var(--ease, ease) both 0.2s;
+}
+.gh-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  font-size: var(--fs-13);
+  color: rgba(255, 255, 255, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+.goal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+  margin: var(--gap-list) 0;
+}
+.goal-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.goal-stats span {
+  font-size: var(--fs-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.goal-stats b {
+  font-size: var(--fs-17);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.goal-stats small {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.goal-chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.goal-chart {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.gch-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.gch-label {
+  fill: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.gch-tag {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.gch-tag.goal {
+  fill: var(--accent-text);
+}
+.gch-goal {
+  stroke: var(--accent-text);
+  stroke-width: 1.5;
+}
+.gch-cap {
+  stroke: var(--faint);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+.gch-line {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.gch-proj {
+  fill: none;
+  stroke: var(--accent-text);
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+.gch-dot {
+  fill: var(--surface);
+  stroke: var(--text);
+  stroke-width: 2;
+}
+.goal-note {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  margin: var(--gap-list) 0;
+  color: var(--warn);
+}
+.goal-note p {
+  color: var(--text);
+  font-family: var(--font-read);
+  line-height: 1.4;
+}
+.goal-milestones,
+.goal-lifts {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--sp-2);
+}
+.gm-row,
+.gl-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 56px;
+  padding: var(--sp-2) 0;
+}
+.gm-row + .gm-row,
+.gl-row + .gl-row {
+  border-top: 1px solid var(--line);
+}
+.gm-dot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--surface-3);
+}
+.gm-row.done .gm-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.gm-text,
+.gl-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+}
+.gm-text b,
+.gl-name b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.gm-text small,
+.gl-name small {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.gm-when,
+.gl-pct {
+  flex: none;
+  font-size: var(--fs-14);
+  font-weight: 650;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.gm-row.done .gm-when {
+  color: var(--accent-text);
+}
+.gm-row.late .gm-when {
+  color: var(--warn);
+}
+.gl-bar {
+  flex: none;
+  width: 64px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.gl-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+}
+.goal-screen > .btn-block {
+  margin-top: var(--gap-section);
+}
+.goal-screen > .row {
+  margin-top: var(--gap-list);
+}
+.gh-bar-labels span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gh-bar-labels span:last-child {
+  flex: none;
+  white-space: nowrap;
+}

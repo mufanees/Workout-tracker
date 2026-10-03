@@ -6,7 +6,8 @@ import { getToken, syncNow } from './sync'
 import { coachItems, exercises, exMap, routines, saveCoachItem, saveRoutine } from './store'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
-import type { CoachItem } from './types'
+import type { CoachItem, GoalSpec } from './types'
+import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { clone, uid } from './util'
 
 /** null = still checking; false = no coach on this server (or no server). */
@@ -94,7 +95,15 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
     ]
     return { title: `Update “${a.routine}”`, lines }
   }
-  if (p.tool === 'propose_goal') return { title: 'New goal', lines: [String(a.text || '') + (a.due_date ? ` (by ${a.due_date})` : '')] }
+  if (p.tool === 'propose_goal') {
+    const spec = goalSpecFrom(a)
+    const two = spec.metric === 'lift' && (!spec.exercise || /^any/i.test(spec.exercise) || twoDumbbells(findEx(spec.exercise)))
+    const v = (n: number) => fmtValue(n, spec, two)
+    const lines = [String(a.text || '') + (a.due_date ? ` (by ${a.due_date})` : '')]
+    if (spec.target != null && spec.metric !== 'custom') lines.push(`Target: ${v(spec.target)}${spec.reps ? ` × ${spec.reps}` : ''}${spec.exercise ? ` · ${/^any/i.test(spec.exercise) ? 'any two-dumbbell lift' : spec.exercise}` : ''}`)
+    for (const m of spec.milestones || []) lines.push(`Milestone: ${m.label || v(m.value)}${m.due ? ` by ${new Date(m.due).toISOString().slice(0, 10)}` : ''}`)
+    return { title: a.replaces_goal_id ? 'Update goal' : 'New goal', lines }
+  }
   const labels: Record<string, string> = { goals: 'Goals', injuries: 'Injuries and limits', equipment: 'Equipment', schedule: 'Schedule', preferences: 'Preferences', age: 'Age', maxHr: 'Max heart rate' }
   return { title: `Update your profile: ${labels[String(a.field)] || a.field}`, lines: [String(a.value || '')] }
 }
@@ -104,8 +113,13 @@ export async function applyProposal(p: Proposal): Promise<string> {
   const a = p.args as Record<string, any>
   if (p.tool === 'propose_goal') {
     const due = a.due_date ? Date.parse(a.due_date) : NaN
-    await saveCoachItem({ id: uid('goal-'), kind: 'goal', text: String(a.text || ''), due: Number.isFinite(due) ? due : null, status: 'open', created: Date.now(), source: 'coach', updatedAt: 0 })
-    return 'Goal added'
+    const old = a.replaces_goal_id ? coachItems.value.find((x) => x.id === a.replaces_goal_id && x.kind === 'goal') : undefined
+    const spec = goalSpecFrom(a)
+    const base: CoachItem = { id: old?.id || uid('goal-'), kind: 'goal', text: String(a.text || old?.text || ''), due: Number.isFinite(due) ? due : (old?.due ?? null), status: 'open', created: old?.created || Date.now(), source: 'coach', updatedAt: old?.updatedAt || 0, goal: spec }
+    // Remember where they started, so progress reads from there.
+    if (spec.metric !== 'custom') spec.baseline = old?.goal?.baseline ?? goalStatus({ ...base, goal: { ...spec, baseline: undefined } }).current ?? undefined
+    await saveCoachItem(base)
+    return old ? 'Goal updated' : 'Goal added'
   }
   if (p.tool === 'propose_profile_update') {
     const field = String(a.field)
@@ -166,4 +180,35 @@ export async function applyProposal(p: Proposal): Promise<string> {
   if (lines(a.cooldown).length) next.cooldown = lines(a.cooldown)
   await saveRoutine(next)
   return missed.length ? `Routine updated (couldn’t match ${missed.join(', ')})` : 'Routine updated'
+}
+
+// ---- goals ---------------------------------------------------------------------------
+
+const findEx = (name: string) => {
+  const want = norm(name)
+  const all = [...exMap.value.values()]
+  return all.find((e) => norm(e.name) === want) || all.find((e) => norm(e.name).includes(want))
+}
+
+/** A goal spec from propose_goal's arguments, with anything out of range dropped. */
+export function goalSpecFrom(a: Record<string, any>): GoalSpec {
+  const metrics: GoalSpec['metric'][] = ['lift', 'bodyweight', 'zone2', 'workouts', 'fast', 'custom']
+  const metric = metrics.includes(a.metric) ? a.metric : 'custom'
+  const n = (x: unknown) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Number(x) : undefined)
+  const spec: GoalSpec = { metric }
+  if (metric !== 'custom') spec.target = n(a.target)
+  if (metric === 'lift') {
+    spec.exercise = a.exercise ? String(a.exercise).slice(0, 80) : 'any'
+    spec.reps = Math.min(30, Math.round(n(a.reps) || 1))
+    spec.equipmentMax = n(a.equipment_max_kg)
+  }
+  if (Array.isArray(a.milestones))
+    spec.milestones = a.milestones
+      .slice(0, 12)
+      .map((m: any) => {
+        const due = m?.due_date ? Date.parse(m.due_date) : NaN
+        return { value: Number(m?.value), due: Number.isFinite(due) ? due : null, label: m?.label ? String(m.label).slice(0, 60) : undefined }
+      })
+      .filter((m: { value: number }) => Number.isFinite(m.value) && m.value > 0)
+  return spec
 }

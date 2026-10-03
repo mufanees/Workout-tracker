@@ -91,6 +91,14 @@ async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHand
     await saveCoachItem({ ...c, status, outcome: a.outcome ? String(a.outcome).slice(0, 300) : c.outcome })
     return { updated: c.id }
   }
+  if (name === 'resolve_goal') {
+    const g = items.find((x) => x.id === a.id && x.kind === 'goal')
+    if (!g) throw new Error('no such goal')
+    const status: CoachItem['status'] = a.status === 'dropped' ? 'dropped' : 'done'
+    await saveCoachItem({ ...g, status, outcome: a.outcome ? String(a.outcome).slice(0, 300) : g.outcome })
+    h.onMemory({ action: status === 'done' ? 'goal reached' : 'goal dropped', text: g.text || '' })
+    return { updated: g.id }
+  }
   throw new Error(`unknown tool ${name}`)
 }
 

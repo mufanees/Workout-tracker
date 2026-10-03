@@ -23,6 +23,15 @@ Workout feedback (the "Athlete feedback", "Athlete said" and "Time" lines in the
 - Use search_exercises to get exact exercise names from the app's library for swaps, using equipment they have.
 - Put all of it in one propose_routine_changes call per routine, with a one-line reason.
 
+Goals (the GOALS section of the training data shows each open goal's id, target, where they are now, the trend over the last 8 weeks, a projected date, ahead/on track/behind, and milestones; the app computes these from their logs):
+- Turn wishes into measurable goals. When they say what they want ("lift 100 kg", "get to 80 kg", "more cardio"), pin down what's measured, the exact target and conditions (reps, which lift, both dumbbells or one), any date, and constraints like the equipment they own. Ask at most two short questions if it's genuinely ambiguous, then call propose_goal with metric, target and milestones.
+- Lift goals: targets are TOTAL kg and estimated from normal sets (Epley), so they don't need to test maxes. For dumbbells, "total" means both dumbbells together; the app logs one dumbbell, so a 100 kg total is 50 kg per hand. "any" tracks every lift with a dumbbell in each hand and shows the closest. Set equipment_max_kg to their heaviest dumbbell.
+- Milestones: 4 to 8 checkpoints between where they are and the target, evenly spaced in difficulty, each with a realistic date from their measured pace. Without a pace yet, use conservative rates for someone returning to training: about 1–2 kg per hand a month on lower-body dumbbell lifts, 0.5–1 kg on presses and rows, slowing as they get stronger; body weight about 0.25–0.75 kg a week. Include equipment steps (e.g. outgrowing 24 kg dumbbells) as milestones.
+- Every time goals come up (and in weekly reviews), say plainly where they stand: now vs target, pace vs what the date needs, the next milestone and when it's likely. Use the numbers in GOALS; never invent a trend the data doesn't show. If there's too little data, say how many more sessions it takes.
+- Behind pace: find the reason in the data (missed sessions, a stall, too much volume, poor recovery, a lift they skip) and fix that one thing: a routine change via propose_routine_changes, a deload, more frequency on the goal lift, or a smaller next milestone. Ahead: keep the plan and maybe pull the milestones in.
+- Train toward the goal, not just the plan: as the goal lift gets within about 15% of target, shift its work toward 3–6 reps with longer rests; well below that, build with 6–12 reps. With capped dumbbells, use double progression (add reps up to the top of the range before adding weight), then tempo, pauses and one-and-a-quarter reps; tell them when buying heavier dumbbells will unlock the next milestone.
+- When the data shows a milestone or goal reached, celebrate it with the numbers and the date. Mark a reached goal done with resolve_goal and suggest the next one. Change a goal's target, date or milestones only through propose_goal with replaces_goal_id, after they agree. Drop a goal only when they ask.
+
 Memory and follow-through:
 - Open commitments are listed below with their ids. When the conversation or the data shows how one went, call resolve_commitment. If one is past due and you can see the result in the data, mention it.
 - When you agree on something specific and checkable ("18 kg goblet squats next session"), call set_commitment with a due date.
@@ -88,7 +97,32 @@ export const COACH_TOOLS = [
       ['routine'],
     ),
   },
-  { name: 'propose_goal', kind: 'proposal', description: 'Propose a longer-term goal (weeks to months) for the athlete to accept.', parameters: obj({ text: str(), due_date: str('YYYY-MM-DD, optional') }, ['text']) },
+  {
+    name: 'resolve_goal',
+    kind: 'memory',
+    description: 'Close a goal: "done" when the data shows it reached, "dropped" only when the athlete asks.',
+    parameters: obj({ id: str('Goal id from GOALS'), status: { type: 'string', enum: ['done', 'dropped'] }, outcome: str('What they achieved, with numbers') }, ['id', 'status']),
+  },
+  {
+    name: 'propose_goal',
+    kind: 'proposal',
+    description:
+      'Propose a measurable goal the app will track (or a revision of an existing one via replaces_goal_id) for the athlete to accept. Include milestones.',
+    parameters: obj(
+      {
+        text: str('Short goal statement, e.g. "100 kg total for 3 reps with dumbbells"'),
+        metric: { type: 'string', enum: ['lift', 'bodyweight', 'zone2', 'workouts', 'fast', 'custom'], description: 'lift: total kg for some reps; bodyweight: kg; zone2: minutes a week; workouts: sessions a week; fast: hours; custom: anything else' },
+        target: num('Target value in the metric\'s unit (lift: TOTAL kg, both dumbbells together when each hand holds one)'),
+        exercise: str('lift only: exact exercise name, or "any" for any lift with a dumbbell in each hand'),
+        reps: int('lift only: reps at the target weight'),
+        equipment_max_kg: num('lift only: heaviest single dumbbell they own'),
+        due_date: str('YYYY-MM-DD, optional'),
+        milestones: arr(obj({ value: num('In the metric\'s unit (lift: total kg)'), due_date: str('YYYY-MM-DD'), label: str('Optional short label') }, ['value']), 'Checkpoints on the way, in order'),
+        replaces_goal_id: str('To revise an existing goal: its id from GOALS'),
+      },
+      ['text', 'metric'],
+    ),
+  },
   {
     name: 'propose_profile_update',
     kind: 'proposal',
@@ -128,7 +162,7 @@ export function memoryText(list, tz) {
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .slice(0, 6)
   const notes = list.filter((x) => x.kind === 'note').sort((a, b) => (a.created || 0) - (b.created || 0))
-  lines.push('', 'GOALS', ...(goals.length ? goals.map((g) => `- ${g.text}${g.due ? ` (by ${ymd(g.due, tz)})` : ''}${g.status === 'done' ? ' [achieved]' : ''}`) : ['(none)']))
+  lines.push('', 'GOALS (progress for open goals is in the training data)', ...(goals.length ? goals.map((g) => `- [${g.id}] ${g.text}${g.due ? ` (by ${ymd(g.due, tz)})` : ''}${g.status === 'done' ? ' [achieved]' : ''}`) : ['(none)']))
   lines.push('', 'OPEN COMMITMENTS', ...(open.length ? open.map((c) => `- [${c.id}] ${c.text} (due ${c.due ? ymd(c.due, tz) : '?'}${c.due && c.due < Date.now() ? ', past due' : ''})`) : ['(none)']))
   if (closed.length) lines.push('', 'RECENTLY CLOSED COMMITMENTS', ...closed.map((c) => `- ${c.text}: ${c.status}${c.outcome ? ` (${c.outcome})` : ''}`))
   lines.push('', 'MEMORY NOTES', ...(notes.length ? notes.map((n) => `- [${n.id}] ${n.text}`) : ['(none yet)']))
@@ -152,7 +186,7 @@ export const QUICK = {
   },
   workout: {
     prompt: () =>
-      'The workout under WORKOUT TO REVIEW was just finished. Give one or two sentences: the most useful takeaway (a win, or what to change next time), with numbers. If an open commitment was clearly met or missed in this workout, list its id.',
+      'The workout under WORKOUT TO REVIEW was just finished. Give one or two sentences: the most useful takeaway (a win, or what to change next time), with numbers. If it moved them toward an open goal or hit a milestone, say so with the numbers. If an open commitment was clearly met or missed in this workout, list its id.',
     schema: obj({ takeaway: str(), met: arr(str()), missed: arr(str()) }, ['takeaway']),
   },
   condense: {
@@ -162,7 +196,7 @@ export const QUICK = {
   },
   weekly: {
     prompt: () =>
-      'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, shoulder, stalls, missed sessions), and the plan for next week. Also give a one-sentence headline for a phone notification.',
+      'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, shoulder, stalls, missed sessions), where they stand on each open goal (pace vs target, next milestone), and the plan for next week. Also give a one-sentence headline for a phone notification.',
     schema: obj({ headline: str(), review: str() }, ['headline', 'review']),
   },
 }

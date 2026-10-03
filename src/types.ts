@@ -114,6 +114,22 @@ export interface Quote {
  * The coach's memory, one store with a `kind`:
  * profile (single record id "profile"), note, goal, commitment, insight (weekly review / workout takeaway).
  */
+/**
+ * A measurable goal the app tracks and the coach coaches to.
+ * lift: target is total kg (both dumbbells when each hand holds one) for `reps` reps;
+ * exercise is a library name or "any" (any lift with a dumbbell in each hand).
+ * bodyweight: kg. zone2: minutes a week. workouts: sessions a week. fast: hours. custom: judged by the coach.
+ */
+export interface GoalSpec {
+  metric: 'lift' | 'bodyweight' | 'zone2' | 'workouts' | 'fast' | 'custom'
+  target?: number
+  exercise?: string
+  reps?: number
+  equipmentMax?: number // lift: heaviest dumbbell they own, kg
+  baseline?: number // where they were when the goal was set
+  milestones?: { value: number; due?: number | null; label?: string }[]
+}
+
 export interface CoachItem extends Rec {
   kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight'
   text?: string
@@ -121,6 +137,7 @@ export interface CoachItem extends Rec {
   due?: number | null // goals and commitments
   status?: 'open' | 'done' | 'missed' | 'dropped'
   outcome?: string
+  goal?: GoalSpec // kind 'goal': what to measure
   source?: 'coach' | 'you'
   type?: 'weekly' | 'workout' // insights
   ref?: string // insight: workout id or week start (YYYY-MM-DD)

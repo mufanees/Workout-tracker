@@ -1,4 +1,5 @@
 // Builds a compact plain-text summary of your training for the AI coach (or to paste into Claude).
+import { goalsText } from './goals'
 import { dayKey } from './fasting'
 import { planFor } from './timeplan'
 import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
@@ -67,6 +68,8 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   const p = planStatus.value
   if (p) out.push(`Program: 12-week Dumbbell Comeback plan (every other day, A/B alternating, superset pairs, shoulder-friendly). Currently week ${Math.min(p.week, 12)} of 12, Phase ${p.phase.n} ${p.phase.name} (${p.phase.note}). Next session: Workout ${p.day}. ${p.status}`)
   out.push(`Heart rate zones (bpm): ${[1, 2, 3, 4, 5].map((z) => `Z${z} ${zoneRange(z)}`).join(', ')}. Weekly zone 2 goal: ${st.zone2Goal} min.`)
+
+  out.push(`\nGOALS (computed by the app from their logs)\n${goalsText()}`)
 
   const list = workouts.value
   const focus = opts.focusWorkoutId ? list.find((w) => w.id === opts.focusWorkoutId) : null

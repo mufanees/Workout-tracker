@@ -172,6 +172,14 @@ export function createCoach({ db, q, mcp, push }) {
         write({ ...c, status: ['done', 'missed', 'dropped'].includes(args.status) ? args.status : 'done', outcome: args.outcome ? String(args.outcome).slice(0, 300) : c.outcome })
         return { updated: c.id }
       }
+      case 'resolve_goal': {
+        const g = items().find((x) => x.id === args.id && x.kind === 'goal')
+        if (!g) return { error: 'no such goal' }
+        const status = args.status === 'dropped' ? 'dropped' : 'done'
+        write({ ...g, status, outcome: args.outcome ? String(args.outcome).slice(0, 300) : g.outcome })
+        emit({ memory: { action: status === 'done' ? 'goal reached' : 'goal dropped', text: g.text } })
+        return { updated: g.id }
+      }
       case 'propose_routine_changes':
       case 'propose_routine_targets':
       case 'propose_goal':

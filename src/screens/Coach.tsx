@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
+import { openGoals } from '../goals'
 import { route, navigate } from '../router'
 import { getToken, syncNow } from '../sync'
 import { exMap, workouts } from '../store'
@@ -61,7 +62,9 @@ function suggestions(): string[] {
     if (recent > n && exMap.value.get(id)?.type === 'weight_reps') (n = recent), (top = id)
   }
   const name = top ? exMap.value.get(top)?.name : null
+  const g = openGoals.value[0]
   return [
+    g ? `How am I tracking on “${(g.item.text || g.title).slice(0, 60)}”?` : 'Help me set a goal',
     'Review my last week',
     'What should I change in my next workout?',
     'Am I recovering well?',
@@ -89,13 +92,15 @@ export function Coach() {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [msgs.length, busy])
 
-  // Deep links from a finished workout: /coach?review=<workoutId> and /coach?adjust=<workoutId>
+  // Deep links: /coach?review=<workoutId>, /coach?adjust=<workoutId> (from a finished workout), /coach?ask=<question> (goals)
   useEffect(() => {
     const id = route.value.query.get('review')
     const adj = route.value.query.get('adjust')
-    if (!coachOn.value || (!id && !adj)) return
+    const q = route.value.query.get('ask')
+    if (!coachOn.value || (!id && !adj && !q)) return
     navigate('/coach', { replace: true })
-    if (adj) {
+    if (q) void ask(q)
+    else if (adj) {
       const w = workouts.value.find((x) => x.id === adj)
       if (w) void ask(adjustMessage(w), adj)
     } else void ask('Review this workout: what went well, what to adjust next time, and one thing to focus on.', id!)
@@ -301,7 +306,7 @@ export function Coach() {
               )}
               {m.memory?.map((x) => (
                 <span class="mem-chip">
-                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : 'Remembered'}: {x.text}
+                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : 'Remembered'}: {x.text}
                 </span>
               ))}
               {m.proposals?.map((p) => {
