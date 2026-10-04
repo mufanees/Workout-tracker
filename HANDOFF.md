@@ -2,27 +2,29 @@
 
 Everything a new person or a new Claude session needs to pick this up cold. Read this first, then `README.md` (deployment and user-facing docs).
 
-## Where things stand (2 Oct 2026)
+## Where things stand (4 Oct 2026)
 
 | | |
 |---|---|
+| App name | **Gloop** (was Reps). Internal names stay `reps` (database `/data/reps.db`, backup marker `app: 'reps'`, `dist/reps-single.html`) so existing data and backups keep working. |
 | Repo | `mufanees/workout-tracker` |
 | Branch | `ccr-82a33bbf-3kimrv`. It is the repo's only branch (and its default), so a plain `git clone` gets everything. No `main` yet, no PR. |
 | Get the code | `git clone https://github.com/mufanees/workout-tracker.git && cd workout-tracker && npm install` (or `git pull` in an existing clone) |
-| Design system | `DESIGN.md` (rules) and `design-system/` (generator + generated files). Also a private Claude Design System artifact: https://claude.ai/artifact/DmFNNgMBC8PN5woMDfjcdk |
+| Design system | `DESIGN.md` (rules, motion, goo) and `design-system/` (generator, generated files, `icon/` app icon sources and preview). Also a private Claude Design System artifact: https://claude.ai/artifact/DmFNNgMBC8PN5woMDfjcdk (pre-goo; regenerate if needed) |
 | Hosted preview | Private Claude artifact: https://claude.ai/artifact/Cg23G2PSbJtSp6GNDqv4Sb (the owner's current Claude account only; see "The Claude-hosted copy" and "Switching Claude accounts" below) |
-| Production | **Not deployed yet.** Target is the owner's self-hosted Coolify instance (Dockerfile build). |
-| Owner's phone | Android, Chrome. Trains with dumbbells at home. Garmin HRM-Dual strap. Zone 2 = 120–145 bpm. |
+| Production | **Being deployed now** to the owner's self-hosted Coolify (Dockerfile build). First deploy ever: the Docker image has never been built (no Docker in the build sandbox). The runtime stage was simulated (same files in an empty folder, `npm ci --omit=dev`, start): health, app page, sync and MCP all answered. |
+| Owner's phone | Android, Chrome; mostly uses the Claude app. Trains with dumbbells (to 24 kg) and bands at home. Garmin HRM-Dual strap. Zone 2 = 120–145 bpm. |
 
 ### Next steps, in order
 
 0. **Before switching Claude accounts**, take your data out of the hosted copy (see "Switching Claude accounts"). The code is all on GitHub; the data is not.
-1. **Deploy to Coolify** (README → "Deploy on Coolify"). Dockerfile build, port 3000, env `APP_TOKEN`, persistent volume at `/data`, HTTPS domain. The Docker image has **never been built** (no Docker daemon in the build sandbox), so the first deploy is its first real test. `npm run build` and the server do run fine on Node 22.
+1. **Deploy to Coolify** (README → "Deploy on Coolify"): repo + branch above, build pack Dockerfile, Ports Exposes `3000`, HTTPS domain (e.g. `gloop.<domain>`), env `APP_TOKEN` (long random), `GEMINI_API_KEY` (free, from aistudio.google.com; leave `GEMINI_PLAN_MODEL` unset, that model is paid), `TZ`; Persistent Storage **Volume Mount** at `/data`. Check `/api/health` → `{"ok":true,"auth":true}`. If the build fails, the log is the first thing to look at.
 2. On the phone: open the domain in Chrome, install to home screen, Settings → paste `APP_TOKEN` → Connect.
-3. Move data from the Claude-hosted copy: in the artifact, Settings → **Copy backup**; in the deployed app, Settings → **Paste a backup**.
-4. Pair the HRM-Dual for real (only tested with a simulated strap so far).
+3. Move data from the Claude-hosted copy: there, Settings → **Copy backup**; in the deployed app, Settings → **Paste a backup**.
+4. Check on the real phone: screen changes (no flash), the goo pill, the coach with the real Gemini key, notifications, pairing the HRM-Dual.
 5. Optionally add the MCP connector in Claude (README → "Importing a plan").
 6. Optionally open a PR from the branch into `main` and point Coolify at `main`.
+7. Open question from the owner: sharing the app with other people. The Claude-hosted copy already keeps each viewer's data private in their own Claude account (share it from the artifact's Share menu); the Coolify version is one person per deployment (`APP_TOKEN`), so real sign-up would be a new piece of work.
 
 ## What the app does
 
@@ -45,6 +47,11 @@ A PWA replacing Hevy for one person. Offline-first, self-hosted sync.
 - **AI coach** (`src/screens/Coach.tsx`, `src/coachContext.ts`, `server/coach.mjs`): the phone builds a text summary of the training data and sends it with the chat; the server adds the coach system prompt and streams Google Gemini's reply over SSE. It calls the Gemini REST endpoint `v1beta/models/<model>:streamGenerateContent?alt=sse` with `fetch` (no SDK, server has zero npm dependencies), skips `thought` parts, maps `assistant` to Gemini's `model` role, and turns Gemini errors (429 free-tier limit, bad key, unknown model) into readable messages. Env: `GEMINI_API_KEY` (required), `GEMINI_MODEL` (default `gemini-3.5-flash`), `GEMINI_PLAN_MODEL` (optional stronger model for planning questions, matched by `isPlanning()` in `shared/coachSpec.mjs`, and the weekly review; defaults to `GEMINI_MODEL`), `GEMINI_BASE_URL` (testing). 429, 5xx and network errors are retried twice with backoff (honouring Retry-After, max 8 s). Owner chose Gemini over Claude because its free tier costs nothing. Without a key, tapping a question copies question + summary for pasting into Gemini or Claude. "Ask your coach about it" on the post-workout screen opens `/coach?review=<id>`.
 - **Coach memory and tools** (`server/coach.mjs`, `src/coach.ts`, `src/screens/CoachMemory.tsx`): chat runs a Gemini function-calling loop (max 6 rounds; raw model parts, including thought signatures, are sent back unchanged; function responses go as role `user`). Tools: `recent_workouts`, `exercise_progress`, `body_stats`, `list_routines` (look-ups via the MCP handler), `remember`, `forget`, `set_commitment`, `resolve_commitment` (written server-side, deduped), and `propose_routine_targets`, `propose_goal`, `propose_profile_update` (sent to the app as SSE `proposal` events; applied on the phone only after Approve). `POST /api/coach/quick` with `kind` `pre` | `workout` | `condense` uses JSON mode (`responseSchema`). The weekly review runs on the server every 30 min and fires Sunday ≥ 18:00 in the profile's time zone (`WEEKLY_REVIEW_ANYDAY=1` bypasses the day check for testing).
 - **Motivation:** `Settings.quotes` (seeded from `src/data/quotes.json`, the owner's list), shown as a big rotating hero card at the top of Train (`HeroQuote`: changes every 12 s or on tap, consistency quotes first after 3+ days off), the post-workout screen, Coach, and training-day notifications; capitalised words are highlighted. Progress card on Train (`stats.ts recentWin`).
+- **Goals, blocks and programs** (see History 20–23): goals the coach coaches to (estimated lifts, trend, pace, milestones), training blocks with phases and deloads, coach-built programs that replace the Comeback plan card, a training knowledge base and the owner's library of material, effort taps (reps in reserve) and a daily check-in (sleep, energy, stress).
+- **Weight model** (`src/weightModel.ts`): Kalman trend, rate with error, 12-week forecast cone, target date, and patterns (water, weekday, after long fasts, plateaus) on the Body tab; the coach and body-weight goals use it.
+- **FIT import** (Wahoo/Garmin files → cardio workout with heart rate), activity icons, calendar day rings, weekly cardio total under Zone 2.
+- **Time pickers:** a Material clock dial (default) or scroll wheels, switchable (`Settings.timePicker`).
+- **Look and feel:** squircle cards, the goo layer (gooey tab pill, chip groups, toggles, clock knob, sheet tops, tap droplets, motes, lava; DESIGN.md → Goo), Settings → Goo tweaks and Settings → Appearance → Accent colour, hand-made screen transitions (no View Transitions).
 - **Plan import:** in-app (copy a prompt for Claude, paste the JSON back, preview, add) or via the MCP endpoint (`import_plan` tool).
 - **Data:** Copy/Paste backup (clipboard), Export/Import backup file, server export at `GET /api/export`.
 
@@ -209,6 +216,11 @@ The Coolify deployment (when it exists) doesn't depend on any Claude account: it
 - No coloured left border ("spine") on cards.
 - Self-hosted over Supabase.
 - Heart rate: all zones always visible; alerts only when a target zone is set (Zone 2 cardio sets it to 2; strength has none by default).
+- Name **Gloop**; icon = lime goo blob with the Lucide dumbbell (`scripts/icon.mjs`).
+- Goo everywhere and intense first ("I'll say if it needs to be toned down"), but no squash-and-stretch or blob-cornered chips (found abrupt and oddly shaped): gooiness comes from separate shapes melting under the metaball filter. Motion must feel buttery: dramatic ease-in-out by default, long soft landings, never a jump or overshoot-and-back; judge motion from real-time recordings.
+- No flash or cut on screen changes, in light or dark (measure brightness per frame).
+- Keep both time pickers; the Android-style clock is the default.
+- Use they/them for the owner in docs and replies.
 
 ## Known gaps and ideas
 
@@ -216,6 +228,8 @@ The Coolify deployment (when it exists) doesn't depend on any Claude account: it
 - Bluetooth stops when Android turns the screen off; the app keeps the screen awake by default during workouts.
 - iPhone: no Web Bluetooth (Bluefy browser would work). Rest-timer sound can't fire while iOS has the app backgrounded.
 - From the UX review, not done: "add to routine?" wording when an exercise was replaced; equipment filter / dumbbell-first ordering in the exercise picker; plan card hides during an active workout; a bare "Squat" matches "Box Squat" in plan import.
+- **Unverified on the real phone:** the hand-made screen transitions and the goo inside the Claude app's web view (headless Chromium is clean; the owner saw flashes with View Transitions there, which is why they were dropped).
+- The Docker image's first real build is the first Coolify deploy.
 - No accounts: one `APP_TOKEN` per server. Anyone with it (or the MCP URL) can read and write the data.
 - Conflict handling is last-write-wins per record (per field for settings).
 
