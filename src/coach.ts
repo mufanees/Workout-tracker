@@ -9,6 +9,7 @@ import { buildCoachContext, routinesText } from './coachContext'
 import type { CoachItem, Exercise, ExType, GoalSpec } from './types'
 import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
+import { describeDay, mobilityFrom } from './mobility'
 import { clone, startOfDay, uid } from './util'
 
 /** null = still checking; false = no coach on this server (or no server). */
@@ -74,7 +75,7 @@ export async function quick<T>(body: Record<string, unknown>, focusWorkoutId?: s
 
 export interface Proposal {
   id: string
-  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program'
+  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program' | 'propose_mobility_plan'
   args: Record<string, unknown>
   state?: 'pending' | 'approved' | 'dismissed'
 }
@@ -104,6 +105,12 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
       lines.push(`${r?.name}: ${ex.join('; ')}`)
     }
     return { title: `New program: ${String(a.name || 'Program')}`, lines }
+  }
+  if (p.tool === 'propose_mobility_plan') {
+    const m = mobilityFrom(a)
+    const lines = [...(m.summary ? [m.summary] : []), ...m.days.map(describeDay)]
+    if (!m.days.length) lines.push('No usable days in this plan.')
+    return { title: m.scope === 'week' ? 'Mobility this week' : 'Mobility today', lines }
   }
   if (p.tool === 'propose_training_block') {
     const b = blockFrom(a)
@@ -139,6 +146,14 @@ export async function applyProposal(p: Proposal): Promise<string> {
     await saveSettings({ program: { name, routineIds: ids, daysPerWeek: Math.max(1, Math.min(7, Math.round(Number(a.days_per_week) || 3))), minutes: Number(a.minutes) || undefined, summary: a.summary ? String(a.summary).slice(0, 400) : undefined, start: startOfDay(new Date()) } })
     if (getToken()) void saveSnapshot(true)
     return `Program “${name}” is set: ${ids.length} routines`
+  }
+  if (p.tool === 'propose_mobility_plan') {
+    const m = mobilityFrom(a)
+    if (!m.days.length) throw new Error('This plan has no days from today on')
+    for (const old of coachItems.value.filter((x) => x.kind === 'mobility' && (x.status || 'open') === 'open')) await saveCoachItem({ ...old, status: 'done', outcome: 'Replaced by a new plan' })
+    await saveCoachItem({ id: uid('mob-'), kind: 'mobility', text: m.scope === 'week' ? 'Mobility this week' : 'Mobility today', status: 'open', created: Date.now(), source: 'coach', updatedAt: 0, mobility: m })
+    const sessions = m.days.filter((d) => d.session).length
+    return m.scope === 'week' ? `Built into ${m.days.length} days${sessions ? `, ${sessions} with their own session on Train` : ''}` : `Added to today${sessions ? '; start the session from Train' : ''}`
   }
   if (p.tool === 'propose_training_block') {
     // One block at a time: the new one replaces whatever was running.

@@ -227,6 +227,7 @@ export function createCoach({ db, q, mcp, push }) {
       case 'propose_goal':
       case 'propose_training_block':
       case 'propose_program':
+      case 'propose_mobility_plan':
       case 'propose_profile_update': {
         const id = newId('prop')
         emit({ proposal: { id, tool: name, args } })

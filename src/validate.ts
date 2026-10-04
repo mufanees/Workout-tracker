@@ -53,7 +53,7 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     return date != null && kg != null && kg > 0 ? { ...rec, updatedAt, date, kg } : null
   }
   if (store === 'coach') {
-    const kinds = ['profile', 'note', 'goal', 'commitment', 'insight', 'snapshot', 'block', 'source']
+    const kinds = ['profile', 'note', 'goal', 'commitment', 'insight', 'snapshot', 'block', 'source', 'mobility']
     return kinds.includes(rec.kind as string) ? { ...rec, updatedAt } : null
   }
   if (store === 'readings') {

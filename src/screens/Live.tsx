@@ -273,14 +273,15 @@ function CoachPlanCard() {
     if (coachOn.value == null) void checkCoach()
   }, [])
   useEffect(() => {
-    if (!coachOn.value || w.coachPlanAsked || !w.exercises.length || started) return
+    // a mobility session already is the coach's plan
+    if (!coachOn.value || w.coachPlanAsked || w.mobility || !w.exercises.length || started) return
     updateActive((x) => void (x.coachPlanAsked = true))
     const names = w.exercises.map((e) => exMap.value.get(e.exerciseId)?.name || '').filter(Boolean)
     quick<{ focus: string; targets: { exercise: string; weight_kg?: number; reps?: string; note?: string }[] }>({ kind: 'pre', routine: w.name, exercises: names })
       .then((r) => updateActive((x) => void (x.coachPlan = { focus: r.focus, targets: r.targets || [] })))
       .catch(() => updateActive((x) => void (x.coachPlan = null)))
   }, [coachOn.value])
-  if (!coachOn.value || (!plan && (!w.coachPlanAsked || started))) return null
+  if (!coachOn.value || w.mobility || (!plan && (!w.coachPlanAsked || started))) return null
   if (!plan) {
     return (
       <section class="coach-card loading">

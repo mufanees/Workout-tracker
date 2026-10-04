@@ -7603,3 +7603,106 @@ html[data-nav='back']::view-transition-old(screen) {
   flex: 1;
   padding: 0;
 }
+
+/* ---------- Mobility plan card (Train) ---------- */
+.mobility-card .gc-top .icon-btn {
+  margin: calc(var(--sp-2) * -1) calc(var(--sp-2) * -1) calc(var(--sp-2) * -1) 0;
+}
+.mob-line {
+  font-size: var(--fs-15);
+  line-height: 1.45;
+}
+.mob-line span {
+  display: block;
+  font-size: var(--fs-13);
+  font-weight: 650;
+  color: var(--muted);
+}
+.mob-session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.mob-session-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.mob-session-head small,
+.mob-session li small {
+  color: var(--muted);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+.mob-session ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-15);
+}
+.mob-session li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+.mob-session li small {
+  white-space: nowrap;
+}
+.mob-done {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-weight: 650;
+  color: var(--good, var(--accent-text));
+}
+.mob-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.mob-week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.mob-week li {
+  display: grid;
+  grid-template-columns: 3.2em auto 1fr;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-14);
+}
+.mob-week li.now b {
+  color: var(--accent-text);
+}
+.mob-week small {
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.mob-int {
+  font-size: var(--fs-12, 12px);
+  font-weight: 650;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-transform: capitalize;
+}
+.mob-int.hard {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.mob-int.moderate {
+  background: color-mix(in srgb, var(--accent) 35%, var(--surface-2));
+  color: var(--text);
+}

@@ -20,7 +20,15 @@ Stretching, mobility, aches and daily life (you also know physiotherapy and occu
 - When they ask for stretches or mobility, or mention stiffness, an ache, desk work, sleep position or a niggle, call find_stretches with the area and the problem (and their equipment), and look up the region or topic with training_knowledge (e.g. "shoulder", "low_back", "desk", "tendons", "pacing"). Recommend 3–5 moves, each with the dose (hold time or sets × reps, how often) and the one cue that matters; explain briefly why they help.
 - For pain: first check the red flags in your knowledge (ask one short question if needed, e.g. any numbness or night pain). With a red flag, say plainly to get it checked and how soon; don't prescribe around it. Otherwise give the movement plan, the 24-hour rule (up to about 3/10 during, settled by next morning) and when to see a physio (not improving in 4–6 weeks, getting worse, numbness or weakness). Call it general guidance, never a diagnosis.
 - Occupational therapy side: help them set up their desk, phone and lifting at home, pace busy days, and protect sore joints; tie it to what they actually do (parenting, desk work).
-- Offer to make it a routine: a mobility or rehab routine via propose_program or propose_routine_changes (warm-up or cool-down additions count), using the exact names find_stretches returns. Remember what helped or hurt with remember.
+- Build it into their training with propose_mobility_plan (exact names from find_stretches): "today" for this session, "week" for the next 7 days. It doesn't change their routines; the add-ons join the warm-up and cool-down of whatever they start that day, and standalone sessions get a Start button on Train. Use propose_routine_changes only when they want a move in a routine for good. Remember what helped or hurt with remember.
+- Size each day to its intensity (judge it from the program rotation, the training block's phase, deload weeks, today's check-in, recent effort and soreness):
+  - hard (heavy lifting or a long/hard cardio day): 2–3 targeted prep moves in the warm-up (about 3–5 min, dynamic or activation, short holds only) and 1–2 easy stretches in the cool-down. No long static stretching before lifting; nothing that fatigues muscles they're about to load.
+  - moderate: 2–3 warm-up moves and 2–3 cool-down stretches (about 5 min each).
+  - easy (light, deload or technique day): a fuller cool-down, or a 10–15 min session.
+  - rest: a standalone 10–20 min session (holds, rehab loading like isometrics or slow calf raises, nerve glides); keep tendon-loading days at least 48 h apart and not right before a hard day for the same tissue.
+  - Rough check-in (poor sleep, high stress, sore): swap intensity down and favour easy movement over loading.
+- Week plans: put rehab loading on 3 non-consecutive days, daily 2–5 minute "movement snacks" only for desk or stiffness issues, and follow their real schedule (the program's days a week and which days they usually train). Say the minutes it adds per day.
+- MOBILITY PLAN in the training data shows the active plan and what they actually did; check it in reviews and adjust it (a new proposal replaces it).
 - Weights in kg; dumbbell exercises log the weight of one dumbbell.
 - Body weight: read the WEIGHT MODEL section, not single weigh-ins. Its trend weight filters out day-to-day water (the learned scale noise says how big that is); quote the rate with its ± and say "holding steady" when the rate isn't clearly away from zero. Use its forecast range and target date when they ask where they're heading, and its patterns (weekday swings, the morning after a long fast, plateaus) to stop them reacting to noise. A plateau of 3+ weeks while trying to lose is when to adjust food or activity, not after one bad weigh-in.
 - "@RIR" after a set is how many more reps they said they could have done (from a tap after the exercise): 0 = nothing left, 1-2 = good working effort, 3+ = easy. Use it for progression: 3+ on the last set means add weight or reps next time; 0 on early sets or several sessions running means hold or back off. No RIR means they didn't say.
@@ -234,6 +242,39 @@ export const COACH_TOOLS = [
         key_lifts: arr(obj({ exercise: str(), progression: str('How it progresses week to week') }, ['exercise', 'progression'])),
       },
       ['name', 'weeks', 'phases'],
+    ),
+  },
+  {
+    name: 'propose_mobility_plan',
+    kind: 'proposal',
+    description:
+      "Propose stretches, mobility and rehab built into today's training or the coming week, sized to each day's intensity. Add-ons join that day's warm-up and cool-down (the routines themselves don't change); easy and rest days can have a standalone session. Replaces any active mobility plan.",
+    parameters: obj(
+      {
+        scope: { type: 'string', enum: ['today', 'week'] },
+        summary: str('One or two sentences: what it addresses and how it fits their training'),
+        days: arr(
+          obj(
+            {
+              date: str('YYYY-MM-DD (ignored for scope "today")'),
+              intensity: { type: 'string', enum: ['hard', 'moderate', 'easy', 'rest'] },
+              focus: str('e.g. "shoulder prep before pressing", "desk stiffness", "tennis elbow loading"'),
+              warmup: arr(str(), 'Moves added to that day\'s warm-up, one per line with dose, e.g. "Wall Slide × 10"'),
+              cooldown: arr(str(), 'Moves added to the cool-down, e.g. "Doorway Pec Stretch · 30 s / side"'),
+              session: obj(
+                {
+                  name: str('e.g. "Mobility · hips and upper back"'),
+                  minutes: int(),
+                  moves: arr(obj({ name: str('Exact library name from find_stretches'), sets: int(), reps: int(), seconds: int('Hold or work time per set'), cue: str('The one cue that matters') }, ['name'])),
+                },
+                ['name', 'moves'],
+              ),
+            },
+            ['intensity'],
+          ),
+        ),
+      },
+      ['scope', 'days'],
     ),
   },
   {

@@ -139,6 +139,8 @@ The coach also knows physiotherapy and occupational therapy basics: stretching a
 
 Sources: the 123 stretches and their instructions come from [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain; `node scripts/stretches.mjs exercises.json` rebuilds `shared/stretches.json`). The clinical guidance and 44 rehab exercises (chin tucks, nerve glides, tendon loading, Spanish squats and so on, also added to the exercise library) were written for this app in `shared/rehabKnowledge.mjs`. Add your own material (a physio's handout, notes) to the coach's library and it uses that too.
 
+**Built into your training.** Ask "build this into today" or "plan my mobility this week" and the coach proposes a plan sized to each day: on hard days a few prep moves in the warm-up and a short cool-down; on easy and rest days a standalone 10–20 minute session (a Start button appears on Train); rehab loading spread over non-consecutive days; scaled down after a rough check-in. Approve it and the moves join the warm-up and cool-down of whatever you start that day, without changing your routines. The Train card shows today and the week; the coach sees what you did and adjusts.
+
 ## Notifications
 
 Settings → Notifications turns them on for that phone (installed app, Chrome on Android or Safari on iPhone 16.4+ after Add to Home Screen). The server schedules them and sends a standard web push, so they arrive with the app closed: rest over (only if the app didn't already beep), fast complete, eating window closing, and an optional training-day reminder at a time you choose (every other day on the plan, otherwise daily). Optional env: `PUSH_CONTACT=mailto:you@example.com`.

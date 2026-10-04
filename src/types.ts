@@ -58,7 +58,9 @@ export interface Workout extends Rec {
   feedback?: Feedback
   /** Expected minutes when the workout started (see timeplan.ts). */
   timePlan?: { budget: number; warmup: number; main: number; cooldown: number; fixed: boolean }
-  /** Copied from the routine when the workout started. */
+  /** The mobility plan day (YYYY-MM-DD) this session came from, for a standalone mobility session. */
+  mobility?: string
+  /** Copied from the routine when the workout started (plus that day's mobility add-ons). */
   warmup?: string[]
   cooldown?: string[]
   /** The coach's targets for this session (live workout only, not saved). */
@@ -151,8 +153,32 @@ export interface BlockSpec {
   keyLifts?: { exercise: string; progression: string }[]
 }
 
+export interface MobilityMove {
+  name: string // exercise library name
+  sets?: number
+  reps?: number
+  seconds?: number
+  cue?: string
+}
+
+/** One day of a coach-built mobility plan: add-ons for that day's workout and/or a standalone session. */
+export interface MobilityDay {
+  date: string // local YYYY-MM-DD
+  intensity: 'hard' | 'moderate' | 'easy' | 'rest'
+  focus?: string
+  warmup?: string[] // added to the warm-up of whatever workout starts that day
+  cooldown?: string[] // added to its cool-down
+  session?: { name: string; minutes?: number; moves: MobilityMove[] }
+}
+
+export interface MobilitySpec {
+  scope: 'today' | 'week'
+  summary?: string
+  days: MobilityDay[]
+}
+
 export interface CoachItem extends Rec {
-  kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight' | 'snapshot' | 'block' | 'source'
+  kind: 'profile' | 'note' | 'goal' | 'commitment' | 'insight' | 'snapshot' | 'block' | 'source' | 'mobility'
   text?: string
   created?: number
   due?: number | null // goals and commitments
@@ -160,6 +186,7 @@ export interface CoachItem extends Rec {
   outcome?: string
   goal?: GoalSpec // kind 'goal': what to measure
   block?: BlockSpec // kind 'block': the plan
+  mobility?: MobilitySpec // kind 'mobility': stretches and rehab built into the day or week
   body?: string // kind 'source': the material (text is its title)
   source?: 'coach' | 'you' | 'app'
   type?: 'weekly' | 'workout' // insights

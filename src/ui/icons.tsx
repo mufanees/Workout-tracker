@@ -1,6 +1,7 @@
 // All icons come from Lucide (lucide.dev). Names here are the short aliases used across the app.
 import {
   LogOut,
+  PersonStanding,
   Share2,
   UserPlus,
   Users,
@@ -125,6 +126,7 @@ const ICONS = {
   clock: Clock,
   wheels: ChevronsUpDown,
   logout: LogOut,
+  mobility: PersonStanding,
   share: Share2,
   invite: UserPlus,
   people: Users,

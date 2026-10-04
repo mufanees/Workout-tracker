@@ -11,6 +11,7 @@ import { planStatus } from './plan'
 import { programStatus, programText } from './program'
 import { summarizeHR, zoneRange } from './hr'
 import { counts, e1rm, phaseMinutes, startOfWeek } from './util'
+import { mobilityText } from './mobility'
 import type { Workout, WSet } from './types'
 
 const DAY = 86400000
@@ -77,6 +78,7 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
 
   out.push(`\nGOALS (computed by the app from their logs)\n${goalsText()}`)
   out.push(`\nTRAINING BLOCK\n${blockText()}`)
+  out.push(`\nMOBILITY PLAN\n${mobilityText()}`)
 
   const list = workouts.value
   const focus = opts.focusWorkoutId ? list.find((w) => w.id === opts.focusWorkoutId) : null

@@ -10,6 +10,7 @@ import type { Routine } from '../types'
 import { uid, startOfWeek } from '../util'
 import { SyncBadge } from './Settings'
 import { SignInNudge } from './Account'
+import { MobilityCard } from './MobilityCard'
 import { HeroQuote } from '../ui/Quote'
 import { recentWin } from '../stats'
 import { workouts, unit } from '../store'
@@ -44,6 +45,7 @@ export function Train() {
       <CheckinCard />
       <GoalCard />
       <BlockCard />
+      <MobilityCard />
       <HeroQuote tag={daysSinceLast() >= 3 ? 'Action & Consistency' : undefined} />
       {!active.value && (programStatus.value ? <ProgramCard /> : <PlanCard />)}
       <WinCard />

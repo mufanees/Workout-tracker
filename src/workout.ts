@@ -1,7 +1,7 @@
 // Starting, finishing and timing workouts.
 import { planFor } from './timeplan'
 import { signal } from '@preact/signals'
-import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap, workouts } from './store'
+import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap, workouts, exercises } from './store'
 import type { Routine, Workout, WExercise } from './types'
 import { uid, clone } from './util'
 import { navigate } from './router'
@@ -9,6 +9,9 @@ import { confirmDialog } from './ui/overlay'
 import { planStatus } from './plan'
 import { cancelPush, schedulePush } from './push'
 import { quoteOfTheDay } from './ui/Quote'
+import { mergeLines, mobilityDay, moveDose } from './mobility'
+import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
+import type { MobilityDay } from './types'
 
 export function partOfDay(t = Date.now()) {
   const h = new Date(t).getHours()
@@ -51,6 +54,10 @@ function fromTemplate(exercises: WExercise[]): WExercise[] {
 export async function startRoutine(r: Routine) {
   if (!(await okToReplace())) return
   restTimer.value = null
+  // the coach's mobility add-ons for today join this session only; the routine stays as it is
+  const day = mobilityDay()
+  const warmup = mergeLines(r.warmup, day?.warmup)
+  const cooldown = mergeLines(r.cooldown, day?.cooldown)
   setActive({
     id: uid('w'),
     name: r.name,
@@ -59,10 +66,10 @@ export async function startRoutine(r: Routine) {
     end: null,
     notes: '',
     exercises: planSets(r, fromTemplate(r.exercises)),
-    warmup: r.warmup?.length ? [...r.warmup] : undefined,
-    cooldown: r.cooldown?.length ? [...r.cooldown] : undefined,
+    warmup,
+    cooldown,
     checks: {},
-    timePlan: planFor({ ...r, exercises: planSets(r, r.exercises) }),
+    timePlan: planFor({ ...r, warmup, cooldown, exercises: planSets(r, r.exercises) }),
     updatedAt: 0,
   })
   navigate('/live')
@@ -79,6 +86,30 @@ export async function startCardio(targetZone = 2) {
   if (!(await okToReplace())) return
   restTimer.value = null
   setActive({ id: uid('w'), name: `Zone ${targetZone} Cardio`, routineId: null, start: Date.now(), end: null, notes: '', exercises: [], targetZone, updatedAt: 0 })
+  navigate('/live')
+}
+
+/** The standalone mobility session from a day of the coach's mobility plan. */
+export async function startMobility(day: MobilityDay) {
+  if (!day.session || !(await okToReplace())) return
+  restTimer.value = null
+  const lib = exercises.value as LibExercise[]
+  const list: WExercise[] = []
+  for (const m of day.session.moves) {
+    const ex = matchExercise(m.name, lib)
+    if (!ex) continue
+    const sets = Math.max(1, m.sets || 1)
+    list.push({
+      id: uid('e'),
+      exerciseId: ex.id,
+      notes: m.cue || '',
+      target: moveDose(m),
+      rest: 15,
+      superset: null,
+      sets: Array.from({ length: sets }, () => ({ id: uid('s'), kind: 'normal' as const, weight: null, reps: null, seconds: null, done: false, tr: m.reps ?? null, ts: m.seconds ?? null })),
+    })
+  }
+  setActive({ id: uid('w'), name: day.session.name, routineId: null, mobility: day.date, start: Date.now(), end: null, notes: '', exercises: list, updatedAt: 0 })
   navigate('/live')
 }
 
