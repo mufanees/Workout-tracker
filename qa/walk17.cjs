@@ -23,7 +23,9 @@ require('fs').mkdirSync(OUT, { recursive: true })
   }
   console.log('tap nodes during:', 'ok', '| after 1.6s:', await page.waitForTimeout(1000).then(() => page.evaluate(() => document.querySelectorAll('.goo-tap').length)))
   // rapid taps are capped
-  for (let i = 0; i < 8; i++) await page.mouse.click(200, 400)
+  // a check-in chip: tappable, and doesn't navigate
+  const okb = await page.locator('.checkin-opts').nth(1).locator('button').nth(1).boundingBox()
+  for (let i = 0; i < 8; i++) await page.mouse.click(okb.x + okb.width / 2, okb.y + okb.height / 2)
   console.log('max live after 8 rapid taps:', await page.evaluate(() => document.querySelectorAll('.goo-tap').length))
   for (const t of [0, 900, 1800]) { await page.waitForTimeout(t ? 900 : 0); const tb = await page.locator('.tab.on').boundingBox(); await page.screenshot({ path: OUT + 'motes-' + t + '.png', clip: { x: tb.x - 20, y: tb.y - 50, width: tb.width + 40, height: tb.height + 60 } }) }
   console.log('motes:', await page.locator('.tab.on .motes i').count())

@@ -35,7 +35,6 @@ export function App() {
   // First open: let the home screen arrive in chunks, once.
   const [boot, setBoot] = useState(true)
   useEffect(() => {
-    if (!(document as Document & { startViewTransition?: unknown }).startViewTransition) document.documentElement.classList.add('no-vt')
     const t = setTimeout(() => setBoot(false), 1400)
     return () => clearTimeout(t)
   }, [])

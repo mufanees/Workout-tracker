@@ -566,7 +566,8 @@ function fit(c: HTMLElement, layer: HTMLElement) {
 }
 
 function initGroup(c: HTMLElement) {
-  if (groups.has(c)) return
+  // a screen's copy fading out during a screen change (router.ts) is a picture, not a control
+  if (groups.has(c) || c.closest('.screen-ghost')) return
   const layer = document.createElement('span')
   layer.setAttribute('aria-hidden', 'true')
   c.prepend(layer)
@@ -644,7 +645,7 @@ function watchGroups() {
         })
       }
     }
-    touched.forEach((c) => c.isConnected && updateGroup(c))
+    touched.forEach((c) => c.isConnected && !c.closest('.screen-ghost') && updateGroup(c))
   })
   mo.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] })
   // colours follow the theme

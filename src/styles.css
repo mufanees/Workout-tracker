@@ -5801,10 +5801,6 @@ html[data-nav='back']::view-transition-old(screen) {
     transform: translateX(12px);
   }
 }
-/* Browsers without view transitions still get a soft arrival. */
-.no-vt .screen {
-  animation: enter-up 300ms var(--ease);
-}
 
 /* Reduced motion: keep feedback (colour, press) but drop movement. */
 @media (prefers-reduced-motion: reduce) {
@@ -7464,4 +7460,13 @@ html[data-nav='back']::view-transition-old(screen) {
 }
 .goo-preview > .muted {
   grid-column: 1 / -1;
+}
+
+/* The old screen's copy during a screen change (router.ts): above the new screen, under the
+   tab bar and any sheet; solid, so the fade is a clean blend. */
+.screen-ghost {
+  z-index: 25;
+  pointer-events: none;
+  background: var(--bg);
+  overflow: hidden;
 }
