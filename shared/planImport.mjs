@@ -1,4 +1,4 @@
-// Turns a workout plan in "Reps plan" JSON into routines, matching exercise names to the library.
+// Turns a workout plan in "Gloop plan" JSON into routines, matching exercise names to the library.
 // Shared by the app (paste import) and the server (MCP import_plan tool). Plain JS so both can load it.
 
 /**
@@ -39,7 +39,7 @@ export const PLAN_FORMAT = `{
 
 /** The prompt to give an assistant along with a plan (file, screenshot or text). */
 export function planPrompt(exerciseNames) {
-  return `Convert the workout plan I'm sharing into JSON for my workout app, Reps. Reply with only the JSON, no commentary.
+  return `Convert the workout plan I'm sharing into JSON for my workout app, Gloop. Reply with only the JSON, no commentary.
 
 Format (the // comments are explanations, leave them out of your answer):
 ${PLAN_FORMAT}

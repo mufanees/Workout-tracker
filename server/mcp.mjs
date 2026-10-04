@@ -1,5 +1,5 @@
 // A small MCP server (Streamable HTTP, JSON responses) so an assistant like Claude can
-// import workout plans into Reps and read your training history.
+// import workout plans into Gloop and read your training history.
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -53,13 +53,13 @@ export function createMcpHandler({ db, q, rootDir }) {
   const tools = [
     {
       name: 'get_plan_format',
-      description: 'Get the JSON format and rules for importing a workout plan into Reps. Call this before import_plan.',
+      description: 'Get the JSON format and rules for importing a workout plan into Gloop. Call this before import_plan.',
       inputSchema: { type: 'object', properties: {} },
       run: () => `${planPrompt([]).split('Exercise list:')[0].trim()}\n\nUse search_exercises to find exact exercise names from the library before importing.`,
     },
     {
       name: 'search_exercises',
-      description: 'Search the Reps exercise library (about 900 exercises plus custom ones). Use exact names from here in import_plan.',
+      description: 'Search the Gloop exercise library (about 900 exercises plus custom ones). Use exact names from here in import_plan.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -80,7 +80,7 @@ export function createMcpHandler({ db, q, rootDir }) {
     {
       name: 'import_plan',
       description:
-        'Create routines in Reps from a workout plan. Exercise names are matched to the library; unknown ones become custom exercises. The routines appear in the app on its next sync.',
+        'Create routines in Gloop from a workout plan. Exercise names are matched to the library; unknown ones become custom exercises. The routines appear in the app on its next sync.',
       inputSchema: {
         type: 'object',
         properties: { plan: { type: 'object', description: `A plan in this format:\n${PLAN_FORMAT}` } },
@@ -110,7 +110,7 @@ export function createMcpHandler({ db, q, rootDir }) {
     },
     {
       name: 'list_routines',
-      description: 'List the routines in Reps with their exercises.',
+      description: 'List the routines in Gloop with their exercises.',
       inputSchema: { type: 'object', properties: {} },
       run: () => {
         const name = exName()
@@ -210,9 +210,9 @@ export function createMcpHandler({ db, q, rootDir }) {
         return reply({
           protocolVersion: params.protocolVersion || PROTOCOL,
           capabilities: { tools: {} },
-          serverInfo: { name: 'reps', version: '1.0.0' },
+          serverInfo: { name: 'gloop', version: '1.0.0' },
           instructions:
-            'Reps is a personal workout tracker. To import a plan: call get_plan_format, use search_exercises for exact names, then import_plan. Read tools: list_routines, recent_workouts, exercise_progress, body_stats. Weights are kg (per dumbbell for dumbbell exercises).',
+            'Gloop is a personal workout tracker. To import a plan: call get_plan_format, use search_exercises for exact names, then import_plan. Read tools: list_routines, recent_workouts, exercise_progress, body_stats. Weights are kg (per dumbbell for dumbbell exercises).',
         })
       case 'ping':
         return reply({})

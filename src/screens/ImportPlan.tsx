@@ -28,7 +28,7 @@ export function ImportPlan() {
       setResult(resolvePlan(extractJson(text), exercises.value, () => uid()))
     } catch (e) {
       setResult(null)
-      setError((e as Error).message || 'That doesn’t look like a Reps plan.')
+      setError((e as Error).message || 'That doesn’t look like a Gloop plan.')
     }
   }
 
@@ -58,7 +58,7 @@ export function ImportPlan() {
           <ol class="steps">
             <li>
               <b>Copy the prompt</b>
-              <span>It tells Claude the format Reps needs and lists the exercises you already have.</span>
+              <span>It tells Claude the format Gloop needs and lists the exercises you already have.</span>
               <button class="btn btn-secondary btn-sm" onClick={copyPrompt}>
                 <Icon name="copy" size={16} /> Copy prompt
               </button>
@@ -69,7 +69,7 @@ export function ImportPlan() {
             </li>
             <li>
               <b>Paste the answer here</b>
-              <span>Reps matches each exercise to your library and shows you the routines before adding them.</span>
+              <span>Gloop matches each exercise to your library and shows you the routines before adding them.</span>
             </li>
           </ol>
           <label class="field">
@@ -81,7 +81,7 @@ export function ImportPlan() {
             Preview routines
           </button>
           <p class="field-hint">
-            Connected Claude to your server with MCP? Then just ask it to “import this plan into Reps” and the routines appear here on their own. See the README.
+            Connected Claude to your server with MCP? Then just ask it to “import this plan into Gloop” and the routines appear here on their own. See the README.
           </p>
         </>
       ) : (

@@ -71,13 +71,13 @@ export function Settings() {
   }
 
   const exportData = async () => {
-    const name = `reps-backup-${new Date().toISOString().slice(0, 10)}.json`
+    const name = `gloop-backup-${new Date().toISOString().slice(0, 10)}.json`
     const json = await buildBackup()
     // Installed iOS apps can't download blobs; the share sheet lets you save to Files instead.
     const file = new File([json], name, { type: 'application/json' })
     if (navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: 'Reps backup' })
+        await navigator.share({ files: [file], title: 'Gloop backup' })
         return
       } catch (e) {
         if ((e as Error).name === 'AbortError') return
@@ -125,7 +125,7 @@ export function Settings() {
       void syncNow()
       toast(`Imported ${n} workouts`)
     } catch {
-      toast('That file isn’t a Reps backup')
+      toast('That file isn’t a Gloop backup')
     }
   }
 
@@ -343,7 +343,7 @@ export function Settings() {
           <textarea id="paste-backup" rows={8} value={pasted} onInput={(e) => setPasted(e.currentTarget.value)} placeholder='{"app":"reps", ...}' />
         </label>
       </Sheet>
-      <p class="about">Reps · your data lives on this device{sync.status === 'synced' ? ' and your server' : ''}.</p>
+      <p class="about">Gloop · your data lives on this device{sync.status === 'synced' ? ' and your server' : ''}.</p>
     </div>
   )
 }

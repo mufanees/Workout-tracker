@@ -1,4 +1,4 @@
-# Reps
+# Gloop
 
 > **Picking this up?** Read [`HANDOFF.md`](HANDOFF.md) first (state, next steps, switching Claude accounts), then [`DESIGN.md`](DESIGN.md) for the design system. Get the code with `git clone https://github.com/mufanees/workout-tracker.git`.
 
@@ -56,7 +56,7 @@ You need: a Coolify server, a domain (or subdomain) pointed at it, and this repo
 
 To update later: push to the branch and click **Redeploy** (or turn on **Auto Deploy** in Coolify so every push deploys). Your data stays in the volume.
 
-If the logs say "Reps can't write to /data", the storage is a Directory mount owned by root; switch it to a Volume Mount (step 6).
+If the logs say "Gloop can't write to /data", the storage is a Directory mount owned by root; switch it to a Volume Mount (step 6).
 
 If you'd rather use Docker Compose (Coolify supports that too): `APP_TOKEN=… docker compose up -d`.
 
@@ -91,7 +91,7 @@ Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rat
 - Claude (web, desktop or mobile): Settings → Connectors → Add custom connector, URL `https://reps.yourdomain.com/mcp/<APP_TOKEN>`.
 - Claude Code: `claude mcp add --transport http reps https://reps.yourdomain.com/mcp/<APP_TOKEN>`
 
-Then ask, for example, "import this plan into Reps" with the plan attached. Tools: `get_plan_format`, `search_exercises`, `import_plan`, `list_routines`, `recent_workouts`, `exercise_progress`, `body_stats`. The read tools let you ask things like "how has my floor press progressed?" The URL contains your sync key, so treat it like a password.
+Then ask, for example, "import this plan into Gloop" with the plan attached. Tools: `get_plan_format`, `search_exercises`, `import_plan`, `list_routines`, `recent_workouts`, `exercise_progress`, `body_stats`. The read tools let you ask things like "how has my floor press progressed?" The URL contains your sync key, so treat it like a password.
 
 ## AI coach
 

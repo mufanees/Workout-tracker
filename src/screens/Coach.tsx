@@ -293,7 +293,7 @@ export function Coach() {
         <section class="coach-off">
           <b>The in-app coach isn’t set up here</b>
           <span>
-            It runs on your server with a free Gemini API key (set <code>GEMINI_API_KEY</code>, see the README). Until then, tap a question below: Reps copies it with your
+            It runs on your server with a free Gemini API key (set <code>GEMINI_API_KEY</code>, see the README). Until then, tap a question below: Gloop copies it with your
             training summary, ready to paste into Gemini or Claude.
           </span>
         </section>

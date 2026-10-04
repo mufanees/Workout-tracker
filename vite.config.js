@@ -11,7 +11,7 @@ function serviceWorker() {
     apply: 'build',
     generateBundle(_, bundle) {
       const files = Object.keys(bundle).filter((f) => !f.endsWith('.map'))
-      const publicFiles = ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'favicon.svg']
+      const publicFiles = ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon.svg']
       const precache = ['./', ...files, ...publicFiles]
       const version = createHash('sha1').update(precache.join('|')).digest('hex').slice(0, 10)
       const template = readFileSync(new URL('./src/sw.js', import.meta.url), 'utf8')

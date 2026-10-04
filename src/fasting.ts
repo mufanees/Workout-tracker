@@ -90,7 +90,7 @@ export function parseDayKey(k: string) {
 // ---- actions ----------------------------------------------------------------------
 
 function pushDone(f: Fast) {
-  schedulePush('fast', f.start + f.goal * HOUR, 'Fast complete', `You reached ${protocolLabel(f.goal)}. End it in Reps whenever you eat.`)
+  schedulePush('fast', f.start + f.goal * HOUR, 'Fast complete', `You reached ${protocolLabel(f.goal)}. End it in Gloop whenever you eat.`)
 }
 
 /** Reminder 30 minutes before the eating window closes (daily protocols only). */

@@ -10,7 +10,7 @@ let css = readFileSync(new URL('assets/' + assets.find((f) => f.endsWith('.css')
 // Self-hosted font files can't ship in one file cheaply; load the same face from Google Fonts instead.
 css = css.replace(/@font-face\{[^}]*\}/g, '')
 
-const html = `<title>Reps</title>
+const html = `<title>Gloop</title>
 <meta name="theme-color" content="#0b0c0f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Inter:opsz,wght@14..32,400..700&display=swap">

@@ -1,4 +1,4 @@
-// Reps server: serves the built PWA and stores synced data in SQLite.
+// Gloop server: serves the built PWA and stores synced data in SQLite.
 // No dependencies beyond Node 22.13+ (uses the built-in node:sqlite).
 import http from 'node:http'
 import fs from 'node:fs'
@@ -24,7 +24,7 @@ try {
 } catch {
   const uid = process.getuid?.()
   console.error(
-    `\nReps can't write to ${DATA_DIR}, so it can't save your data.\n` +
+    `\nGloop can't write to ${DATA_DIR}, so it can't save your data.\n` +
       `The app runs as user ${uid ?? 'node'}. In Coolify, attach a Volume Mount (not a Directory/bind mount) at ${DATA_DIR}.\n` +
       `If you must use a host directory, run on the server: sudo chown -R ${uid ?? 1000}:${uid ?? 1000} <that directory>\n`,
   )
@@ -262,7 +262,7 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(PORT, () => {
-  console.log(`Reps listening on :${PORT} (data: ${DATA_DIR})`)
+  console.log(`Gloop listening on :${PORT} (data: ${DATA_DIR})`)
   if (!TOKEN) console.warn('APP_TOKEN is not set: anyone who can reach this server can read and change your data.')
 })
 

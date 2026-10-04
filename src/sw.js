@@ -68,7 +68,7 @@ self.addEventListener('push', (event) => {
       } catch {
         /* offline: fall through to a generic notice */
       }
-      if (!messages.length) messages = [{ title: 'Reps', body: 'Open the app for details.', tag: 'reps' }]
+      if (!messages.length) messages = [{ title: 'Gloop', body: 'Open the app for details.', tag: 'reps' }]
       for (const m of messages) {
         await self.registration.showNotification(m.title, {
           body: m.body,

@@ -1,4 +1,4 @@
-# Handoff: Reps workout tracker
+# Handoff: Gloop workout tracker
 
 Everything a new person or a new Claude session needs to pick this up cold. Read this first, then `README.md` (deployment and user-facing docs).
 

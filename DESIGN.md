@@ -1,4 +1,4 @@
-# Reps design system
+# Gloop design system
 
 One set of tokens drives every screen. They live at the top of `src/styles.css`; components use the tokens, never raw pixel values. If a value you need isn't a token, use the next step up (more air, never less) rather than inventing one.
 
