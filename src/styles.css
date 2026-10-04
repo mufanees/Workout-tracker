@@ -7470,3 +7470,120 @@ html[data-nav='back']::view-transition-old(screen) {
   background: var(--bg);
   overflow: hidden;
 }
+
+/* ---------- Accounts ---------- */
+.google-signin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.google-btn {
+  min-height: 44px;
+  color-scheme: normal;
+}
+.google-btn.busy {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.signin-error {
+  font-size: var(--fs-14);
+  color: var(--danger, #e5484d);
+}
+.avatar {
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-2);
+}
+.setting > .avatar-letter:first-child,
+.avatar-letter {
+  display: inline-grid;
+  place-items: center;
+  font-weight: 600;
+  color: var(--accent-ink, #fff);
+  background: var(--accent);
+}
+.account-row .grow,
+.person .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.account-row small,
+.person small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.signin-card b {
+  font-weight: 600;
+}
+.connector-row {
+  margin-top: var(--sp-3);
+  align-items: center;
+}
+.connector-row code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-13);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.people .setting.column .row {
+  margin-top: var(--sp-3);
+}
+.people input[type='text'] {
+  min-width: 0;
+}
+.person.off .avatar,
+.person.off .grow {
+  opacity: 0.45;
+}
+.join-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--sp-3);
+  min-height: 100dvh;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: var(--sp-6, 32px) var(--sp-4);
+}
+.join-screen h1 {
+  font-size: var(--fs-28, 28px);
+}
+.join-screen .google-signin {
+  align-items: center;
+}
+.join-icon {
+  border-radius: 24px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+}
+.signin-nudge {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  text-align: left;
+  margin-bottom: var(--sp-3);
+  color: inherit;
+}
+.signin-nudge .grow {
+  display: flex;
+  flex-direction: column;
+}
+.signin-nudge small {
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.signin-nudge > svg:first-child {
+  color: var(--accent);
+}

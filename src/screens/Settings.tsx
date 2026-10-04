@@ -15,6 +15,8 @@ import { scheduleTrainingReminder } from '../workout'
 import { connectHR, disconnectHR, hrName, hrStatus, hrSupported, ZONE_COLORS, ZONE_NAMES, zoneRange } from '../hr'
 import type { StoreName } from '../types'
 import { sanitize } from '../validate'
+import { googleClientId } from '../account'
+import { AccountSection, ConnectorLink, PeopleSection } from './Account'
 
 const STATUS: Record<string, [string, string]> = {
   checking: ['Connecting…', 'muted'],
@@ -22,14 +24,18 @@ const STATUS: Record<string, [string, string]> = {
   synced: ['Synced', 'good'],
   offline: ['Offline · saved on this device', 'muted'],
   locked: ['Sync key needed', 'warn'],
+  signin: ['Not signed in', 'warn'],
   local: ['This device only', 'muted'],
   error: ['Sync problem', 'warn'],
   cloud: ['Saved to your Claude account', 'good'],
 }
 
+const statusOf = (s: string) => STATUS[s === 'locked' && googleClientId.value ? 'signin' : s]
+
 export function SyncBadge() {
   const s = syncState.value.status
-  if (s !== 'locked' && s !== 'error') return null
+  // with accounts, the sign-in card on Train says it instead
+  if ((s !== 'locked' || googleClientId.value) && s !== 'error') return null
   return (
     <a class="sync-badge" href="#/settings">
       <Icon name="cloud" size={14} /> {STATUS[s][0]}
@@ -129,6 +135,27 @@ export function Settings() {
     }
   }
 
+  const keyInput = (
+    <div class="setting column">
+      <label class="field" style={{ margin: 0 }}>
+        <span>{getToken() && sync.status !== 'locked' ? 'Change sync key' : 'Sync key'}</span>
+        <div class="row gap">
+          <input
+            type="password"
+            class="grow"
+            value={key}
+            placeholder="The APP_TOKEN from your server"
+            autoComplete="current-password"
+            onInput={(e) => setKey(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === 'Enter' && key && connect()}
+          />
+          <button class="btn btn-primary" onClick={connect} disabled={!key.trim() || checking}>
+            {checking ? '…' : 'Connect'}
+          </button>
+        </div>
+      </label>
+    </div>
+  )
   return (
     <div class="screen">
       <header class="page-head sub">
@@ -250,35 +277,24 @@ export function Settings() {
       <h2 class="section-title">Goo</h2>
       <GooSettings />
 
+      {googleClientId.value && (
+        <>
+          <h2 class="section-title">Account</h2>
+          <AccountSection keyFallback={keyInput} />
+          <ConnectorLink />
+          <PeopleSection />
+        </>
+      )}
+
       <h2 class="section-title">Sync</h2>
       <div class="settings-group">
         <div class="setting">
           <span>Status</span>
-          <span class={'sync-status ' + STATUS[sync.status][1]}>
-            <span class="dot" /> {STATUS[sync.status][0]}
+          <span class={'sync-status ' + statusOf(sync.status)[1]}>
+            <span class="dot" /> {statusOf(sync.status)[0]}
           </span>
         </div>
-        {(sync.status === 'locked' || getToken()) && (
-          <div class="setting column">
-            <label class="field" style={{ margin: 0 }}>
-              <span>{getToken() && sync.status !== 'locked' ? 'Change sync key' : 'Sync key'}</span>
-              <div class="row gap">
-                <input
-                  type="password"
-                  class="grow"
-                  value={key}
-                  placeholder="The APP_TOKEN from your server"
-                  autoComplete="current-password"
-                  onInput={(e) => setKey(e.currentTarget.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && key && connect()}
-                />
-                <button class="btn btn-primary" onClick={connect} disabled={!key.trim() || checking}>
-                  {checking ? '…' : 'Connect'}
-                </button>
-              </div>
-            </label>
-          </div>
-        )}
+        {!googleClientId.value && (sync.status === 'locked' || getToken()) && keyInput}
         {sync.status !== 'local' && (
           <button class="setting" onClick={() => syncNow().then(() => syncState.value.status === 'synced' && toast('Up to date'))}>
             <span>Sync now</span>

@@ -12,7 +12,7 @@ Everything a new person or a new Claude session needs to pick this up cold. Read
 | Get the code | `git clone https://github.com/mufanees/workout-tracker.git && cd workout-tracker && npm install` (or `git pull` in an existing clone) |
 | Design system | `DESIGN.md` (rules, motion, goo) and `design-system/` (generator, generated files, `icon/` app icon sources and preview). Also a private Claude Design System artifact: https://claude.ai/artifact/DmFNNgMBC8PN5woMDfjcdk (pre-goo; regenerate if needed) |
 | Hosted preview | Private Claude artifact: https://claude.ai/artifact/Cg23G2PSbJtSp6GNDqv4Sb (the owner's current Claude account only; see "The Claude-hosted copy" and "Switching Claude accounts" below) |
-| Production | **Being deployed now** to the owner's self-hosted Coolify (Dockerfile build). First deploy ever: the Docker image has never been built (no Docker in the build sandbox). The runtime stage was simulated (same files in an empty folder, `npm ci --omit=dev`, start): health, app page, sync and MCP all answered. |
+| Production | **Live** at https://gloop.novas.my on the owner's self-hosted Coolify (Dockerfile build, branch `main`). |
 | Owner's phone | Android, Chrome; mostly uses the Claude app. Trains with dumbbells (to 24 kg) and bands at home. Garmin HRM-Dual strap. Zone 2 = 120–145 bpm. |
 
 ### Next steps, in order
@@ -23,7 +23,7 @@ Everything a new person or a new Claude session needs to pick this up cold. Read
 3. Move data from the Claude-hosted copy: there, Settings → **Copy backup**; in the deployed app, Settings → **Paste a backup**.
 4. Check on the real phone: screen changes (no flash), the goo pill, the coach with the real Gemini key, notifications, pairing the HRM-Dual.
 5. Optionally add the MCP connector in Claude (README → "Importing a plan").
-7. Open question from the owner: sharing the app with other people. The Claude-hosted copy already keeps each viewer's data private in their own Claude account (share it from the artifact's Share menu); the Coolify version is one person per deployment (`APP_TOKEN`), so real sign-up would be a new piece of work.
+6. **Accounts** (built 4 Oct 2026, owner chose invite-only + Google sign-in + coach on the owner's Gemini key with a daily cap): set up the Google OAuth client and env `GOOGLE_CLIENT_ID`, `ADMIN_EMAIL` (README → "Accounts"), redeploy, sign in, invite people from Settings → People. Not yet tried with real Google (tested with a stand-in signing key and a stand-in Google button).
 
 ## What the app does
 
@@ -128,6 +128,10 @@ Synced stores: `exercises`, `routines`, `workouts`, `settings` (single record id
 
 `POST /api/sync` with `Authorization: Bearer <APP_TOKEN>`, body `{since, changes: [{store, id, updatedAt, deleted, data}]}`. The server keeps the newer `updatedAt` (last write wins), stamps each accepted write with an increasing `seq`, and returns `{seq, dbId, changes}`: everything with `seq > since`, plus the winning version of anything it rejected. If `dbId` changes or `seq` goes backwards (database replaced), the client re-uploads everything. Seed records use `updatedAt: 1` and are not synced unless edited; seed ids are deterministic slugs (`x-goblet-squat`, `r-comeback-1a`) so every device agrees.
 
+### Accounts
+
+Off unless `GOOGLE_CLIENT_ID` is set. `server/accounts.mjs` keeps `/data/accounts.db` (users, sessions, invites, coach_use). The app shows Google's button (`src/account.ts`, `src/screens/Account.tsx`), gets an ID token and posts it to `/api/auth/google`; the server checks it against Google's public keys (RS256, aud = client id, issuer, expiry, verified email) and returns a session token, which the app then uses exactly like the old sync key (localStorage `reps-token`, Bearer header). `ADMIN_EMAIL` signs in as the `owner` user, whose data is the original `/data/reps.db`; `APP_TOKEN` still means the owner. Others need an unused invite (`/#/join/<code>`) the first time and get `/data/users/<id>.db`. Everything per person (sync, coach, coach memory, push, MCP at `/mcp/<their token>`, export) runs against their own database through `openContext(userId)` in `server.mjs`. Coach routes return 429 past `COACH_DAILY_LIMIT` per member per UTC day. Admin routes: `/api/admin/people`, `/invite`, `/invite/revoke`, `/access`. Switching person or signing out on a device clears its IndexedDB. Tests: `node qa/accounts-test.mjs` (server, 27 checks) and `npm run build && node qa/accounts-ui.mjs` (browser walk, 13 checks, screenshots in `qa/shots-accounts/`).
+
 ### MCP
 
 `POST /mcp/<APP_TOKEN>` (or `/mcp` with a Bearer header). Methods: `initialize`, `ping`, `tools/list`, `tools/call`; notifications get 202. Tools: `get_plan_format`, `search_exercises`, `import_plan`, `list_routines`, `recent_workouts`, `exercise_progress`, `body_stats`. `import_plan` writes exercises and routines straight into SQLite; the app picks them up on its next sync. The server reads `src/data/*.json` and `shared/` at runtime; the Dockerfile copies both into the image.
@@ -229,7 +233,7 @@ The Coolify deployment (when it exists) doesn't depend on any Claude account: it
 - From the UX review, not done: "add to routine?" wording when an exercise was replaced; equipment filter / dumbbell-first ordering in the exercise picker; plan card hides during an active workout; a bare "Squat" matches "Box Squat" in plan import.
 - **Unverified on the real phone:** the hand-made screen transitions and the goo inside the Claude app's web view (headless Chromium is clean; the owner saw flashes with View Transitions there, which is why they were dropped).
 - The Docker image's first real build is the first Coolify deploy.
-- No accounts: one `APP_TOKEN` per server. Anyone with it (or the MCP URL) can read and write the data.
+- Accounts: no way to delete a person or their data from the app yet (turn access off; delete `/data/users/<id>.db` by hand). Invites are links, not tied to an email. Anyone with `APP_TOKEN` or a person's connector link can read and write that person's data.
 - Conflict handling is last-write-wins per record (per field for settings).
 
 ## History of the work

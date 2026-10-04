@@ -50,6 +50,7 @@ You need: a Coolify server, a domain (or subdomain) pointed at it, and this repo
    - `APP_TOKEN` = a long random string. This is your sync key, like a password. Generate one with `openssl rand -hex 24`.
    - `GEMINI_API_KEY` = your free key from aistudio.google.com → Get API key (optional, turns on the AI coach).
    - `TZ` = your time zone, e.g. `America/Toronto` (optional, used for reminders and the Sunday review until the app tells the server).
+   - `GOOGLE_CLIENT_ID` and `ADMIN_EMAIL` (optional) turn on accounts: Google sign-in and invites. See **Accounts** below.
 6. **Storage.** Configuration → **Persistent Storage → + Add → Volume Mount**. Name: `reps-data`, Destination path: **`/data`**. Use a *Volume* mount, not a *Directory* mount. Without it your data is wiped on every redeploy.
 7. **Deploy.** Click **Deploy** and wait for the build (about 2 minutes). The status turns green when the health check (`/api/health`) passes.
 8. **Check it.** Open `https://reps.yourdomain.com/api/health`. You should see `{"ok":true,"auth":true}`. Then open `https://reps.yourdomain.com`.
@@ -70,9 +71,22 @@ If you'd rather use Docker Compose (Coolify supports that too): `APP_TOKEN=… d
 
 You can use the app before connecting; anything logged so far syncs as soon as you connect.
 
+### Accounts (Google sign-in, invite only)
+
+Optional. Without it the server is one person with `APP_TOKEN`. With it, each person signs in with Google and gets their own private log; nobody gets in without an invite link from you.
+
+1. **Google Cloud Console** (console.cloud.google.com) → create a project (e.g. "Gloop").
+2. **APIs & Services → OAuth consent screen** (Google Auth Platform → Branding): app name **Gloop**, your email as support and developer contact. Audience **External**. Click **Publish app** so it isn't limited to test users (sign-in only asks for name, email and picture, so Google doesn't need to review it).
+3. **Credentials (Clients) → Create OAuth client ID** → type **Web application**. Under **Authorized JavaScript origins** add `https://gloop.yourdomain.com` (exactly your app's address, no trailing slash). No redirect URIs needed. Create, then copy the **Client ID** (`….apps.googleusercontent.com`; there's no secret to keep).
+4. In Coolify, add env `GOOGLE_CLIENT_ID` = that ID and `ADMIN_EMAIL` = the Gmail you'll sign in with. Optional `COACH_DAILY_LIMIT` (default 60): coach messages per person per day, since everyone shares your Gemini key; you're unlimited. **Redeploy**.
+5. In the app: **Settings → Account → Continue with Google**. Signing in with `ADMIN_EMAIL` makes you the owner and opens your existing log (the one `APP_TOKEN` used, which keeps working).
+6. **Settings → People → Invite**: makes a link (works once, lasts 14 days) and opens the share sheet. Your friend opens it, signs in with Google, and starts with an empty log of their own. From People you see who's in, their coach use today, and can turn someone's access off (their log is kept).
+
+Each person's data lives in its own SQLite file (`/data/users/<id>.db`; yours stays `/data/reps.db`; accounts in `/data/accounts.db`). Each person's Claude connector link is in their Settings. Signing out, or a different person signing in on the same phone, clears that phone's copy.
+
 ### Backups
 
-- On the server: a copy of the database is written to `/data/backups/reps-YYYY-MM-DD.db` once a day and the newest 14 are kept (`BACKUP_DAYS` changes that; `0` turns it off). Restore by stopping the app and copying one over `/data/reps.db`.
+- On the server: a copy of each database is written to `/data/backups/` once a day (`reps-YYYY-MM-DD.db`, plus `users/<id>-…` and `accounts-…` with accounts on) and the newest 14 are kept (`BACKUP_DAYS` changes that; `0` turns it off). Restore by stopping the app and copying one over `/data/reps.db`.
 - In the app: **Settings → Export backup** downloads a JSON file. **Import backup** merges one back in.
 - On the server: `GET /api/export` with `Authorization: Bearer <APP_TOKEN>` returns everything. Or back up the `/data` volume (it's one SQLite file plus its WAL).
 
@@ -86,7 +100,7 @@ Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rat
 
 **In the app:** Train → Routines → **Import**. Copy the prompt, paste it into Claude with your plan, paste Claude's answer back. You'll see every routine and how each exercise was matched before anything is saved.
 
-**With MCP (Claude talks to your server directly):** the server exposes an MCP endpoint at `/mcp/<APP_TOKEN>`.
+**With MCP (Claude talks to your server directly):** the server exposes an MCP endpoint at `/mcp/<APP_TOKEN>`. With accounts on, each person copies their own link from **Settings → Claude connector**.
 
 - Claude (web, desktop or mobile): Settings → Connectors → Add custom connector, URL `https://reps.yourdomain.com/mcp/<APP_TOKEN>`.
 - Claude Code: `claude mcp add --transport http reps https://reps.yourdomain.com/mcp/<APP_TOKEN>`

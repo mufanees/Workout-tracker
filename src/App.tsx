@@ -7,6 +7,7 @@ import { History, WorkoutDetail, EditWorkout } from './screens/History'
 import { Exercises, ExerciseDetail } from './screens/Exercises'
 import { RoutineEditor } from './screens/RoutineEditor'
 import { Settings } from './screens/Settings'
+import { JoinScreen } from './screens/Account'
 import { Body } from './screens/Body'
 import { ImportPlan } from './screens/ImportPlan'
 import { Coach } from './screens/Coach'
@@ -69,6 +70,7 @@ export function App() {
   else if (a === 'exercises') (screen = <Exercises />), (tab = '/exercises')
   else if (a === 'routine' && b) screen = <RoutineEditor id={b} key={b} />
   else if (a === 'settings') screen = <Settings />
+  else if (a === 'join' && b) screen = <JoinScreen code={b} key={b} />
   else if (a === 'import') screen = <ImportPlan />
   else if (a === 'coach' && b === 'memory') screen = <CoachMemory />
   else if (a === 'coach') (screen = <Coach />), (tab = '/coach')
@@ -83,7 +85,7 @@ export function App() {
 
   const isLive = a === 'live'
   const activeTab = tab || ({ fast: '/body', day: '/history', goals: '/train', block: '/train' } as Record<string, string>)[a] || '/' + a
-  const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings', 'import'].includes(a) && !(a === 'fast' && b === 'done'))
+  const showTabs = tab != null || (!isLive && !['routine', 'edit', 'settings', 'import', 'join'].includes(a) && !(a === 'fast' && b === 'done'))
 
   return (
     <div class={'app' + (boot ? ' boot' : '') + (showTabs ? ' has-tabs' : '') + (active.value && !isLive && showTabs ? ' has-mini' : '')}>

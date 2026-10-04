@@ -9,6 +9,7 @@ import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import type { Routine } from '../types'
 import { uid, startOfWeek } from '../util'
 import { SyncBadge } from './Settings'
+import { SignInNudge } from './Account'
 import { HeroQuote } from '../ui/Quote'
 import { recentWin } from '../stats'
 import { workouts, unit } from '../store'
@@ -38,6 +39,7 @@ export function Train() {
         </button>
       </header>
 
+      <SignInNudge />
       <TodayRings />
       <CheckinCard />
       <GoalCard />

@@ -2,6 +2,7 @@ import { render } from 'preact'
 import { App } from './App'
 import { init } from './store'
 import { startAutoSync } from './sync'
+import { loadAccount } from './account'
 import { reconnectSaved } from './hr'
 import { scheduleTrainingReminder } from './workout'
 import '@fontsource-variable/space-grotesk/wght.css'
@@ -13,6 +14,7 @@ render(<App />, document.getElementById('app')!)
 init()
   .then(() => {
     startAutoSync()
+    void loadAccount()
     void reconnectSaved()
     scheduleTrainingReminder()
   })
