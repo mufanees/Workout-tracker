@@ -426,6 +426,8 @@ textarea {
   background-color: transparent !important;
   /* the text turns as the goo arrives, not before (dark text on an empty chip is unreadable) */
   transition: color 120ms linear 230ms, scale 150ms ease-out;
+  /* a selected option's shadow would sit there as an empty box before the goo arrives */
+  box-shadow: none !important;
 }
 /* While the goo reads colours: no background transition (it would read the start of one), but
    the text keeps its delayed turn so it doesn't flip before the goo arrives. */
@@ -7586,4 +7588,10 @@ html[data-nav='back']::view-transition-old(screen) {
 }
 .signin-nudge > svg:first-child {
   color: var(--accent);
+}
+
+/* Settings → Goo preview: in the accent so the blob reads clearly on the card */
+.goo-preview .segmented button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
 }

@@ -1,6 +1,6 @@
 // Settings → Appearance: the accent colour, and Goo: tweaks for every gooey motion, with a
 // live preview to try them on.
-import { useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { saveSettings, settings } from '../store'
 import { ACCENTS, DEFAULT_ACCENT } from '../accent'
 import { GOO_DEFAULTS, setGoo, type GooTweaks } from '../gooConfig'
@@ -37,6 +37,8 @@ const SLIDERS: [Num, string, number, number, (v: number) => string][] = [
   ['trail', 'Trail', 0, 2, (v) => (v < 0.05 ? 'None' : v < 0.75 ? 'Short' : v < 1.3 ? 'Long' : 'Stringy')],
 ]
 
+const DEMO_ORDER = ['a', 'b', 'c', 'd']
+
 export function GooSettings() {
   const saved = { ...GOO_DEFAULTS, ...(settings.value.goo || {}) }
   // while a slider moves, the motion follows it live; it's saved when you let go
@@ -44,6 +46,29 @@ export function GooSettings() {
   const t = live || saved
   const [demo, setDemo] = useState('b')
   const [demoOn, setDemoOn] = useState(true)
+  // The preview plays itself while it's on screen, so a slider change shows straight away;
+  // a tap takes over for a few seconds.
+  const previewRef = useRef<HTMLDivElement>(null)
+  const heldUntil = useRef(0)
+  const hold = () => (heldUntil.current = Date.now() + 5000)
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el || !t.enabled || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let visible = false
+    let step = 0
+    const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting), { threshold: 0.6 })
+    io.observe(el)
+    const id = setInterval(() => {
+      if (!visible || document.hidden || Date.now() < heldUntil.current) return
+      step++
+      if (step % 3 === 0) setDemoOn((v) => !v)
+      else setDemo((d) => DEMO_ORDER[(DEMO_ORDER.indexOf(d) + 1 + (step % 2)) % DEMO_ORDER.length])
+    }, 1400)
+    return () => {
+      clearInterval(id)
+      io.disconnect()
+    }
+  }, [t.enabled])
   const save = (patch: Partial<GooTweaks>) => {
     const next = { ...t, ...patch }
     setGoo(next)
@@ -63,8 +88,8 @@ export function GooSettings() {
         <Toggle label="Gooey motion" checked={t.enabled} onChange={(v) => save({ enabled: v })} />
       </div>
       <div class={'goo-tweaks' + (t.enabled ? '' : ' off')}>
-        <div class="goo-preview">
-          <span class="muted small">Try it</span>
+        <div class="goo-preview" ref={previewRef} onPointerDown={hold}>
+          <span class="muted small">Preview · tap to try</span>
           <Segmented
             label="Preview"
             value={demo}
