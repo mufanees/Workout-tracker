@@ -8,7 +8,7 @@ Everything a new person or a new Claude session needs to pick this up cold. Read
 |---|---|
 | App name | **Gloop** (was Reps). Internal names stay `reps` (database `/data/reps.db`, backup marker `app: 'reps'`, `dist/reps-single.html`) so existing data and backups keep working. |
 | Repo | `mufanees/workout-tracker` |
-| Branch | `ccr-82a33bbf-3kimrv`. It is the repo's only branch (and its default), so a plain `git clone` gets everything. No `main` yet, no PR. |
+| Branch | **`main`**: deploy from it and build on it. (`ccr-82a33bbf-3kimrv` is the branch the work was done on; `main` was created from it on 4 Oct 2026 with identical history.) If GitHub still shows the old branch as default, switch the default to `main` in the repo's Settings → Branches. |
 | Get the code | `git clone https://github.com/mufanees/workout-tracker.git && cd workout-tracker && npm install` (or `git pull` in an existing clone) |
 | Design system | `DESIGN.md` (rules, motion, goo) and `design-system/` (generator, generated files, `icon/` app icon sources and preview). Also a private Claude Design System artifact: https://claude.ai/artifact/DmFNNgMBC8PN5woMDfjcdk (pre-goo; regenerate if needed) |
 | Hosted preview | Private Claude artifact: https://claude.ai/artifact/Cg23G2PSbJtSp6GNDqv4Sb (the owner's current Claude account only; see "The Claude-hosted copy" and "Switching Claude accounts" below) |
@@ -18,12 +18,11 @@ Everything a new person or a new Claude session needs to pick this up cold. Read
 ### Next steps, in order
 
 0. **Before switching Claude accounts**, take your data out of the hosted copy (see "Switching Claude accounts"). The code is all on GitHub; the data is not.
-1. **Deploy to Coolify** (README → "Deploy on Coolify"): repo + branch above, build pack Dockerfile, Ports Exposes `3000`, HTTPS domain (e.g. `gloop.<domain>`), env `APP_TOKEN` (long random), `GEMINI_API_KEY` (free, from aistudio.google.com; leave `GEMINI_PLAN_MODEL` unset, that model is paid), `TZ`; Persistent Storage **Volume Mount** at `/data`. Check `/api/health` → `{"ok":true,"auth":true}`. If the build fails, the log is the first thing to look at.
+1. **Deploy to Coolify** (README → "Deploy on Coolify"): repo above, branch `main`, build pack Dockerfile, Ports Exposes `3000`, HTTPS domain (e.g. `gloop.<domain>`), env `APP_TOKEN` (long random), `GEMINI_API_KEY` (free, from aistudio.google.com; leave `GEMINI_PLAN_MODEL` unset, that model is paid), `TZ`; Persistent Storage **Volume Mount** at `/data`. Check `/api/health` → `{"ok":true,"auth":true}`. If the build fails, the log is the first thing to look at.
 2. On the phone: open the domain in Chrome, install to home screen, Settings → paste `APP_TOKEN` → Connect.
 3. Move data from the Claude-hosted copy: there, Settings → **Copy backup**; in the deployed app, Settings → **Paste a backup**.
 4. Check on the real phone: screen changes (no flash), the goo pill, the coach with the real Gemini key, notifications, pairing the HRM-Dual.
 5. Optionally add the MCP connector in Claude (README → "Importing a plan").
-6. Optionally open a PR from the branch into `main` and point Coolify at `main`.
 7. Open question from the owner: sharing the app with other people. The Claude-hosted copy already keeps each viewer's data private in their own Claude account (share it from the artifact's Share menu); the Coolify version is one person per deployment (`APP_TOKEN`), so real sign-up would be a new piece of work.
 
 ## What the app does

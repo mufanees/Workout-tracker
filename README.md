@@ -43,7 +43,7 @@ It also does:
 You need: a Coolify server, a domain (or subdomain) pointed at it, and this repo on GitHub.
 
 1. **DNS.** At your domain registrar, add an `A` record such as `reps.yourdomain.com` pointing to your Coolify server's IP. Wait until it resolves.
-2. **Create the app.** In Coolify: **Projects → (your project) → + New → Private Repository (with GitHub App)**, or **Public Repository** if the repo is public. Pick `mufanees/workout-tracker` and the branch you deploy from.
+2. **Create the app.** In Coolify: **Projects → (your project) → + New → Private Repository (with GitHub App)**, or **Public Repository** if the repo is public. Pick `mufanees/workout-tracker` and the branch **`main`**.
 3. **Build settings.** Build pack **Dockerfile** (Coolify finds `Dockerfile` in the root). **Ports Exposes: `3000`**.
 4. **Domain.** In **Domains**, enter `https://reps.yourdomain.com`. Coolify gets the HTTPS certificate for you. HTTPS is required for installing the app, notifications and Bluetooth.
 5. **Environment variables** (Configuration → Environment Variables):
