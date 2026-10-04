@@ -7595,3 +7595,11 @@ html[data-nav='back']::view-transition-old(screen) {
   background: var(--accent);
   color: var(--accent-ink);
 }
+.goo-style .segmented {
+  display: flex;
+  margin-top: var(--sp-3);
+}
+.goo-style .segmented button {
+  flex: 1;
+  padding: 0;
+}

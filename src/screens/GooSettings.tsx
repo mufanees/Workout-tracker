@@ -39,6 +39,16 @@ const SLIDERS: [Num, string, number, number, (v: number) => string][] = [
 
 const DEMO_ORDER = ['a', 'b', 'c', 'd']
 
+type Style = 'squish' | 'ooze' | 'melt' | 'drip'
+/** One-tap styles: each sets all six sliders. Ooze is the default. */
+const STYLES: Record<Style, Pick<GooTweaks, Num>> = {
+  squish: { intensity: 0.7, speed: 1.4, drama: 0.6, lumps: 0.5, wobble: 1.8, trail: 0.3 },
+  ooze: { intensity: GOO_DEFAULTS.intensity, speed: GOO_DEFAULTS.speed, drama: GOO_DEFAULTS.drama, lumps: GOO_DEFAULTS.lumps, wobble: GOO_DEFAULTS.wobble, trail: GOO_DEFAULTS.trail },
+  melt: { intensity: 1.6, speed: 0.7, drama: 1.6, lumps: 1.4, wobble: 0.4, trail: 1.4 },
+  drip: { intensity: 1.2, speed: 0.85, drama: 1.9, lumps: 0.8, wobble: 0.8, trail: 2 },
+}
+const styleOf = (t: GooTweaks) => (Object.keys(STYLES) as Style[]).find((k) => (Object.keys(STYLES[k]) as Num[]).every((n) => Math.abs(t[n] - STYLES[k][n]) < 0.001))
+
 export function GooSettings() {
   const saved = { ...GOO_DEFAULTS, ...(settings.value.goo || {}) }
   // while a slider moves, the motion follows it live; it's saved when you let go
@@ -88,16 +98,32 @@ export function GooSettings() {
         <Toggle label="Gooey motion" checked={t.enabled} onChange={(v) => save({ enabled: v })} />
       </div>
       <div class={'goo-tweaks' + (t.enabled ? '' : ' off')}>
+        <div class="setting column goo-style">
+          <span>
+            Style <small>{styleOf(t) ? 'Sets all the sliders below' : 'Custom: your own slider mix'}</small>
+          </span>
+          <Segmented
+            label="Goo style"
+            value={styleOf(t) || ''}
+            options={[
+              ['squish', 'Squish'],
+              ['ooze', 'Ooze'],
+              ['melt', 'Melt'],
+              ['drip', 'Drip'],
+            ]}
+            onChange={(k) => k && save(STYLES[k as Style])}
+          />
+        </div>
         <div class="goo-preview" ref={previewRef} onPointerDown={hold}>
           <span class="muted small">Preview · tap to try</span>
           <Segmented
             label="Preview"
             value={demo}
             options={[
-              ['a', 'Squish'],
-              ['b', 'Ooze'],
-              ['c', 'Melt'],
-              ['d', 'Drip'],
+              ['a', 'Sets'],
+              ['b', 'Reps'],
+              ['c', 'Rest'],
+              ['d', 'Time'],
             ]}
             onChange={setDemo}
           />
