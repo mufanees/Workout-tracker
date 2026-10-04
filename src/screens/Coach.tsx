@@ -55,6 +55,7 @@ const TOOL_LABEL: Record<string, string> = {
   propose_training_block: 'Planning a training block',
   propose_program: 'Designing your program',
   training_knowledge: 'Checking the training science',
+  find_stretches: 'Picking stretches',
   search_library: 'Reading your library',
   save_to_library: 'Saving to your library',
   resolve_goal: 'Updating your goal',

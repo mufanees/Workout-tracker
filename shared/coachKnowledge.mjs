@@ -1,7 +1,9 @@
 // The coach's training knowledge: evidence-based principles written for this app (not copied
 // from any one source). A short core goes into every request (KNOWLEDGE_CORE); the detailed
 // sections are looked up with the training_knowledge tool. The athlete's own material (videos,
-// PDFs, notes) lives in their library and is searched with searchLibrary().
+// PDFs, notes) lives in their library and is searched with searchLibrary(). Physio and occupational
+// therapy knowledge lives in rehabKnowledge.mjs and is merged in here.
+import { REHAB_CORE, REHAB_KNOWLEDGE } from './rehabKnowledge.mjs'
 
 export const KNOWLEDGE_CORE = `Training principles (look up detail with training_knowledge):
 - Volume: muscle growth rises with hard sets per muscle per week, with diminishing returns. Roughly: 1–4 hard sets a week gets well over half of what 10+ sets gets, 5–9 sets most of it, 10–20 is the usual target for growth. Splitting a muscle's sets over 2+ days a week works a little better than one day. Strength needs less: a few heavy sets (1–6 reps) per lift per week give most of the strength gain. Health benefits plateau around 30–60 minutes of lifting a week.
@@ -10,7 +12,9 @@ export const KNOWLEDGE_CORE = `Training principles (look up detail with training
 - Progression: double progression (reach the top of the rep range on every set, then add the smallest load jump). With capped dumbbells keep progressing with more reps (sets to 20–30 reps still build muscle when close to failure), slower lowering (3–4 s), pauses, 1½ reps, single-limb versions, shorter rests and band resistance; time heavier dumbbells for when those run out.
 - Deload every 6–8 weeks or when performance stalls 2+ sessions with poor recovery: about half the sets, same weights, 1 week.
 - Recovery and food: sleep 7–9 h, protein about 1.6–2.2 g/kg a day spread over the eating window; strength gains slow in a big deficit, so keep the deficit moderate while chasing a strength goal; train close to the eating window when fasting if performance suffers.
-- Pain (physio rules): pain up to about 3/10 during exercise that settles within 24 h is acceptable; sharp, pinching or worsening pain means modify (range, grip, load, tempo) or swap; worsening week to week or night pain means a physio. Never diagnose.`
+- Pain (physio rules): pain up to about 3/10 during exercise that settles within 24 h is acceptable; sharp, pinching or worsening pain means modify (range, grip, load, tempo) or swap; worsening week to week or night pain means a physio. Never diagnose.
+
+${REHAB_CORE}`
 
 /** Detailed sections for the training_knowledge tool. Keys are topics; text is plain, compact. */
 export const KNOWLEDGE = {
@@ -96,6 +100,8 @@ export const KNOWLEDGE = {
 - Re-learn technique on the main lifts first; use the first weeks to find working weights rather than test maxes.`,
 }
 
+Object.assign(KNOWLEDGE, REHAB_KNOWLEDGE)
+
 export const KNOWLEDGE_TOPICS = Object.keys(KNOWLEDGE)
 
 const words = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || []
@@ -103,12 +109,12 @@ const words = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || []
 /** The best-matching knowledge sections for a topic name or free-text question. */
 export function knowledgeLookup(query) {
   const q = String(query || '').toLowerCase().trim()
-  if (KNOWLEDGE[q]) return KNOWLEDGE[q]
+  if (KNOWLEDGE[q.replace(/[\s-]+/g, '_')]) return KNOWLEDGE[q.replace(/[\s-]+/g, '_')]
   const qw = new Set(words(q).filter((w) => w.length > 2))
   const scored = Object.entries(KNOWLEDGE)
     .map(([k, text]) => {
       const tw = words(text)
-      let score = qw.has(k) ? 10 : 0
+      let score = k.split('_').every((p) => qw.has(p)) ? 10 : 0
       for (const w of tw) if (qw.has(w)) score++
       return { k, text, score }
     })

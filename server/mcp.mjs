@@ -3,6 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { rehabLibraryRows } from '../shared/rehabKnowledge.mjs'
 import { PLAN_FORMAT, planPrompt, resolvePlan, slug } from '../shared/planImport.mjs'
 
 const PROTOCOL = '2025-06-18'
@@ -14,7 +15,7 @@ export function createMcpHandler({ db, q, rootDir }) {
   const seedLibrary = (() => {
     const seen = new Set()
     const out = []
-    for (const [name, muscle, equipment, type = 'weight_reps'] of [...readJson('curated.json'), ...readJson('library.json')]) {
+    for (const [name, muscle, equipment, type = 'weight_reps'] of [...readJson('curated.json'), ...rehabLibraryRows(), ...readJson('library.json')]) {
       const id = slug(name)
       if (seen.has(id)) continue
       seen.add(id)

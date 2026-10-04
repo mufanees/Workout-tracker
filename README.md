@@ -133,6 +133,12 @@ Without a key the Coach tab still works: tapping a question copies it with your 
 
 The memory lives in your server's database (synced store `coach`) and, like the training summary, is sent to Google with each request.
 
+### Stretches, aches and daily life
+
+The coach also knows physiotherapy and occupational therapy basics: stretching and mobility doses, each body region (neck, shoulder, elbow, wrist and hand, upper and lower back, hip, knee, ankle and foot), tendons and nerves, desk and lifting set-up, pacing and joint protection, and the red flags that mean seeing a doctor. Ask things like "my neck is stiff from the desk", "tennis elbow, what should I do?" or "stretches for squat depth". It picks 3–5 moves with doses and steps, and can turn them into a mobility routine. It gives general guidance, never a diagnosis.
+
+Sources: the 123 stretches and their instructions come from [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain; `node scripts/stretches.mjs exercises.json` rebuilds `shared/stretches.json`). The clinical guidance and 44 rehab exercises (chin tucks, nerve glides, tendon loading, Spanish squats and so on, also added to the exercise library) were written for this app in `shared/rehabKnowledge.mjs`. Add your own material (a physio's handout, notes) to the coach's library and it uses that too.
+
 ## Notifications
 
 Settings → Notifications turns them on for that phone (installed app, Chrome on Android or Safari on iPhone 16.4+ after Add to Home Screen). The server schedules them and sends a standard web push, so they arrive with the app closed: rest over (only if the app didn't already beep), fast complete, eating window closing, and an optional training-day reminder at a time you choose (every other day on the plan, otherwise daily). Optional env: `PUSH_CONTACT=mailto:you@example.com`.

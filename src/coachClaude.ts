@@ -3,6 +3,7 @@
 // is saved locally (and from there to the Claude account).
 import { COACH_TOOLS, QUICK, systemText, isPlanning } from '../shared/coachSpec.mjs'
 import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
+import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
 import { sampleFn } from './cloud'
 import { bodyWeights, coachItems, dayNotes, exercises, fasts, readings, remove, saveCoachItem, workouts } from './store'
@@ -47,6 +48,7 @@ function lookup(name: string, a: Record<string, unknown>): string {
     return `Weight:\n${w.join('\n') || 'none'}\n\nFasts:\n${f.join('\n') || 'none'}\n\nMorning readings:\n${r.join('\n') || 'none'}\n\nShoulder (0-10):\n${sh.join('\n') || 'none'}\n\nDay notes:\n${dn.join('\n') || 'none'}`
   }
   if (name === 'training_knowledge') return knowledgeLookup(String(a.topic || ''))
+  if (name === 'find_stretches') return findStretches({ area: String(a.area || ''), goal: String(a.goal || ''), equipment: String(a.equipment || '') })
   if (name === 'search_library') return searchLibrary(coachItems.value, String(a.query || ''))
   if (name === 'search_exercises') {
     const words = String(a.query || '').toLowerCase().split(/\s+/).filter(Boolean)

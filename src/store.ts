@@ -46,7 +46,7 @@ export const activeFast = computed(() => fasts.value.find((f) => f.end == null) 
 export const exMap = computed(() => new Map(exercises.value.map((e) => [e.id, e])))
 export const unit = computed(() => settings.value.unit)
 
-const SEED_VERSION = 3
+const SEED_VERSION = 4 // 4: rehab and mobility exercises
 let lastStamp = 0
 /** A timestamp newer than the clock, our last write, and the record being replaced (guards against clock skew). */
 export function stamp(after = 0) {

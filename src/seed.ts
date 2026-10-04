@@ -2,6 +2,7 @@ import type { Exercise, ExType, Routine, WExercise, WSet } from './types'
 // ~870 exercises from free-exercise-db (public domain): [name, muscle, equipment, type]
 import EXTRA from './data/library.json'
 import CURATED from './data/curated.json'
+import { rehabLibraryRows } from '../shared/rehabKnowledge.mjs'
 
 // Seed records use a fixed, tiny updatedAt so anything you edit (or anything
 // already on the server) always wins over the built-in defaults.
@@ -22,7 +23,7 @@ export function seedExercises(): Exercise[] {
   const out: Exercise[] = []
   const seen = new Set<string>()
   // The hand-picked list wins on duplicates (it has plan names, form-video searches and dumbbell defaults).
-  for (const [name, muscle, equipment, type = 'weight_reps', video] of [...LIBRARY, ...(EXTRA as Def[])]) {
+  for (const [name, muscle, equipment, type = 'weight_reps', video] of [...LIBRARY, ...(rehabLibraryRows() as Def[]), ...(EXTRA as Def[])]) {
     const id = slug(name)
     if (seen.has(id)) continue
     seen.add(id)

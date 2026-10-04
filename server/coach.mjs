@@ -8,6 +8,7 @@
 // - A background job writes a weekly review on Sunday evening and sends a notification.
 import crypto from 'node:crypto'
 import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
+import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
@@ -167,6 +168,8 @@ export function createCoach({ db, q, mcp, push }) {
         return { result: await mcp.callTool(name, args) }
       case 'training_knowledge':
         return { result: knowledgeLookup(args.topic) }
+      case 'find_stretches':
+        return { result: findStretches({ area: String(args.area || ''), goal: String(args.goal || ''), equipment: String(args.equipment || '') }) }
       case 'search_library':
         return { result: searchLibrary(items(), String(args.query || '')) }
       case 'save_to_library': {
