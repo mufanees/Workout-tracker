@@ -3,18 +3,21 @@ import { App } from './App'
 import { init } from './store'
 import { startAutoSync } from './sync'
 import { loadAccount } from './account'
+import { handleShare, takeShare } from './share'
 import { reconnectSaved } from './hr'
 import { scheduleTrainingReminder } from './workout'
 import '@fontsource-variable/space-grotesk/wght.css'
 import '@fontsource-variable/inter/opsz.css'
 import './styles.css'
 
+takeShare()
 render(<App />, document.getElementById('app')!)
 
 init()
   .then(() => {
     startAutoSync()
     void loadAccount()
+    handleShare()
     void reconnectSaved()
     scheduleTrainingReminder()
   })

@@ -5,12 +5,14 @@ import { exMap, settings, unit } from '../store'
 import { matchPrevious, previousSets, stalledAt } from '../stats'
 import { navigate } from '../router'
 import type { Exercise, SetKind, WExercise, WSet } from '../types'
-import { clone, fmtNum, fmtRest, fromDisplay, haptic, newSet, newWExercise, supersetColor, targetTop, toDisplay, uid, youtubeUrl } from '../util'
+import { clone, fmtNum, fmtRest, fromDisplay, haptic, newSet, newWExercise, supersetColor, targetTop, toDisplay, uid } from '../util'
 import { gooSplash } from './Goo'
 import { Icon } from './icons'
 import { NumInput } from './inputs'
 import { actionSheet, AutoText, toast } from './overlay'
 import { ExercisePicker } from './ExercisePicker'
+import { openVideoSheet } from './VideoSheet'
+import { hasOwnVideo, videoFor } from '../videos'
 
 export type Mode = 'live' | 'edit' | 'routine'
 
@@ -129,7 +131,7 @@ export function WorkoutEditor({
         { label: 'Replace exercise', icon: 'swap', onSelect: () => setPicker({ open: true, replace: we.id }) },
         ...(i > 0 ? [{ label: 'Move up', icon: 'up', onSelect: () => move(we.id, -1) }] : []),
         ...(i < exercises.length - 1 ? [{ label: 'Move down', icon: 'downArrow', onSelect: () => move(we.id, 1) }] : []),
-        ...(ex ? [{ label: 'Watch form video', icon: 'video', onSelect: () => openLink(youtubeUrl(ex)) }] : []),
+        ...(ex ? [{ label: hasOwnVideo(ex) ? 'Watch your video' : 'Watch form video', icon: 'video', onSelect: () => openLink(videoFor(ex)) }, { label: hasOwnVideo(ex) ? 'Videos: change or add' : 'Save a video link', icon: 'star', onSelect: () => openVideoSheet({ exerciseId: ex.id }) }] : []),
         ...(ex && mode !== 'routine' ? [{ label: 'Exercise history', icon: 'chart', onSelect: () => navigate('/exercises/' + ex.id) }] : []),
         {
           label: 'Remove exercise',
@@ -500,7 +502,7 @@ function ExerciseCard({
             )}
           </div>
         </div>
-        <a class="icon-btn" href={youtubeUrl(ex)} target="_blank" rel="noopener" aria-label={`Form video for ${ex.name}`}>
+        <a class={'icon-btn' + (hasOwnVideo(ex) ? ' own-video' : '')} href={videoFor(ex)} target="_blank" rel="noopener" aria-label={hasOwnVideo(ex) ? `Your video for ${ex.name}` : `Form videos for ${ex.name}`}>
           <Icon name="video" />
         </a>
         <button class="icon-btn" onClick={onMenu} aria-label={`Options for ${ex.name}`}>

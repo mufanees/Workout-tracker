@@ -2,6 +2,7 @@
 import {
   LogOut,
   PersonStanding,
+  Star,
   Share2,
   UserPlus,
   Users,
@@ -127,6 +128,7 @@ const ICONS = {
   wheels: ChevronsUpDown,
   logout: LogOut,
   mobility: PersonStanding,
+  star: Star,
   share: Share2,
   invite: UserPlus,
   people: Users,

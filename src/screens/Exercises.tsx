@@ -6,7 +6,9 @@ import { Icon } from '../ui/icons'
 import { ExerciseForm, filterExercises, MuscleChips } from '../ui/ExercisePicker'
 import { LineChart, type Point } from '../ui/Chart'
 import { actionSheet, confirmDialog, toast } from '../ui/overlay'
-import { counts, e1rm, fmtDay, fmtNum, fmtSeconds, fmtSet, fmtVolume, fmtWeight, relDays, setVolume, toDisplay, youtubeUrl } from '../util'
+import { counts, e1rm, fmtDay, fmtNum, fmtSeconds, fmtSet, fmtVolume, fmtWeight, relDays, setVolume, toDisplay } from '../util'
+import { hasOwnVideo, videoFor } from '../videos'
+import { openVideoSheet } from '../ui/VideoSheet'
 
 export function Exercises() {
   const [query, setQuery] = useState('')
@@ -165,9 +167,14 @@ export function ExerciseDetail({ id }: { id: string }) {
         {ex.muscle} · {ex.equipment}
         {type === 'weight_reps' && ex.equipment === 'Dumbbell' && !/goblet/i.test(ex.name) ? ' · log one dumbbell’s weight' : ''}
       </p>
-      <a class="btn btn-secondary btn-block" href={youtubeUrl(ex)} target="_blank" rel="noopener">
-        <Icon name="video" size={18} /> Watch form videos
-      </a>
+      <div class="row gap ex-video-row">
+        <a class="btn btn-secondary grow" href={videoFor(ex)} target="_blank" rel="noopener">
+          <Icon name="video" size={18} /> {hasOwnVideo(ex) ? (ex.videos![0].title ? 'Watch: ' + ex.videos![0].title : 'Watch your video') : 'Watch form videos'}
+        </a>
+        <button class="btn btn-secondary" onClick={() => openVideoSheet({ exerciseId: ex.id })} aria-label="Your videos for this exercise">
+          <Icon name="star" size={18} /> {ex.videos?.length ? ex.videos.length : 'Save'}
+        </button>
+      </div>
 
       {recs.sessions.length > 0 ? (
         <>

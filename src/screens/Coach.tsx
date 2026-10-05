@@ -13,6 +13,7 @@ import { Icon } from '../ui/icons'
 import { confirmDialog, toast } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
 import { adjustMessage } from '../ui/Feedback'
+import { saveVideo } from '../videos'
 import { fmtDay } from '../util'
 
 interface Msg {
@@ -59,6 +60,7 @@ const TOOL_LABEL: Record<string, string> = {
   propose_mobility_plan: 'Building in your mobility',
   search_library: 'Reading your library',
   save_to_library: 'Saving to your library',
+  save_exercise_video: 'Saving the video',
   resolve_goal: 'Updating your goal',
   propose_profile_update: 'Preparing a profile update',
 }
@@ -192,7 +194,7 @@ export function Coach() {
           const line = buf.slice(0, i).replace(/^data: /, '')
           buf = buf.slice(i + 2)
           if (!line) continue
-          const ev = JSON.parse(line) as { t?: string; error?: string; tool?: string; memory?: { action: string; text: string }; proposal?: Proposal }
+          const ev = JSON.parse(line) as { t?: string; error?: string; tool?: string; memory?: { action: string; text: string }; proposal?: Proposal; video?: { exerciseId: string; name: string; url: string; title?: string | null } }
           if (ev.error) throw new Error(ev.error)
           if (ev.t) {
             reply.content += ev.t
@@ -200,6 +202,10 @@ export function Coach() {
           }
           if (ev.tool) setStatus(TOOL_LABEL[ev.tool] || 'Working on it')
           if (ev.memory) reply.memory!.push(ev.memory)
+          if (ev.video) {
+            const ex = exMap.value.get(ev.video.exerciseId)
+            if (ex) void saveVideo(ex, ev.video.url, { title: ev.video.title || undefined })
+          }
           if (ev.proposal) reply.proposals!.push({ ...ev.proposal, state: 'pending' })
           show()
         }
@@ -315,7 +321,7 @@ export function Coach() {
               )}
               {m.memory?.map((x) => (
                 <span class="mem-chip">
-                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'library' ? 'Saved to library' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : 'Remembered'}: {x.text}
+                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'library' ? 'Saved to library' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : x.action === 'video' ? 'Video saved' : 'Remembered'}: {x.text}
                 </span>
               ))}
               {m.proposals?.map((p) => {

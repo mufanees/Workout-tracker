@@ -1547,7 +1547,9 @@ textarea {
 .field input[type='password'],
 .field input[type='datetime-local'],
 .field input:not([type]),
-.setting input[type='password'] {
+.setting input[type='password'],
+.setting input[type='text'],
+.vs-type input {
   width: 100%;
   min-height: 48px;
   border: 0;
@@ -1556,6 +1558,8 @@ textarea {
   padding: 0 var(--sp-4);
 }
 .field input:focus,
+.setting input:focus,
+.vs-type input:focus,
 .field textarea:focus,
 .target-field input:focus,
 .search input:focus {
@@ -7705,4 +7709,197 @@ html[data-nav='back']::view-transition-old(screen) {
 .mob-int.moderate {
   background: color-mix(in srgb, var(--accent) 35%, var(--surface-2));
   color: var(--text);
+}
+
+/* ---------- Moves: free-text warm-up / cool-down lines, read ---------- */
+.move-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sp-2);
+  row-gap: 2px;
+  min-width: 0;
+}
+.move-name {
+  font-weight: 600;
+}
+.move-dose {
+  font-size: var(--fs-13);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  white-space: nowrap;
+}
+.move-note {
+  flex-basis: 100%;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.cl-item.on .move-text {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+.cl-item.on .move-dose {
+  background: transparent;
+}
+.move-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.move-preview {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.move-preview li + li {
+  border-top: 1px solid var(--line);
+}
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+  font-size: var(--fs-15);
+}
+.move-row:active {
+  background: var(--surface-2);
+}
+.move-row .move-text {
+  flex: 1;
+}
+.move-link {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--faint);
+}
+.move-link.on {
+  background: color-mix(in srgb, var(--accent) 30%, var(--surface-2));
+  color: var(--accent-text);
+}
+.move-own {
+  flex: none;
+  color: var(--accent-text);
+  fill: currentColor;
+}
+.move-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+.move-actions .btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* ---------- Videos ---------- */
+.icon-btn.own-video {
+  color: var(--accent-text);
+  position: relative;
+}
+.icon-btn.own-video::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.video-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.video-card .grow,
+.vs-videos a {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.video-card b,
+.vs-videos b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.video-card small,
+.vs-videos small {
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.vs-ask {
+  margin: var(--sp-3) 0 var(--sp-2);
+}
+.vs-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--sp-3);
+}
+.vs-paste,
+.vs-type {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.vs-type input {
+  min-width: 0;
+}
+.vs-videos {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.vs-videos li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+  color: inherit;
+}
+.vs-videos a {
+  color: inherit;
+  text-decoration: none;
+}
+.vs-videos li.preferred .icon-btn:first-child {
+  color: var(--accent-text);
+}
+.vs-videos li.preferred .icon-btn:first-child svg {
+  fill: currentColor;
+}
+.ex-video-row {
+  align-items: stretch;
+}
+.ex-video-row .grow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

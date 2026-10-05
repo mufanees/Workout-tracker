@@ -7,6 +7,7 @@ import { Icon } from '../ui/icons'
 import { AutoText, confirmDialog, toast } from '../ui/overlay'
 import type { Routine } from '../types'
 import { clone, uid } from '../util'
+import { MoveListEditor } from '../ui/MoveList'
 import { estimate } from '../timeplan'
 
 export function RoutineEditor({ id }: { id: string }) {
@@ -82,24 +83,8 @@ export function RoutineEditor({ id }: { id: string }) {
         <span>Notes</span>
         <AutoText value={draft.notes} onInput={(v) => setDraft({ ...draft, notes: v })} placeholder="Warm-up, cues, anything to remember" class="input-like" />
       </label>
-      <label class="field">
-        <span>Warm-up checklist (one per line)</span>
-        <AutoText
-          value={(draft.warmup || []).join('\n')}
-          onInput={(v) => setDraft({ ...draft, warmup: v.split('\n').filter((x, i, a) => x.trim() || i === a.length - 1) })}
-          placeholder="Cat–cow × 8"
-          class="input-like"
-        />
-      </label>
-      <label class="field">
-        <span>Cool-down checklist (one per line)</span>
-        <AutoText
-          value={(draft.cooldown || []).join('\n')}
-          onInput={(v) => setDraft({ ...draft, cooldown: v.split('\n').filter((x, i, a) => x.trim() || i === a.length - 1) })}
-          placeholder="Hamstring stretch · 30 s / side"
-          class="input-like"
-        />
-      </label>
+      <MoveListEditor label="Warm-up" lines={draft.warmup || []} onChange={(warmup) => setDraft({ ...draft, warmup })} placeholder={'Cat–cow × 8\nThread the needle × 6 / side'} />
+      <MoveListEditor label="Cool-down" lines={draft.cooldown || []} onChange={(cooldown) => setDraft({ ...draft, cooldown })} placeholder="Hamstring stretch · 30 s / side" />
       <p class="field-hint">Weights and reps here are starting suggestions. Once you’ve logged a workout, your last numbers are shown instead.</p>
 
       <WorkoutEditor mode="routine" exercises={draft.exercises} onChange={(fn) => setDraft((d) => d && { ...d, exercises: fn(d.exercises) })} />

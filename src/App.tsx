@@ -21,6 +21,7 @@ import { BlockScreen, GoalDetail, GoalsScreen } from './screens/Goal'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
+import { VideoSheetHost } from './ui/VideoSheet'
 
 const TABS = [
   { path: '/train', label: 'Train', icon: 'dumbbell' },
@@ -107,6 +108,7 @@ export function App() {
         </nav>
       )}
       <OverlayHost />
+      <VideoSheetHost />
       <GooDefs />
     </div>
   )

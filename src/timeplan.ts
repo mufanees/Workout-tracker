@@ -18,7 +18,7 @@ const SET_REST_FALLBACK = 60
 
 /** Seconds one warm-up / cool-down line takes. */
 export function lineSeconds(line: string): number {
-  const l = line.toLowerCase()
+  const l = line.toLowerCase().replace(/https?:\/\/\S+/g, '') // a video link isn't a dose
   const sides = /\/\s*side|each side|per side/.test(l) ? 2 : 1
   if (/ramp-?up/.test(l)) return 75
   const secs = l.match(/(\d+)\s*(s|sec|seconds?)\b/)

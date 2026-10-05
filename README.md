@@ -96,6 +96,18 @@ Heart rate uses Web Bluetooth, which works in **Chrome on Android** (and desktop
 
 Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rate), pick your strap, and it reconnects on its own after that. Readings are stored every 5 seconds with the workout. Zones are editable in Settings; the default puts zone 2 at 120–145 bpm. Keep the screen on during cardio (the app asks for this by default): Android pauses Bluetooth for web apps when the screen is off.
 
+## Warm-ups and videos
+
+**Warm-ups and cool-downs** are free text, one move per line, written however you like: `Cat–cow × 8`, `Doorway pec stretch · 30 s / side`, `World's greatest stretch x4 each side (slow)`, even a video link on the line. Underneath the box, each line shows how Gloop read it (move, dose, note) and whether it's linked to a library exercise (the link icon). Linked lines get that exercise's video and accurate timing. Tap a line to link it to a different exercise or keep it as plain text; the link is remembered by name, so it holds in every routine. **Add from library** writes the line for you.
+
+**Videos.** Every exercise's video button opens a YouTube search until you save your own; then it opens yours (marked with a dot). Ways to save one, none of them needing an edit screen:
+
+- **Share it to Gloop.** In YouTube (or anywhere) tap Share → Gloop. Gloop opens asking which exercise it's for, with its best guesses from the video's title (the exercise you're doing right now comes first). One tap. Works once Gloop is installed to the home screen (Android Chrome).
+- **Paste it.** The ⋯ menu on an exercise in a workout or routine → **Save a video link**, or the star button on the exercise's page → **Paste link**.
+- **Tell the coach.** "Use this for goblet squats: <link>".
+
+An exercise can keep several videos; the starred one is preferred and the video button opens it. Star another to switch, or remove old ones.
+
 ## Importing a plan
 
 **In the app:** Train → Routines → **Import**. Copy the prompt, paste it into Claude with your plan, paste Claude's answer back. You'll see every routine and how each exercise was matched before anything is saved.

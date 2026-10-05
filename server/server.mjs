@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { createMcpHandler } from './mcp.mjs'
 import { createPush } from './push.mjs'
 import { coachEnabled, createCoach, friendlyError } from './coach.mjs'
+import { videoInfo } from './video.mjs'
 import { createAccounts } from './accounts.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
@@ -312,6 +313,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 404, { error: 'Not found' })
       }
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(ctx, await readBody(req)))
+      if (pathname === '/api/video-info') return send(res, 200, await videoInfo(url.searchParams.get('url')))
       if (pathname === '/api/coach/status') return send(res, 200, { enabled: coachEnabled() })
       if (pathname === '/api/coach' && req.method === 'POST') {
         if (!coachEnabled()) return send(res, 503, coachOff())

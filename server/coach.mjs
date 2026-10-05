@@ -9,6 +9,8 @@
 import crypto from 'node:crypto'
 import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
+import { matchExercise } from '../shared/planImport.mjs'
+import { videoInfo } from './video.mjs'
 import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
@@ -181,6 +183,17 @@ export function createCoach({ db, q, mcp, push }) {
         write(rec)
         emit({ memory: { action: 'library', text: title } })
         return { saved: rec.id }
+      }
+      case 'save_exercise_video': {
+        const url = String(args.url || '').trim()
+        if (!/^https?:\/\//i.test(url)) return { error: 'That is not a web link' }
+        const { title } = await videoInfo(url)
+        const ex = args.exercise ? matchExercise(String(args.exercise), mcp.library()) : null
+        if (!ex) return { title, saved: false, note: args.exercise ? `No exercise matches "${args.exercise}". Search with search_exercises or ask.` : 'Which exercise is it for? Ask them, or decide from the title, then call again with exercise.' }
+        // The app saves it on the exercise (and syncs it back here).
+        emit({ video: { exerciseId: ex.id, name: ex.name, url, title } })
+        emit({ memory: { action: 'video', text: `${ex.name}: ${title || url}` } })
+        return { saved: true, exercise: ex.name, title }
       }
       case 'remember': {
         const text = String(args.note || '').trim().slice(0, 300)

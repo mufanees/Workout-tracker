@@ -10,7 +10,8 @@ import { bodyWeights, coachItems, dayNotes, exercises, fasts, readings, remove, 
 import { checkinWords, buildCoachContext, routinesText, workoutLine } from './coachContext'
 import { sessionsByExercise } from './stats'
 import type { Proposal } from './coach'
-import type { CoachItem } from './types'
+import type { CoachItem, Exercise } from './types'
+import { findUrl, saveVideo, videoTitle } from './videos'
 import { uid } from './util'
 
 const iso = (t: number) => new Date(t).toISOString().slice(0, 10)
@@ -64,6 +65,16 @@ function lookup(name: string, a: Record<string, unknown>): string {
 
 async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHandlers, 'onMemory'>): Promise<unknown> {
   const items = coachItems.value
+  if (name === 'save_exercise_video') {
+    const url = findUrl(String(a.url || ''))
+    if (!url) throw new Error('That is not a web link')
+    const title = await videoTitle(url)
+    const ex = a.exercise ? (matchExercise(String(a.exercise), exercises.value as LibExercise[]) as Exercise | null) : null
+    if (!ex) return { title, saved: false, note: a.exercise ? `No exercise matches "${a.exercise}".` : 'Which exercise is it for? Ask, or decide from the title, then call again with exercise.' }
+    await saveVideo(ex, url, { title: title || undefined })
+    h.onMemory({ action: 'video', text: `${ex.name}: ${title || url}` })
+    return { saved: true, exercise: ex.name, title }
+  }
   if (name === 'remember') {
     const text = String(a.note || '').trim().slice(0, 300)
     if (!text) throw new Error('empty note')

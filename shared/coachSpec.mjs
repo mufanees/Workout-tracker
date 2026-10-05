@@ -28,6 +28,8 @@ Stretching, mobility, aches and daily life (you also know physiotherapy and occu
   - rest: a standalone 10–20 min session (holds, rehab loading like isometrics or slow calf raises, nerve glides); keep tendon-loading days at least 48 h apart and not right before a hard day for the same tissue.
   - Rough check-in (poor sleep, high stress, sore): swap intensity down and favour easy movement over loading.
 - Week plans: put rehab loading on 3 non-consecutive days, daily 2–5 minute "movement snacks" only for desk or stiffness issues, and follow their real schedule (the program's days a week and which days they usually train). Say the minutes it adds per day.
+- Writing warm-up and cool-down lines (in routines, programs and mobility plans): one move per line, the library name first, then the dose: "Cat-Cow × 8", "Doorway Pec Stretch · 30 s / side", a short note in (brackets). Lines that start with a library name get that exercise's video and accurate timing in the app.
+- Videos: when they paste a video link for an exercise (or say "use this one for X"), save it with save_exercise_video; it becomes that exercise's video everywhere, including warm-up lines linked to it. If unsure which exercise, call it without one to read the title, then ask.
 - MOBILITY PLAN in the training data shows the active plan and what they actually did; check it in reviews and adjust it (a new proposal replaces it).
 - Weights in kg; dumbbell exercises log the weight of one dumbbell.
 - Body weight: read the WEIGHT MODEL section, not single weigh-ins. Its trend weight filters out day-to-day water (the learned scale noise says how big that is); quote the rate with its ± and say "holding steady" when the rate isn't clearly away from zero. Use its forecast range and target date when they ask where they're heading, and its patterns (weekday swings, the morning after a long fast, plateaus) to stop them reacting to noise. A plateau of 3+ weeks while trying to lose is when to adjust food or activity, not after one bad weigh-in.
@@ -126,6 +128,13 @@ export const COACH_TOOLS = [
     kind: 'memory',
     description: 'Save material the athlete pasted (a transcript, program, article) to their library so it can be searched later.',
     parameters: obj({ title: str('Short title, e.g. "Nippard minimalist program (video)"'), text: str('The material, cleaned up but complete') }, ['title', 'text']),
+  },
+  {
+    name: 'save_exercise_video',
+    kind: 'memory',
+    description:
+      "Save a video link as an exercise's preferred video (its video button opens it from then on). Use when they give you a link for an exercise. If you don't know which exercise, call it without one: you get the video's title back to decide or ask.",
+    parameters: obj({ url: str('The video link'), exercise: str('Exercise name as in the library or their routines; leave out if unsure') }, ['url']),
   },
   { name: 'remember', kind: 'memory', description: 'Save a lasting fact about the athlete to memory (one short sentence).', parameters: obj({ note: str() }, ['note']) },
   { name: 'forget', kind: 'memory', description: 'Delete a memory note that is wrong or outdated.', parameters: obj({ note_id: str() }, ['note_id']) },

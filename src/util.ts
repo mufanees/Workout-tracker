@@ -1,4 +1,4 @@
-import type { Exercise, ExType, Workout, WSet, WExercise } from './types'
+import type { ExType, Workout, WSet, WExercise } from './types'
 
 export const uid = (prefix = '') =>
   prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
@@ -154,20 +154,6 @@ export function targetTop(target: string): number | null {
   const m = target.match(/(\d+)\s*[–-]\s*(\d+)/)
   if (m) return Number(m[2])
   return null
-}
-
-export function youtubeUrl(ex: Exercise): string {
-  return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(ex.video || ex.name + ' exercise form')
-}
-
-/** YouTube search for a warm-up or cool-down line like "Thread the needle × 6 / side". Null for non-movements. */
-export function movementVideoUrl(line: string): string | null {
-  if (/^ramp-?up/i.test(line.trim())) return null
-  const name = line
-    .split(/\s[×x]\s|\s·\s|:/)[0]
-    .replace(/\s+\d+\s*(s|sec|min)\b.*$/i, '')
-    .trim()
-  return name ? 'https://www.youtube.com/results?search_query=' + encodeURIComponent(name + ' how to') : null
 }
 
 export const SUPERSET_COLORS = ['#7c5cff', '#ff8a3d', '#1fb8a6', '#e8467c', '#3d9bff', '#c9a227']
