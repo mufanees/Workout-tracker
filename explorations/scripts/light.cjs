@@ -1,0 +1,10 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'light' })
+  await ctx.addInitScript(() => localStorage.setItem('reps-token', 'testkey'))
+  const p = await ctx.newPage()
+  await p.goto('http://localhost:3000/#/train'); await p.waitForTimeout(1800)
+  await p.locator('.today-rings').screenshot({ path: '/home/user/Workout-tracker/qa/shots12/light-11-rings-fixed.png' })
+  await b.close()
+})()

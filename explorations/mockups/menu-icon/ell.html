@@ -1,0 +1,12 @@
+<html><body style="margin:0;background:#15171c;color:#ff8a3d;font:14px sans-serif;display:flex;gap:24px;padding:24px;flex-wrap:wrap">
+<script>
+const V = {
+A: `<circle cx="9" cy="4" r="1.5"/><path d="M9 7v5l-2.5 4.5"/><path d="M9 12l3.5 3"/><path d="M9 8.5l3.5 1.5 3-3.5"/><path d="M4 18l12-2.5"/><circle cx="17.5" cy="16" r="2.5"/><path d="M3 21h18"/><path d="M15.5 7l2 6.5"/>`,
+B: `<path d="M3 21h18"/><circle cx="16" cy="16" r="3"/><path d="M4 18.5l12-2.5"/><path d="M8 17.7L11 6"/><path d="M9.5 6h3"/><path d="M19.5 21V9l-2-3"/>`,
+C: `<circle cx="10" cy="4" r="1.5"/><path d="M10 7v5"/><path d="M10 12l-3 4"/><path d="M10 12l2.5 3.5"/><path d="M10 8l4 1.5"/><path d="M14 9.5L13 4h2"/><path d="M14 9.5l2 7"/><path d="M5 17.5l11-1"/><ellipse cx="17" cy="16.5" rx="3" ry="2"/><path d="M3 21h18"/><path d="M18 18.5V21"/>`,
+D: `<circle cx="11" cy="3.5" r="1.5"/><path d="M11 6.5l-.5 5.5-3 3.5"/><path d="M10.5 12l3 2.5"/><path d="M11 8l3.5 1L16 4.5"/><path d="M16 4.5l2 12"/><path d="M5 16l13 .5"/><path d="M4 20c2-2.5 14-2.5 16 0"/>`,
+}
+for (const [k, b] of Object.entries(V)) {
+  for (const s of [96, 40, 20]) document.write(`<div style="text-align:center"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${b}</svg><div>${k} ${s}</div></div>`)
+}
+</script></body></html>

@@ -1,0 +1,2 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => { const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }); const p = await b.newPage({ viewport: { width: 1240, height: 1200 }, deviceScaleFactor: 2 }); await p.goto('file://' + process.argv[2]); await p.waitForTimeout(500); await p.screenshot({ path: process.argv[3], fullPage: true }); await b.close() })()

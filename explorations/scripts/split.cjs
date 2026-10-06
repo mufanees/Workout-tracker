@@ -1,0 +1,12 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'dark' })
+  await ctx.addInitScript(() => localStorage.setItem('reps-token', 'testkey'))
+  const p = await ctx.newPage()
+  await p.goto('http://localhost:3000/#/day/2026-09-30'); await p.waitForTimeout(1500)
+  await p.locator('.day-workout').first().click(); await p.waitForTimeout(800)
+  await p.locator('.split-card').scrollIntoViewIfNeeded(); await p.waitForTimeout(300)
+  await p.screenshot({ path: '/home/user/Workout-tracker/qa/shots11/dark-15-muscle-split.png' })
+  await b.close()
+})()

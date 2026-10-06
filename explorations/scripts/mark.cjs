@@ -1,0 +1,12 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+const { installFakeClaude } = require('/home/user/Workout-tracker/qa/fake-claude.cjs')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'dark' })
+  await installFakeClaude(ctx, { store: new Map(), sample: async () => ({ text: '{}' }) })
+  const p = await ctx.newPage()
+  await p.goto('http://localhost:4173/#/fast'); await p.waitForTimeout(1200)
+  console.log(JSON.stringify(await p.evaluate(() => [...document.querySelectorAll('.sr-mark')].slice(0, 2).map((m) => { const s = m.querySelector('svg'); const cs = getComputedStyle(m); const ss = getComputedStyle(s); return { m: m.getBoundingClientRect().toJSON(), svg: s.getBoundingClientRect().toJSON(), w: s.getAttribute('width'), ssw: ss.width, cshape: cs.cornerShape, br: cs.borderRadius, disp: cs.display, svgpos: ss.position, svgm: ss.margin } })), null, 1))
+  await p.locator('.sr-mark').first().screenshot({ path: '/home/user/Workout-tracker/qa/shots16/mark.png' })
+  await b.close()
+})()

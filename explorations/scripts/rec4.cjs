@@ -1,0 +1,21 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+const { installFakeClaude } = require('/home/user/Workout-tracker/qa/fake-claude.cjs')
+const S = process.argv[2]
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: 'dark', locale: 'en-US', recordVideo: { dir: S + '/vid', size: { width: 390, height: 844 } } })
+  await installFakeClaude(ctx, { store: new Map(), sample: async () => ({ text: '{}' }) })
+  const p = await ctx.newPage()
+  await p.goto('http://localhost:4173/#/fast'); await p.waitForSelector('.fast-screen'); await p.waitForTimeout(800)
+  await p.locator('button', { hasText: 'Set the start time' }).first().tap()
+  await p.waitForSelector('.sheet .clock-dial'); await p.waitForTimeout(400)
+  await p.locator('.sheet .when-days .chip', { hasText: 'Yesterday' }).tap(); await p.waitForTimeout(1000)
+  await p.locator('.sheet .clock-dial').scrollIntoViewIfNeeded(); await p.waitForTimeout(600)
+  const d = await p.locator('.sheet .clock').boundingBox()
+  console.log('clock', Math.round(d.y), Math.round(d.height))
+  const tapNum = async (t) => { const n = p.locator('.sheet .clock-num', { hasText: new RegExp('^' + t + '$') }).first(); const bb = await n.boundingBox(); await p.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2) }
+  await tapNum('9'); await p.waitForTimeout(1300)
+  await tapNum('20'); await p.waitForTimeout(1300)
+  await p.locator('.sheet .clock-ampm button', { hasText: 'AM' }).tap(); await p.waitForTimeout(1300)
+  await ctx.close(); await b.close()
+})()

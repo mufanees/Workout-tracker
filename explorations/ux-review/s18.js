@@ -1,0 +1,10 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open({path:'#/history'});
+  await page.click('text=Phase 1 · Workout A'); await page.waitForTimeout(700);
+  await page.click('button:has-text("Goblet Squat")'); await page.waitForTimeout(800);
+  console.log(page.url());
+  await shot('38-exercise-detail'); await shot('38b-exercise-detail-full', true);
+  await dump();
+  await page.goto('http://localhost:3200/#/exercises'); await page.waitForTimeout(700);
+  await shot('39-exercises-tab');
+  await ctx.close(); })();

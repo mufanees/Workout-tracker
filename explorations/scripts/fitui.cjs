@@ -1,0 +1,27 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+const O = '/home/user/Workout-tracker/qa/shots-when/'
+const FILE = process.argv[2]
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, colorScheme: 'dark', timezoneId: 'Asia/Kuala_Lumpur' })
+  const errs = []; p.on('pageerror', (e) => errs.push(e.message))
+  await p.goto('http://localhost:4173/#/history'); await p.waitForTimeout(1500)
+  await p.screenshot({ path: O + 'fit-0-history.png' })
+  const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.locator('.head-import').click()])
+  await fc.setFiles(FILE); await p.waitForTimeout(800)
+  console.log('dialog:', await p.locator('.modal').innerText())
+  await p.screenshot({ path: O + 'fit-1-confirm.png' })
+  await p.locator('.modal .btn-primary').click(); await p.waitForTimeout(1500)
+  console.log('url', p.url())
+  await p.screenshot({ path: O + 'fit-2-detail.png', fullPage: true })
+  await p.goto('http://localhost:4173/#/train'); await p.waitForTimeout(1200)
+  console.log('rings:', (await p.locator('.tr-legend').innerText()).replace(/\n/g,' | '))
+  // import again -> replace
+  await p.goto('http://localhost:4173/#/history'); await p.waitForTimeout(2000); console.log('vt?', await p.evaluate(() => document.documentElement.className), 'btns', await p.locator('.head-import').count())
+  console.log('hit', await p.evaluate(() => { const r = document.querySelector('.head-import').getBoundingClientRect(); const e = document.elementFromPoint(r.x + r.width/2, r.y + r.height/2); return e.parentElement.outerHTML.slice(0,200) + ' || pe=' + getComputedStyle(e).pointerEvents + ' op=' + getComputedStyle(e).opacity + ' rootVis=' + getComputedStyle(e.parentElement).visibility + ' rootPE=' + getComputedStyle(e.parentElement).pointerEvents }))
+  const [fc2] = await Promise.all([p.waitForEvent('filechooser'), p.locator('.head-import').click()])
+  await fc2.setFiles(FILE); await p.waitForTimeout(600)
+  console.log('again:', (await p.locator('.modal h2').innerText()))
+  console.log('errors', errs)
+  await b.close()
+})()

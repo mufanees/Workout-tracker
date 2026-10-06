@@ -1,0 +1,11 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open();
+  await page.click('text=Tap to resume'); await page.waitForTimeout(600);
+  await page.locator('[aria-label="Options for Goblet Squat"]').tap(); await page.waitForTimeout(400);
+  await shot('17-options-goblet-1b');
+  await page.click('text=Move up'); await page.waitForTimeout(500);
+  await page.locator('[aria-label="Options for Dumbbell Floor Press"]').tap(); await page.waitForTimeout(400);
+  await page.click('text=Replace exercise'); await page.waitForTimeout(600);
+  await shot('18-replace-picker');
+  await dump();
+  await ctx.close(); })();

@@ -1,0 +1,13 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open();
+  await page.click('text=Tap to resume').catch(()=>{}); await page.waitForTimeout(600);
+  await page.click('text=Finish'); await page.waitForTimeout(600);
+  await page.click('text=Leave them out and finish').catch(()=>{}); await page.waitForTimeout(800);
+  const ta = page.locator('textarea[aria-label^="Energy"]'); await ta.tap();
+  await page.waitForTimeout(300); await shot('31-save-note-focus');
+  await ta.fill('Felt good, slept 7h');
+  await page.click('button:has-text("Save workout")'); await page.waitForTimeout(1500);
+  console.log(page.url());
+  await shot('32-after-save'); await shot('32b-after-save-full', true);
+  console.log(await page.innerText('body'));
+  await ctx.close(); })();

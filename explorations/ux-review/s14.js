@@ -1,0 +1,10 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open();
+  await page.click('text=Tap to resume').catch(()=>{}); await page.waitForTimeout(600);
+  await page.click('text=Finish'); await page.waitForTimeout(600);
+  await shot('29-finish-dialog2');
+  await page.click('text=Leave them out and finish'); await page.waitForTimeout(1200);
+  await shot('30-summary'); await shot('30b-summary-full', true);
+  console.log(page.url()); console.log(await page.innerText('body'));
+  await dump();
+  await ctx.close(); })();

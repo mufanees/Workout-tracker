@@ -1,0 +1,14 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open({scheme:'light', path:'#/routine/new'});
+  await page.fill('input[placeholder="e.g. Upper body"]', 'Arms finisher');
+  await page.click('button:has-text("Add exercise")'); await page.waitForTimeout(500);
+  await page.fill('input[placeholder="Search exercises"]', 'curl'); await page.waitForTimeout(300);
+  await shot('52-light-picker-curl');
+  await page.locator('button:has-text("Hammer Curl"), button:has-text("Dumbbell Curl")').first().click();
+  await page.fill('input[placeholder="Search exercises"]', 'kickback'); await page.waitForTimeout(300);
+  await page.click('button:has-text("Triceps Kickback")');
+  await page.waitForTimeout(200); await shot('52b-two-selected');
+  await page.click('button:has-text("Add 2 exercises")').catch(async()=>{await dump();}); await page.waitForTimeout(600);
+  await shot('53-routine-with-exercises'); await shot('53b-routine-full', true);
+  await dump();
+  await ctx.close(); })();

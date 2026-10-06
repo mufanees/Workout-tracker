@@ -1,0 +1,14 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open();
+  await page.click('text=Tap to resume'); await page.waitForTimeout(600);
+  console.log('scrollY', await page.evaluate(()=>scrollY));
+  await shot('07-resume-position');
+  const w = page.locator('[aria-label="Set 1 weight in kg"]').nth(1);
+  await w.tap(); await w.fill('10');
+  const r = page.locator('[aria-label="Set 1 reps"]').nth(1); await r.tap(); await r.fill('10');
+  await page.locator('[aria-label="Complete set 1"]').nth(0).tap(); await page.waitForTimeout(700);
+  await shot('08-rest-timer');
+  await dump();
+  await page.waitForTimeout(3000);
+  await shot('08b-rest-timer-3s');
+  await ctx.close(); })();

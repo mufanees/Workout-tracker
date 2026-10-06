@@ -1,0 +1,11 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open({path:'#/history'});
+  await page.click('text=Phase 1 · Workout A'); await page.waitForTimeout(700);
+  console.log(page.url());
+  await shot('36-workout-detail'); await shot('36b-workout-detail-full', true);
+  await page.click('[aria-label*="ptions"], button:has-text("…")').catch(e=>console.log('no opts'));
+  await page.waitForTimeout(400); await shot('37-workout-detail-menu');
+  console.log(await page.evaluate(()=>[...document.querySelectorAll('[role=dialog], dialog')].map(e=>e.innerText).join('\n---\n')));
+  await page.keyboard.press('Escape');
+  await dump();
+  await ctx.close(); })();

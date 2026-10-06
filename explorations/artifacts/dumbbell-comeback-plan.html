@@ -1,0 +1,312 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Dumbbell Comeback Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one reading column; session clock up top, then rules, then four phase blocks with A/B workout tables */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --fg:#1b1f26; --muted:#5b6472; --line:#d8dce3;
+  --accent:#2747c9; --accent-soft:#e3e8fb; --warn:#a4470f; --warn-soft:#fbeadf;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12151b; --surface:#1a1e26; --fg:#e7eaf0; --muted:#9aa3b2; --line:#2c323d;
+  --accent:#8ea4ff; --accent-soft:#232c4d; --warn:#f0a070; --warn-soft:#3a2518; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151b; --surface:#1a1e26; --fg:#e7eaf0; --muted:#9aa3b2; --line:#2c323d;
+  --accent:#8ea4ff; --accent-soft:#232c4d; --warn:#f0a070; --warn-soft:#3a2518; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--body);padding:0 16px}
+.wrap{max-width:820px;margin:0 auto;padding-block:40px 64px;display:grid;gap:44px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.1;margin:0;letter-spacing:.01em}
+h1{font-size:clamp(2.4rem,7vw,3.6rem);text-transform:uppercase}
+h2{font-size:1.9rem;text-transform:uppercase}
+h3{font-size:1.3rem;text-transform:uppercase}
+p{margin:0;max-width:65ch}
+.eyebrow{font:500 .75rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.lede{color:var(--muted);font-size:1.05rem}
+header{display:grid;gap:12px}
+.clock{display:flex;border-radius:6px;overflow:hidden;font:500 .8rem var(--mono)}
+.clock div{padding:10px 12px;color:#fff;min-width:0}
+.clock .w{background:#55607a;flex:6}.clock .m{background:#2747c9;flex:18}.clock .c{background:#3c7a6a;flex:6}
+.clock b{display:block;font-family:var(--display);font-size:1.3rem;font-weight:700}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+ol,ul{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.note{background:var(--warn-soft);border-left:3px solid var(--warn);padding:14px 16px;border-radius:4px;display:grid;gap:6px}
+.note strong{color:var(--warn)}
+section{display:grid;gap:16px}
+.phase-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 .75rem var(--mono);background:var(--accent-soft);color:var(--accent);padding:3px 8px;border-radius:99px}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem;font-variant-numeric:tabular-nums}
+th{text-align:left;font:500 .7rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+td:first-child{font:500 .8rem var(--mono);color:var(--accent);width:36px}
+td .sub{display:block;color:var(--muted);font-size:.82rem}
+a.vid{color:var(--fg);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;font-weight:500}
+a.vid span{color:var(--accent);font-size:.7em;vertical-align:middle}
+a.vid:hover,a.vid:focus-visible{text-decoration-color:var(--accent);color:var(--accent)}
+.time{font:500 .75rem var(--mono);color:var(--muted)}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">12 weeks · dumbbells + mat · every other day</span>
+  <h1>Dumbbell Comeback Plan</h1>
+  <p class="lede">A 30-minute strength plan for starting again from scratch, with shoulder-friendly pressing and mobility built into every session. Adapted from the Buff Dudes 12-week dumbbell plan, with the bench work moved to the floor and the warm-up cut to fit the clock. Tap any exercise name (▶) to see form videos for it.</p>
+  <div class="clock" role="img" aria-label="Session timing: 6 minute warm-up, 18 minute main block, 6 minute cool-down">
+    <div class="w"><b>6 min</b>Warm-up</div><div class="m"><b>18 min</b>Main block</div><div class="c"><b>6 min</b>Stretch</div>
+  </div>
+</header>
+
+<section>
+  <h2>How it works</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Schedule</h3>
+      <ul>
+        <li>Train every other day. That works out to 3–4 sessions a week.</li>
+        <li>Alternate Workout A and Workout B: A, rest, B, rest, A…</li>
+        <li>Rest days: a 10-minute walk plus the warm-up below is plenty.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Supersets keep it to 30 minutes</h3>
+      <ul>
+        <li>Exercises come in pairs (1a / 1b). Do 1a, then 1b, then rest.</li>
+        <li>Rest 60 s after each pair (75–90 s on the heavy pair in phases 3–4).</li>
+        <li>Finish all sets of pair 1 before moving to pair 2.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Picking weights</h3>
+      <ul>
+        <li>Choose a weight you could lift for 3–4 more reps than prescribed. Too light is fine in week 1.</li>
+        <li>Rough starting points per dumbbell: floor press 8–10 kg, goblet squat 12–14 kg (one bell), rows 10–12 kg, RDL 10–12 kg, overhead press 5–6 kg.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Progression</h3>
+      <ul>
+        <li>When you hit the top of the rep range on every set with clean form, add the smallest jump your set allows next session.</li>
+        <li>Upper body moves slower than legs. That's normal.</li>
+        <li>Once something reaches 24 kg, progress with slower lowering (3 s), a pause at the bottom, or more reps.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="note">
+    <strong>Shoulder rules</strong>
+    <p>Stiffness that eases as you warm up is fine. Sharp or pinching pain is not: shorten the range or lower the weight, and skip the exercise that day if it doesn't go away. Keep elbows at about 45° from your body when pressing, use a neutral grip (palms facing each other), and only press overhead through a range that feels smooth. If the stiffness gets worse week to week rather than better, get it checked by a physio.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Warm-up · every session</h2>
+  <div class="grid2">
+    <div class="panel">
+      <span class="time">About 6 minutes, no rest between</span>
+      <div class="tbl"><table>
+        <tr><th>#</th><th>Drill</th><th>Dose</th></tr>
+        <tr><td>1</td><td>Cat–cow<span class="sub">Slow, move one segment at a time</span></td><td>8</td></tr>
+        <tr><td>2</td><td>Thread the needle<span class="sub">On all fours, reach under then open up to the ceiling</span></td><td>6 / side</td></tr>
+        <tr><td>3</td><td>Floor angels<span class="sub">On your back, knees bent, slide arms up and down the floor</span></td><td>10</td></tr>
+        <tr><td>4</td><td>Scap push-ups<span class="sub">Plank or kneeling, arms straight, squeeze and spread shoulder blades</span></td><td>10</td></tr>
+        <tr><td>5</td><td>World's greatest stretch<span class="sub">Lunge, elbow to instep, rotate and reach up</span></td><td>4 / side</td></tr>
+        <tr><td>6</td><td>Glute bridge + bodyweight squat</td><td>10 each</td></tr>
+        <tr><td>7</td><td>Ramp-up set<span class="sub">First exercise of the day at half weight</span></td><td>8</td></tr>
+      </table></div>
+    </div>
+    <div class="panel">
+      <h3>Cool-down · every session</h3>
+      <span class="time">About 6 minutes, breathe slowly through each</span>
+      <div class="tbl"><table>
+        <tr><th>#</th><th>Stretch</th><th>Hold</th></tr>
+        <tr><td>1</td><td>Child's pose with side reach</td><td>30 s / side</td></tr>
+        <tr><td>2</td><td>Prone chest stretch<span class="sub">Face down, one arm out in a T, roll away from it</span></td><td>30 s / side</td></tr>
+        <tr><td>3</td><td>Cross-body shoulder stretch</td><td>30 s / side</td></tr>
+        <tr><td>4</td><td>Half-kneeling hip flexor<span class="sub">Squeeze the glute of the back leg</span></td><td>30 s / side</td></tr>
+        <tr><td>5</td><td>90/90 hip stretch</td><td>30 s / side</td></tr>
+        <tr><td>6</td><td>Supine hamstring stretch</td><td>30 s / side</td></tr>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="phase-head"><span class="eyebrow">Phase 1 · weeks 1–3</span><h2>Rebuild</h2></div>
+  <div class="chips"><span class="chip">Week 1: 2 sets</span><span class="chip">Weeks 2–3: 3 sets</span><span class="chip">10–12 reps</span><span class="chip">3–4 reps in reserve</span></div>
+  <p>Learn the movements again and let tendons and joints catch up with your muscles. It should feel easy. That's the point.</p>
+  <div class="grid2">
+    <div class="panel"><h3>Workout A</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Goblet squat</td><td>10–12</td></tr>
+      <tr><td>1b</td><td>One-arm row<span class="sub">Staggered stance, free hand on knee</span></td><td>10–12 / side</td></tr>
+      <tr><td>2a</td><td>Floor press, neutral grip</td><td>10–12</td></tr>
+      <tr><td>2b</td><td>Glute bridge, dumbbell on hips</td><td>12–15</td></tr>
+      <tr><td>3a</td><td>Dead bug</td><td>8 / side</td></tr>
+      <tr><td>3b</td><td>Prone Y–T raises, no weight</td><td>8 each</td></tr>
+    </table></div></div>
+    <div class="panel"><h3>Workout B</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Romanian deadlift</td><td>10–12</td></tr>
+      <tr><td>1b</td><td>Bent-over row, both arms</td><td>10–12</td></tr>
+      <tr><td>2a</td><td>Half-kneeling one-arm press<span class="sub">Neutral grip, light, pain-free range only</span></td><td>10 / side</td></tr>
+      <tr><td>2b</td><td>Reverse lunge, bodyweight</td><td>8 / side</td></tr>
+      <tr><td>3a</td><td>Side plank (knees down is fine)</td><td>20–30 s / side</td></tr>
+      <tr><td>3b</td><td>Bird dog</td><td>8 / side</td></tr>
+    </table></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="phase-head"><span class="eyebrow">Phase 2 · weeks 4–6</span><h2>Build</h2></div>
+  <div class="chips"><span class="chip">3 sets</span><span class="chip">8–10 reps</span><span class="chip">2–3 reps in reserve</span></div>
+  <p>Weights go up and rep ranges come down. Rear shoulders and arms get direct work to balance out the pressing.</p>
+  <div class="grid2">
+    <div class="panel"><h3>Workout A</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Goblet squat, 1 s pause at bottom</td><td>8–10</td></tr>
+      <tr><td>1b</td><td>One-arm row</td><td>8–10 / side</td></tr>
+      <tr><td>2a</td><td>Floor press, two dumbbells</td><td>8–10</td></tr>
+      <tr><td>2b</td><td>Single-leg glute bridge</td><td>10 / side</td></tr>
+      <tr><td>3a</td><td>Bent-over rear-delt fly, light</td><td>12–15</td></tr>
+      <tr><td>3b</td><td>Dead bug, holding one dumbbell</td><td>8 / side</td></tr>
+    </table></div></div>
+    <div class="panel"><h3>Workout B</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Romanian deadlift</td><td>8–10</td></tr>
+      <tr><td>1b</td><td>Bent-over row, both arms</td><td>8–10</td></tr>
+      <tr><td>2a</td><td>Split squat with dumbbells</td><td>8–10 / side</td></tr>
+      <tr><td>2b</td><td>Half-kneeling one-arm press</td><td>8–10 / side</td></tr>
+      <tr><td>3a</td><td>Hammer curl</td><td>10–12</td></tr>
+      <tr><td>3b</td><td>Floor skull crusher</td><td>10–12</td></tr>
+    </table></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="phase-head"><span class="eyebrow">Phase 3 · weeks 7–9</span><h2>Strength</h2></div>
+  <div class="chips"><span class="chip">Pair 1: 4 × 6–8</span><span class="chip">Pairs 2–3: 3 × 8–12</span><span class="chip">Rest 75–90 s after pair 1</span></div>
+  <p>The first pair is now the heavy work. If the clock runs tight, drop the last set of pair 3 before cutting the warm-up.</p>
+  <div class="grid2">
+    <div class="panel"><h3>Workout A</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Floor press, 2 s pause on the floor</td><td>6–8</td></tr>
+      <tr><td>1b</td><td>One-arm row, heavy</td><td>6–8 / side</td></tr>
+      <tr><td>2a</td><td>Front squat, dumbbells on shoulders</td><td>8–10</td></tr>
+      <tr><td>2b</td><td>Reverse lunge with dumbbells</td><td>8 / side</td></tr>
+      <tr><td>3a</td><td>Prone Y–T raises, 1–2 kg</td><td>10 each</td></tr>
+      <tr><td>3b</td><td>Plank, dumbbell drag</td><td>8 / side</td></tr>
+    </table></div></div>
+    <div class="panel"><h3>Workout B</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Romanian deadlift, heavy</td><td>6–8</td></tr>
+      <tr><td>1b</td><td>Bent-over row, both arms</td><td>6–8</td></tr>
+      <tr><td>2a</td><td>Rear-foot-elevated split squat<span class="sub">Back foot on a sturdy chair or sofa</span></td><td>8 / side</td></tr>
+      <tr><td>2b</td><td>Standing one-arm press<span class="sub">Stay half-kneeling if overhead still feels stiff</span></td><td>8 / side</td></tr>
+      <tr><td>3a</td><td>Hammer curl</td><td>10–12</td></tr>
+      <tr><td>3b</td><td>Floor skull crusher</td><td>10–12</td></tr>
+    </table></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="phase-head"><span class="eyebrow">Phase 4 · weeks 10–12</span><h2>Peak</h2></div>
+  <div class="chips"><span class="chip">Pair 1: 4 × 5–8</span><span class="chip">Pairs 2–3: 3 × 8–10</span><span class="chip">Week 12: test</span></div>
+  <p>Heaviest phase. A pair of 24 kg dumbbells on the floor press is 48 kg, close to your old 50 kg bench. In week 12, do pair 1 as a test: after the ramp-up, see how many clean reps you get with your heaviest weight, then finish the session as normal.</p>
+  <div class="grid2">
+    <div class="panel"><h3>Workout A</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Floor press</td><td>5–8</td></tr>
+      <tr><td>1b</td><td>One-arm row</td><td>5–8 / side</td></tr>
+      <tr><td>2a</td><td>Goblet or front squat, 3 s lowering</td><td>8–10</td></tr>
+      <tr><td>2b</td><td>Single-leg Romanian deadlift</td><td>8 / side</td></tr>
+      <tr><td>3a</td><td>Bent-over rear-delt fly</td><td>12–15</td></tr>
+      <tr><td>3b</td><td>Side plank</td><td>40 s / side</td></tr>
+    </table></div></div>
+    <div class="panel"><h3>Workout B</h3><div class="tbl"><table>
+      <tr><th>#</th><th>Exercise</th><th>Reps</th></tr>
+      <tr><td>1a</td><td>Romanian deadlift</td><td>5–8</td></tr>
+      <tr><td>1b</td><td>Bent-over row, both arms</td><td>5–8</td></tr>
+      <tr><td>2a</td><td>Rear-foot-elevated split squat</td><td>8 / side</td></tr>
+      <tr><td>2b</td><td>Push-ups, slow lowering</td><td>Stop 2 short of failure</td></tr>
+      <tr><td>3a</td><td>Standing or half-kneeling press</td><td>8–10 / side</td></tr>
+      <tr><td>3b</td><td>Hammer curl</td><td>10–12</td></tr>
+    </table></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>If a week goes badly</h2>
+  <ul>
+    <li>Missed a week or more: repeat the last week you completed, at the same weights.</li>
+    <li>Stuck on the same weight for three sessions in a row: do one lighter week (same exercises, about 70% of the weight, 2 sets), then carry on.</li>
+    <li>Low on time: do the warm-up, pair 1 and the cool-down. That's about 20 minutes and still counts.</li>
+  </ul>
+</section>
+</div>
+<script>
+// Turn each exercise name into a link to YouTube results for that movement's form demo.
+const Q={
+ "Goblet squat":"dumbbell goblet squat form",
+ "Goblet squat, 1 s pause at bottom":"pause goblet squat dumbbell",
+ "Goblet or front squat, 3 s lowering":"dumbbell goblet squat tempo",
+ "One-arm row":"dumbbell one arm row without bench staggered stance",
+ "One-arm row, heavy":"dumbbell one arm row without bench staggered stance",
+ "Floor press, neutral grip":"neutral grip dumbbell floor press",
+ "Floor press, two dumbbells":"dumbbell floor press form",
+ "Floor press":"dumbbell floor press form",
+ "Floor press, 2 s pause on the floor":"paused dumbbell floor press",
+ "Glute bridge, dumbbell on hips":"dumbbell glute bridge form",
+ "Prone Y–T raises, no weight":"prone Y T raises",
+ "Prone Y–T raises, 1–2 kg":"prone Y T raises dumbbell",
+ "Romanian deadlift":"dumbbell romanian deadlift form",
+ "Romanian deadlift, heavy":"dumbbell romanian deadlift form",
+ "Bent-over row, both arms":"dumbbell bent over row form",
+ "Half-kneeling one-arm press":"half kneeling single arm dumbbell press",
+ "Reverse lunge, bodyweight":"reverse lunge form",
+ "Reverse lunge with dumbbells":"dumbbell reverse lunge form",
+ "Side plank (knees down is fine)":"modified side plank knees",
+ "Side plank":"side plank form",
+ "Single-leg glute bridge":"single leg glute bridge form",
+ "Bent-over rear-delt fly, light":"dumbbell bent over rear delt fly form",
+ "Bent-over rear-delt fly":"dumbbell bent over rear delt fly form",
+ "Dead bug, holding one dumbbell":"weighted dead bug dumbbell",
+ "Split squat with dumbbells":"dumbbell split squat form",
+ "Hammer curl":"dumbbell hammer curl form",
+ "Floor skull crusher":"dumbbell skull crusher on floor",
+ "Front squat, dumbbells on shoulders":"dumbbell front squat form",
+ "Plank, dumbbell drag":"plank dumbbell drag",
+ "Rear-foot-elevated split squat":"bulgarian split squat dumbbell at home chair",
+ "Standing one-arm press":"standing single arm dumbbell shoulder press",
+ "Standing or half-kneeling press":"single arm dumbbell shoulder press half kneeling",
+ "Single-leg Romanian deadlift":"dumbbell single leg romanian deadlift form",
+ "Push-ups, slow lowering":"tempo push up form",
+ "Cat–cow":"cat cow stretch",
+ "Thread the needle":"thread the needle thoracic mobility",
+ "Floor angels":"floor angels shoulder mobility",
+ "Scap push-ups":"scapular push ups form",
+ "World's greatest stretch":"worlds greatest stretch",
+ "Glute bridge + bodyweight squat":"glute bridge and bodyweight squat warm up",
+ "Child's pose with side reach":"child's pose side reach stretch",
+ "Prone chest stretch":"prone pec stretch on floor",
+ "Cross-body shoulder stretch":"cross body shoulder stretch",
+ "Half-kneeling hip flexor":"half kneeling hip flexor stretch",
+ "90/90 hip stretch":"90 90 hip stretch",
+ "Supine hamstring stretch":"supine hamstring stretch"
+};
+document.querySelectorAll("tr td:nth-child(2)").forEach(td=>{
+  const n=td.firstChild; if(!n||n.nodeType!==3) return;
+  const name=n.textContent.trim(); if(name.startsWith("Ramp")) return;
+  const a=document.createElement("a");
+  a.href="https://www.youtube.com/results?search_query="+encodeURIComponent(Q[name]||name+" exercise form");
+  a.target="_blank"; a.rel="noopener"; a.className="vid";
+  a.innerHTML='<span aria-hidden="true">▶</span> '+name;
+  td.replaceChild(a,n);
+});
+</script>
+
+</body></html>

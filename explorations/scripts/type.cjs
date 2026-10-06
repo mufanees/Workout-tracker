@@ -1,0 +1,13 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'dark' })
+  const p = await ctx.newPage()
+  await p.goto('http://localhost:4173/#/train'); await p.waitForTimeout(1800)
+  const card = p.locator('.routine-card').first(); await card.scrollIntoViewIfNeeded()
+  await p.locator('.routine-list, .folder').first().screenshot({ path: '/home/user/Workout-tracker/qa/shots-type-routines.png' })
+  console.log('font:', await p.locator('.routine-ex').first().evaluate((e) => getComputedStyle(e).fontFamily), '| loaded:', await p.evaluate(() => document.fonts.check('16px "Source Serif 4 Variable"')))
+  await card.locator('button', { hasText: 'Start' }).click(); await p.waitForTimeout(800)
+  await p.locator('.checklist').first().screenshot({ path: '/home/user/Workout-tracker/qa/shots-type-warmup.png' })
+  await b.close()
+})()

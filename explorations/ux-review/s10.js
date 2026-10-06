@@ -1,0 +1,20 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open();
+  await page.click('text=Tap to resume'); await page.waitForTimeout(600);
+  await shot('19-after-moveup');
+  await page.locator('[aria-label="Options for Dumbbell Floor Press"]').tap(); await page.waitForTimeout(400);
+  await page.click('text=Replace exercise'); await page.waitForTimeout(600);
+  await page.fill('input[placeholder="Search exercises"]', 'push'); await page.waitForTimeout(300);
+  await shot('20-search-push');
+  await page.click('text=Push-Up'); await page.waitForTimeout(600);
+  const y = await page.locator('text=Push-Up').first().boundingBox(); console.log('pushup at', y);
+  await page.locator('text=Push-Up').first().scrollIntoViewIfNeeded();
+  await shot('21-after-replace');
+  // Add exercise
+  await page.click('text=Add exercise'); await page.waitForTimeout(500);
+  await shot('22-add-exercise');
+  await page.fill('input[placeholder="Search exercises"]', 'lateral'); await page.waitForTimeout(300);
+  await page.click('text=Lateral Raise'); await page.waitForTimeout(400);
+  await shot('22b-after-select');
+  await dump();
+  await ctx.close(); })();

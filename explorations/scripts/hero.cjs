@@ -1,0 +1,12 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'dark' })
+  await ctx.addInitScript(() => localStorage.setItem('reps-token', 'testkey'))
+  const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message))
+  await p.goto('http://localhost:3000/#/history'); await p.waitForTimeout(1500)
+  const id = await p.evaluate(() => new Promise((r) => { const q = indexedDB.open('reps'); q.onsuccess = () => { const t = q.result.transaction('workouts').objectStore('workouts').getAll(); t.onsuccess = () => r(t.result.sort((a, b) => b.start - a.start)[0].id) } }))
+  await p.goto('http://localhost:3000/#/history/' + id + '?done=1'); await p.waitForTimeout(2500)
+  await p.locator('.cel-hero').screenshot({ path: '/home/user/Workout-tracker/qa/shots12/dark-12-workout-hero.png' })
+  console.log(errs.join('\n') || 'no errors'); await b.close()
+})()

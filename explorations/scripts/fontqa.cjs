@@ -1,0 +1,16 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+const O = '/home/user/Workout-tracker/qa/shots-coach/'
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'dark' })
+  await ctx.addInitScript(() => localStorage.setItem('reps-token', 'testkey'))
+  const p = await ctx.newPage()
+  await p.goto('http://localhost:3000/#/train'); await p.waitForTimeout(2500)
+  await p.screenshot({ path: O + 'font-train.png' })
+  console.log('checkin-why font:', await p.locator('.checkin-why').evaluate((e) => getComputedStyle(e).fontFamily.split(',')[0]))
+  console.log('tr-sub font:', await p.locator('.tr-sub').first().evaluate((e) => getComputedStyle(e).fontFamily.split(',')[0]))
+  console.log('chip font:', await p.locator('.chip').first().evaluate((e) => getComputedStyle(e).fontFamily.split(',')[0]))
+  await p.goto('http://localhost:3000/#/history'); await p.waitForTimeout(1500)
+  await p.locator('.workout-card').first().screenshot({ path: O + 'font-card.png' })
+  await b.close()
+})()

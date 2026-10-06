@@ -1,0 +1,11 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open();
+  await page.click('text=Tap to resume'); await page.waitForTimeout(600);
+  await page.click('text=Finish'); await page.waitForTimeout(600);
+  await page.click('text=Complete them with the grey values'); await page.waitForTimeout(800);
+  await shot('45-after-complete-grey');
+  console.log(await page.innerText('body').then(t=>t.slice(-500)));
+  await page.click('button:has-text("Save workout")'); await page.waitForTimeout(1500);
+  await shot('46-summary2'); await shot('46b-summary2-full', true);
+  console.log(await page.innerText('body').then(t=>t.slice(0,900)));
+  await ctx.close(); })();

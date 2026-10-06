@@ -1,0 +1,17 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+const { installFakeClaude } = require('/home/user/Workout-tracker/qa/fake-claude.cjs')
+const S = process.argv[2]
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: process.env.SCHEME || 'light', recordVideo: { dir: S + '/vid', size: { width: 390, height: 844 } } })
+  await installFakeClaude(ctx, { store: new Map(), sample: async () => ({ text: '{}' }) })
+  const p = await ctx.newPage()
+  const t0 = Date.now(); const at = (l) => console.log(l, ((Date.now() - t0) / 1000).toFixed(2))
+  await p.goto('http://localhost:4173/#/train'); await p.waitForTimeout(2000)
+  at('open settings'); await p.locator('button[aria-label="Settings"]').tap(); await p.waitForTimeout(1200)
+  at('back'); await p.goBack(); await p.waitForTimeout(1200)
+  at('body tab'); await p.locator('.tab').nth(3).tap(); await p.waitForTimeout(1200)
+  at('open fast'); await p.locator('.fast-card .fast-head, .fast-card .eyebrow').first().tap(); await p.waitForTimeout(1200)
+  at('back'); await p.goBack(); await p.waitForTimeout(1200)
+  await ctx.close(); await b.close()
+})()

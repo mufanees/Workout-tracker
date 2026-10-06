@@ -1,0 +1,10 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
+  await p.goto('http://localhost:4173/#/train'); await p.waitForTimeout(2000)
+  const f = await p.evaluate(() => { const e = document.querySelector('.routine-ex'); return e ? getComputedStyle(e).fontFamily + ' | loaded:' + document.fonts.check('15px "Inter Variable"') : 'none' })
+  console.log(f)
+  await p.emulateMedia({colorScheme:'dark'}); await p.locator('.routine-ex').first().scrollIntoViewIfNeeded(); await p.waitForTimeout(400); await p.screenshot({ path: '/home/user/Workout-tracker/qa/inter-train.png' })
+  await b.close()
+})()

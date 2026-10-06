@@ -1,0 +1,20 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  for (const scheme of ['dark', 'light']) {
+    const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, colorScheme: scheme, timezoneId: 'Asia/Kuala_Lumpur' })
+    await ctx.addInitScript(() => localStorage.setItem('reps-token', 'testkey'))
+    const p = await ctx.newPage()
+    await p.goto('http://localhost:3000/#/history'); await p.waitForTimeout(2500)
+    const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.locator('.head-import').click()])
+    await fc.setFiles(process.argv[2]); await p.waitForTimeout(600)
+    await p.locator('.modal .btn-primary').click(); await p.waitForTimeout(1200)
+    await p.goto('http://localhost:3000/#/history'); await p.waitForTimeout(1500)
+    console.log(scheme, (await p.locator('.workout-card .wc-icon').evaluateAll(es => es.slice(0, 4).map(e => e.className + ':' + e.querySelector('svg').getAttribute('class').split(' ').pop()))).join(' | '))
+    await p.locator('.workout-list').first().screenshot({ path: `/home/user/Workout-tracker/qa/shots-when/icons-${scheme}.png` })
+    await p.goto('http://localhost:3000/#/day/2026-10-03'); await p.waitForTimeout(1200)
+    await p.locator('.day-card').first().screenshot({ path: `/home/user/Workout-tracker/qa/shots-when/icons-day-${scheme}.png` })
+    await ctx.close()
+  }
+  await b.close()
+})()

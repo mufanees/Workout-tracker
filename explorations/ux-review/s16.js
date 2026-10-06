@@ -1,0 +1,11 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open({path:'#/history'});
+  await shot('33-history-direct');
+  console.log(page.url());
+  await page.goto('http://localhost:3200/'); await page.waitForTimeout(800);
+  await shot('34-home-after-workout'); 
+  console.log(await page.innerText('body').then(t=>t.slice(0,400)));
+  await page.click('text=History'); await page.waitForTimeout(600);
+  await shot('35-history');
+  await dump();
+  await ctx.close(); })();

@@ -1,0 +1,13 @@
+const { chromium } = require('/opt/node22/lib/node_modules/playwright')
+;(async () => {
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, colorScheme: 'dark' })
+  await ctx.addInitScript(() => localStorage.setItem('reps-token', 'testkey'))
+  const p = await ctx.newPage()
+  await p.goto('http://localhost:3000/#/train'); await p.waitForTimeout(2500)
+  await p.locator('.goal-card').click(); await p.waitForTimeout(1200)
+  await p.screenshot({ path: '/home/user/Workout-tracker/qa/shots-goal/dark-4-detail-fixed.png', fullPage: true })
+  await p.getByRole('button', { name: /Ask coach about this goal/ }).click(); await p.waitForTimeout(3500)
+  console.log('asked:', (await p.locator('.bubble.user, .bubble.me').last().innerText().catch(() => '?')).slice(0, 160))
+  await b.close()
+})()

@@ -1,0 +1,14 @@
+const { open } = require('./lib');
+(async () => { const { ctx, page, shot, dump } = await open();
+  await page.click('text=Tap to resume'); await page.waitForTimeout(600);
+  const w = page.locator('[aria-label="Set 1 weight in kg"]').first();
+  await w.tap(); await page.waitForTimeout(200);
+  await shot('05-focus-weight');
+  console.log('inputmode', await w.getAttribute('inputmode'), await w.getAttribute('type'));
+  await w.fill('12');
+  const r = page.locator('[aria-label="Set 1 reps"]').first();
+  await r.tap(); await r.fill('12');
+  await page.locator('[aria-label="Complete set 1"]').first().tap(); await page.waitForTimeout(600);
+  await shot('06-after-set1');
+  await dump();
+  await ctx.close(); })();
