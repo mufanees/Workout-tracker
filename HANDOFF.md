@@ -2,28 +2,30 @@
 
 Everything a new person or a new Claude session needs to pick this up cold. Read this first, then `README.md` (deployment and user-facing docs).
 
-## Where things stand (4 Oct 2026)
+## Where things stand (6 Oct 2026)
 
 | | |
 |---|---|
 | App name | **Gloop** (was Reps). Internal names stay `reps` (database `/data/reps.db`, backup marker `app: 'reps'`, `dist/reps-single.html`) so existing data and backups keep working. |
 | Repo | `mufanees/workout-tracker` |
-| Branch | **`main`**: deploy from it and build on it. (`ccr-82a33bbf-3kimrv` is the branch the work was done on; `main` was created from it on 4 Oct 2026 with identical history.) If GitHub still shows the old branch as default, switch the default to `main` in the repo's Settings → Branches. |
+| Branches | **`main`**: deploy from it and build on it. **`design-exploration`**: `main` plus `explorations/` (every mockup, finished or not, artifact copies, motion recordings, UX and QA screenshots, throwaway scripts; index in `explorations/README.md`). `ccr-82a33bbf-3kimrv`: the branch the work was done on, identical to `main`. If GitHub still shows the old branch as default, switch the default to `main` in the repo's Settings → Branches. |
 | Get the code | `git clone https://github.com/mufanees/workout-tracker.git && cd workout-tracker && npm install` (or `git pull` in an existing clone) |
 | Design system | `DESIGN.md` (rules, motion, goo) and `design-system/` (generator, generated files, `icon/` app icon sources and preview). Also a private Claude Design System artifact: https://claude.ai/artifact/DmFNNgMBC8PN5woMDfjcdk (pre-goo; regenerate if needed) |
 | Hosted preview | Private Claude artifact: https://claude.ai/artifact/Cg23G2PSbJtSp6GNDqv4Sb (the owner's current Claude account only; see "The Claude-hosted copy" and "Switching Claude accounts" below) |
-| Production | **Live** at https://gloop.novas.my on the owner's self-hosted Coolify (Dockerfile build, branch `main`). |
+| Production | **Live** at https://gloop.novas.my on the owner's self-hosted Coolify (Dockerfile build, branch `main`). Everything after 4 Oct (accounts, physio coach, mobility plans, structured warm-ups, saved videos, share to Gloop) is on `main` but only reaches the site on the next **Redeploy** in Coolify; check the deployed commit there. |
+| Last session | Ended 6 Oct 2026 because the owner switched Claude accounts. Nothing was half-done: every change is committed and pushed, all test suites passed (see Running and testing). |
 | Owner's phone | Android, Chrome; mostly uses the Claude app. Trains with dumbbells (to 24 kg) and bands at home. Garmin HRM-Dual strap. Zone 2 = 120–145 bpm. |
 
 ### Next steps, in order
 
-0. **Before switching Claude accounts**, take your data out of the hosted copy (see "Switching Claude accounts"). The code is all on GitHub; the data is not.
-1. **Deploy to Coolify** (README → "Deploy on Coolify"): repo above, branch `main`, build pack Dockerfile, Ports Exposes `3000`, HTTPS domain (e.g. `gloop.<domain>`), env `APP_TOKEN` (long random), `GEMINI_API_KEY` (free, from aistudio.google.com; leave `GEMINI_PLAN_MODEL` unset, that model is paid), `TZ`; Persistent Storage **Volume Mount** at `/data`. Check `/api/health` → `{"ok":true,"auth":true}`. If the build fails, the log is the first thing to look at.
-2. On the phone: open the domain in Chrome, install to home screen, Settings → paste `APP_TOKEN` → Connect.
-3. Move data from the Claude-hosted copy: there, Settings → **Copy backup**; in the deployed app, Settings → **Paste a backup**.
-4. Check on the real phone: screen changes (no flash), the goo pill, the coach with the real Gemini key, notifications, pairing the HRM-Dual.
-5. Optionally add the MCP connector in Claude (README → "Importing a plan").
-6. **Accounts** (built 4 Oct 2026, owner chose invite-only + Google sign-in + coach on the owner's Gemini key with a daily cap): set up the Google OAuth client and env `GOOGLE_CLIENT_ID`, `ADMIN_EMAIL` (README → "Accounts"), redeploy, sign in, invite people from Settings → People. Not yet tried with real Google (tested with a stand-in signing key and a stand-in Google button).
+0. **Switching Claude accounts**: follow the checklist in "Switching Claude accounts" below. The code, docs and design material are all in this repo; the training data in the Claude-hosted copy is not.
+1. **Redeploy** in Coolify so gloop.novas.my gets everything on `main` (accounts, physio coach, mobility plans, warm-ups, videos, share target). Check `/api/health`.
+2. **Accounts with real Google** (built 4 Oct; owner chose invite-only + Google sign-in + coach on the owner's Gemini key with a daily cap): create the OAuth client and set `GOOGLE_CLIENT_ID`, `ADMIN_EMAIL` in Coolify (README → "Accounts"), redeploy, sign in, invite from Settings → People. Only tested with a stand-in Google so far.
+3. **Share to Gloop on the phone**: after the redeploy, reinstall Gloop to the home screen (or wait for Chrome to refresh it) so "Gloop" appears in Android's share sheet; share a YouTube video and pick the exercise. Video titles come from YouTube's oEmbed via the server, which the build sandbox couldn't reach: confirm titles show.
+4. **Check on the real phone** (never verified there): screen changes (no flash), the goo, the coach with the real Gemini key, notifications, pairing the HRM-Dual, the physio/mobility coach answers with real Gemini.
+5. **Open design decision**: an icon for cardio-machine workouts imported from FIT files (`explorations/mockups/menu-icon/`). Option 4 (heartbeat) fits the Lucide-only rule.
+6. **Offered, not built**: a floating coach button that knows the current screen and exercise (the owner floated "a floating agent" for saving videos; share-to-Gloop and the coach tool were built instead).
+7. Optionally: add the MCP connector in Claude (README → "Importing a plan"); republish the Claude-hosted copy under the new account (see below).
 
 ## What the app does
 
@@ -196,19 +198,22 @@ Because the owner wanted to train before the server was deployed, the app is als
 
 ## Switching Claude accounts
 
-Code, docs and the design system are all in this repo. Two things are tied to the old Claude account and need moving by hand:
+Code, docs, the design system sources and every design exploration are in this repo (`main` and `design-exploration`). What is tied to the old Claude account and needs moving by hand:
 
-1. **Your training data** (the hosted copy saves to the account that opened it):
-   1. In the old account, open the app → Settings → **Copy backup**. It copies one JSON text with everything (workouts, routines, fasts, body weight, readings, coach memory, day notes, settings).
+1. **Training data in the Claude-hosted copy** (it saves to the account that opened it):
+   1. In the old account, open the app → Settings → **Copy backup**. It copies one JSON text with everything (workouts, routines, fasts, body weight, readings, coach memory and library, day notes, settings).
    2. Paste it somewhere safe right away (a note, an email to yourself, or a file). Check the paste isn't empty.
-   3. In the new account, publish a fresh copy (see above), open it → Settings → **Paste a backup** → Import. Or, once the Coolify server is up, paste it into the deployed app instead; it then syncs to the server.
+   3. Import it where you'll train from now on: the deployed app at gloop.novas.my (Settings → **Paste a backup** → Import; it then syncs to the server) or a fresh hosted copy under the new account.
    4. Only then stop using the old account. A workout in progress is **not** in the backup: finish it first.
-2. **The artifacts.** The new account gets new URLs:
-   - App: publish `dist/reps-single.html` as above.
-   - Design system: run `python3 design-system/build.py`, then publish `design-system/project/` with the Design System artifact type (index file `project/design-system.json`, every other file under `project/` as supporting files). See `design-system/README.md`.
+   The data on gloop.novas.my is on the server (`/data/reps.db`) and doesn't depend on any Claude account.
+2. **The artifacts** (new account = new URLs; copies of all four are in `explorations/artifacts/` on `design-exploration`):
+   - Gloop app (https://claude.ai/artifact/Cg23G2PSbJtSp6GNDqv4Sb): `npm run build && npm run single`, publish `dist/reps-single.html` with capabilities `{"db": {}, "user": {}, "sample": {}}`. The published copy is from 4 Oct; a rebuild includes everything since.
+   - Reps Design System (https://claude.ai/artifact/DmFNNgMBC8PN5woMDfjcdk): `python3 design-system/build.py`, then publish `design-system/project/` with the Design System artifact type (see `design-system/README.md`). It predates the goo work and the Gloop name: regenerate.
+   - Dumbbell Comeback Plan and Lift Log: reference only (`explorations/artifacts/`); republish only if wanted.
    - Or share the old artifacts with the new account from their Share menu before switching.
-
-The Coolify deployment (when it exists) doesn't depend on any Claude account: its data is in `/data/reps.db` on the server.
+3. **The coach profile and library** live with the training data (coach records), so they move with the backup in step 1. Their source files from the build (profile, four library entries) were deliberately not committed: this repo is public.
+4. **Claude connections in the new account**: connect GitHub (for `mufanees/workout-tracker`) so new sessions can push; add the MCP connector again if you used it (Settings → Claude connector in the app gives the link).
+5. **Starting the next session**: point it at this repo and ask it to read `HANDOFF.md` first, then `explorations/README.md` for design history. Work on `main` (or a branch from it); `design-exploration` is an archive branch, so don't merge `explorations/` into `main` unless you want 78 MB of media there.
 
 ## Owner preferences (keep these)
 
@@ -280,3 +285,4 @@ Commit history on the branch tells the same story in more detail (`git log`).
 24. Physio and OT knowledge (4 Oct 2026, owner asked for stretches and a corpus). Open sources reachable from the sandbox were limited to GitHub; the physio-oriented Easeur dataset has no licence and is built from crawled sites, so it was not used. Stretch instructions come from free-exercise-db (public domain) → `shared/stretches.json` (areas, equipment, partner flag, hold/moving/roll kind, steps). `shared/rehabKnowledge.mjs` (written for the app): `REHAB_CORE` (stretch dose, aches, red flags) appended to `KNOWLEDGE_CORE`; 18 sections merged into the `training_knowledge` topics (stretching, mobility, warmup, neck, shoulder, elbow, wrist_hand, upper_back, low_back, hip, knee, ankle_foot, tendons, nerves, desk, pacing, joint_protection, red_flags); 44 `REHAB_EXERCISES` with steps, doses and "for" tags, added to the library between curated and free-exercise-db rows in both `src/seed.ts` and `server/mcp.mjs` (`SEED_VERSION` 4 so existing installs get them). `find_stretches(area, goal, equipment)` maps words to areas and problems, ranks rehab moves by problem tags, adds catalogue stretches by primary area, skips partner moves, equipment they lack, and jumps/lunges when they mention pain. Coach instructions: red-flag check first, 3–5 moves with dose and cue, 24-hour rule, when to see a physio, OT advice tied to their life, offer a routine. Test: `node qa/rehab-test.mjs` (8 checks, stand-in Gemini).
 25. Mobility built into the day or week (4 Oct 2026). Tool `propose_mobility_plan` {scope today|week, summary, days: [{date, intensity hard|moderate|easy|rest, focus, warmup[], cooldown[], session {name, minutes, moves [{name, sets, reps, seconds, cue}]}}]} → on approval a coach item `kind: 'mobility'` (`MobilitySpec`, one open at a time). `startRoutine` merges the day's lines into that workout's warm-up and cool-down (`mergeLines`: no repeats by name, warm-up add-ons before the ramp-up set; the routine is untouched; the time plan counts them). `startMobility(day)` starts the standalone session (library matches, sets with rep/second targets, cue as notes, `Workout.mobility` = the day) and skips the coach's pre-workout targets. Train `MobilityCard`: today's intensity and focus, add-ons, session with Start / Done, the week list, menu to ask the coach or stop the plan. Coach context gets MOBILITY PLAN with each day's status (trained, session done). Instructions size each day by intensity (block phase, deload, check-in, soreness). Test: `npm run build && node qa/mobility-ui.mjs` (10 checks, stand-in Gemini, screenshots in `qa/shots-mobility/`).
 26. Warm-ups and videos (5 Oct 2026). Warm-up/cool-down stay `string[]` (no data migration): `parseMove` reads each line (separators ×, x, ·, :, a trailing or leading dose, "(note)", " — note", a URL; doses normalised to "2 × 15", "30 s"); `moveExercise` links it (hand link in `Settings.moveLinks` by letters-only name, '' = text only; else `matchExercise` if the exercise name isn't longer than the move + 1 word; else the longest library name fully inside the move that covers every non-position word). Routine editor uses `MoveListEditor` (text box + preview rows + Add from library); the workout checklist renders `MoveText` and opens the line's URL, else the linked exercise's video, else a search. `lineSeconds` ignores URLs. Videos: `Exercise.videos: {url, title?, added}[]`, first = preferred; `saveVideo` (preferred unless told otherwise; strips `si`/`feature` params), `removeVideo`; `VideoSheet` mode 1 (a link: guesses by title words with the active workout's exercises first, or search) and mode 2 (an exercise: Paste link from the clipboard, type a link, star to make preferred, remove with undo). Entry points: workout/routine exercise ⋯ menu, exercise page star button, warm-up line tap, `manifest share_target` → `/share` (handled in `src/share.ts` before the router starts, then the sheet opens once the library loads), and the coach tool `save_exercise_video` (server: resolves the name with `matchExercise` on the server library, looks up the title, emits `{video}` for the app to save and a "Video saved" chip; Claude copy saves directly). `/api/video-info` (signed in) asks only YouTube/Vimeo/TikTok oEmbed, cached. Coach instructions: write warm-up lines library-name first. Test: `npm run build && node qa/videos-ui.mjs` (15 checks; screenshots in `qa/shots-videos/`). `qa/accounts-ui.mjs` now clicks dialog buttons inside the dialog (its old "last button" locator was timing-sensitive).
+27. Design exploration archive and account switch (6 Oct 2026). Before switching Claude accounts the owner asked for everything, unfinished mockups included, on a `design-exploration` branch. `explorations/` holds copies of the four published artifacts, mockups (tab-bar label, cardio-machine icon (open), squircle, time picker), motion recordings with frame grabs and brightness analysis, the UX-review walkthrough, all QA screenshots, two older stylesheets and the one-off scripts; `explorations/README.md` indexes them with a status for each. Left out because the repo is public: the owner's real data (database copies, backup, coach profile and library, a Wahoo heart-rate workout, recorded coach requests). Also left out: third-party icon packs and cloned repos.
