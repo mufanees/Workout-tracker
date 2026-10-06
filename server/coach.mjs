@@ -262,7 +262,10 @@ export function createCoach({ db, q, mcp, push }) {
       return res.end()
     }
     const ctrl = new AbortController()
-    res.on('close', () => ctrl.abort())
+    // While Gemini thinks or writes a long tool call nothing streams; a ping keeps proxies from closing the quiet connection.
+    const ping = setInterval(() => send({}), 15000)
+    res.on('close', () => (clearInterval(ping), ctrl.abort()))
+    let said = false
     const contents = messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
     const system = systemText({ context: typeof body.context === 'string' ? body.context.slice(0, 300000) : '', tz })
     try {
@@ -272,9 +275,9 @@ export function createCoach({ db, q, mcp, push }) {
             systemInstruction: { parts: [{ text: system }] },
             contents,
             tools: [{ functionDeclarations: DECLARATIONS }],
-            generationConfig: { maxOutputTokens: 8192 },
+            generationConfig: { maxOutputTokens: 32768 },
           },
-          { onText: (t) => send({ t }), signal: ctrl.signal, model: isPlanning(messages[messages.length - 1]?.content) ? PLAN_MODEL : MODEL },
+          { onText: (t) => ((said = true), send({ t })), signal: ctrl.signal, model: isPlanning(messages[messages.length - 1]?.content) ? PLAN_MODEL : MODEL },
         )
         if (blocked || finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT') {
           send({ t: '\n\nGemini declined to answer that one. Try asking about your training a different way.' })
@@ -282,9 +285,11 @@ export function createCoach({ db, q, mcp, push }) {
         }
         const calls = parts.filter((p) => p.functionCall)
         if (!calls.length) {
-          if (finish === 'MAX_TOKENS') send({ t: '\n\n(Answer cut short.)' })
+          if (finish === 'MAX_TOKENS') send({ t: said ? '\n\n(Answer cut short.)' : 'That came out too long to finish. Ask for one part at a time, e.g. just phase 1.' })
+          else if (finish === 'MALFORMED_FUNCTION_CALL') send({ t: 'I couldn’t put that plan together in one go. Ask for one part at a time, e.g. just phase 1.' })
           break
         }
+        if (round === 5 && !said) send({ t: 'That took too many steps. Ask again with a narrower question, e.g. just phase 1.' })
         contents.push({ role: 'model', parts })
         const responses = []
         for (const { functionCall } of calls) {
@@ -306,6 +311,7 @@ export function createCoach({ db, q, mcp, push }) {
         send({ error: friendlyError(e) })
       }
     }
+    clearInterval(ping)
     res.end()
   }
 
