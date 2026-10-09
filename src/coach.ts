@@ -11,6 +11,7 @@ import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
 import { describeDay, mobilityFrom } from './mobility'
 import { clone, startOfDay, uid } from './util'
+import { catalog, startCatalogProgram } from './programs'
 
 /** null = still checking; false = no coach on this server (or no server). */
 export const coachOn = signal<boolean | null>(null)
@@ -75,7 +76,7 @@ export async function quick<T>(body: Record<string, unknown>, focusWorkoutId?: s
 
 export interface Proposal {
   id: string
-  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program' | 'propose_mobility_plan'
+  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program' | 'propose_mobility_plan' | 'propose_catalog_program'
   args: Record<string, unknown>
   state?: 'pending' | 'approved' | 'dismissed'
 }
@@ -96,6 +97,16 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
       ...(list(a.cooldown).length ? [`Cool-down, ${list(a.cooldown).length} moves: ${list(a.cooldown).join('; ')}`] : []),
     ]
     return { title: `Update “${a.routine}”`, lines }
+  }
+  if (p.tool === 'propose_catalog_program') {
+    const prog = catalog.find((x) => x.id === String(a.id || ''))
+    if (!prog) return { title: `Start program: ${String(a.id || 'unknown')}`, lines: ['This program isn’t in the library on this device. Update the app, then ask again.'] }
+    const lines = [
+      `${prog.weeks} weeks · ${prog.daysPerWeek} days a week${prog.minutes ? ` · ~${prog.minutes} min` : ''}`,
+      ...prog.phases.map((ph) => `${ph.folder}${/week/i.test(ph.folder) ? '' : ` (${ph.weeks} weeks)`}: ${ph.summary || `${ph.days} days a week`}`),
+      ...(prog.equipment ? [`Equipment: ${prog.equipment}`] : []),
+    ]
+    return { title: `Start program: ${prog.name}`, lines }
   }
   if (p.tool === 'propose_program') {
     const list = Array.isArray(a.routines) ? a.routines : []
@@ -136,6 +147,11 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
 /** Apply an approved proposal locally (it syncs from there). Returns a confirmation message. */
 export async function applyProposal(p: Proposal): Promise<string> {
   const a = p.args as Record<string, any>
+  if (p.tool === 'propose_catalog_program') {
+    const msg = await startCatalogProgram(String(a.id || ''))
+    if (getToken()) void saveSnapshot(true)
+    return msg
+  }
   if (p.tool === 'propose_program') {
     const name = String(a.name || 'Program').slice(0, 60)
     const plan = { folder: name, routines: (Array.isArray(a.routines) ? a.routines : []).map((r: any) => ({ ...r, exercises: (Array.isArray(r?.exercises) ? r.exercises : []).map((e: any) => ({ ...e, superset: e?.superset ?? undefined })) })) }

@@ -23,3 +23,6 @@ export const QUICK: {
   weekly: { prompt(): string; schema: JsonSchema }
 }
 export function isPlanning(text: string): boolean
+export function libraryText(): string
+export const LAST_MAX: number
+export function trimHistory<T extends { role: string; content: string }>(list: T[]): { role: 'user' | 'assistant'; content: string }[] | null

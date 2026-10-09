@@ -2,6 +2,7 @@
 // server (Gemini) and the Claude-hosted copy (Claude through the artifact runtime), so both
 // coach the same way.
 import { KNOWLEDGE_CORE, KNOWLEDGE_TOPICS } from './coachKnowledge.mjs'
+import { programCatalogText } from './programs.mjs'
 
 export const COACH_SYSTEM = `You are a personal trainer and strength & conditioning coach for one person, working inside their workout app. You see a summary of their logged training, their profile, and your own memory of past conversations. You can look up more data, save things to memory, and propose changes they approve with one tap.
 
@@ -51,10 +52,12 @@ Goals (the GOALS section of the training data shows each open goal's id, target,
 - Train toward the goal, not just the plan: as the goal lift gets within about 15% of target, shift its work toward 3–6 reps with longer rests; well below that, build with 6–12 reps. With capped dumbbells, use double progression (add reps up to the top of the range before adding weight), then tempo, pauses and one-and-a-quarter reps; tell them when buying heavier dumbbells will unlock the next milestone.
 - When the data shows a milestone or goal reached, celebrate it with the numbers and the date. Mark a reached goal done with resolve_goal and suggest the next one. Change a goal's target, date or milestones only through propose_goal with replaces_goal_id, after they agree. Drop a goal only when they ask.
 
-Programs (PROGRAM in the training data shows the active one; ROUTINES lists every routine):
+Programs (PROGRAM in the training data shows the active one; ROUTINES lists every routine; PROGRAM LIBRARY below lists ready-made programs the app can install):
+- When they ask to switch to or start a program that's in the PROGRAM LIBRARY (by name, author or a paste of it, e.g. "Buff Dudes 12 week", "back to the Comeback plan"), call propose_catalog_program with its id right away. Don't rebuild it with propose_program, don't search exercises or save it to the library first: the app already has every phase and routine. Say in a line or two what it is (weeks, days a week, phases) and that they can tap Approve. Then, after they approve, offer adjustments for their equipment, time and injuries with propose_routine_changes, one routine at a time (e.g. no bench → Dumbbell Floor Press; no pull-up bar → band pulldown; shoulder-friendly pressing).
 - You design and reshape their program as they go. To restructure it (different days, a minimalist version, a blend of their current plan with a new approach, a new phase), call propose_program with every routine in full: exercises from search_exercises, sets, rep targets, rest, superset pairs, warm-up and cool-down, and technique notes ("top set 4–6, back-off 8–10", "last set + drop set", "myo-reps"). On approval the app creates the routines and the Train screen follows the rotation.
 - Fit it to them: equipment, time per session (count the minutes; say the estimate), days a week, injuries, goals, and what they've told you works. Keep the lifts that serve their goals so progress stays comparable. Small changes to one routine still go through propose_routine_changes.
-- A multi-phase program they paste or describe (e.g. 12 weeks in 4 phases): propose_program with only the phase they're starting (its 3–4 routines), save the full text with save_to_library if it isn't there yet, and say when to ask for the next phase. Never put every phase's routines in one proposal.
+- A multi-phase program they paste or describe that is NOT in the library (e.g. 12 weeks in 4 phases): propose_program with only the phase they're starting (its 3–4 routines), save the full text with save_to_library (use_last_message: true when it's in their last message, so you don't retype it), and say when to ask for the next phase. Never put every phase's routines in one proposal.
+- Keep tool calls small and few: look up several exercises in one turn (parallel calls) rather than one per turn, at most two rounds of look-ups before you propose, at most 4 routines of up to 8 exercises in one propose_program, short notes. If something is too big for one proposal, propose the first part and say what comes next.
 - Before proposing, check their own material with search_library and your training_knowledge; say briefly which ideas you used and how you adapted them (e.g. lat pulldown → band pulldown because there's no bar).
 
 Library: the athlete adds videos, programs and notes to their library (titles under LIBRARY). Search it with search_library when a question touches anything they've shared, and prefer their sources when they agree with the evidence; when a source conflicts with the evidence or their situation, say so kindly and explain the adaptation. When they paste material in chat and want it kept, save it with save_to_library.
@@ -70,7 +73,7 @@ Memory and follow-through:
 - Save lasting facts with remember: injuries and how they respond, preferences, life constraints, time available, what worked or didn't. Not things already in the training data or profile. Keep each note to one short sentence. Use forget for notes that are wrong or outdated.
 - Don't announce routine memory updates; mention them only if it helps.
 
-Changes need their approval: use propose_routine_changes, propose_goal or propose_profile_update. The app shows each proposal with Approve and Dismiss buttons. Say briefly what you proposed.
+Changes need their approval: use propose_routine_changes, propose_catalog_program, propose_program, propose_goal or propose_profile_update. The app shows each proposal with Approve and Dismiss buttons. Say briefly what you proposed.
 
 ${KNOWLEDGE_CORE}
 
@@ -127,8 +130,8 @@ export const COACH_TOOLS = [
   {
     name: 'save_to_library',
     kind: 'memory',
-    description: 'Save material the athlete pasted (a transcript, program, article) to their library so it can be searched later.',
-    parameters: obj({ title: str('Short title, e.g. "Nippard minimalist program (video)"'), text: str('The material, cleaned up but complete') }, ['title', 'text']),
+    description: 'Save material the athlete pasted (a transcript, program, article) to their library so it can be searched later. For material in their last message, set use_last_message instead of retyping it.',
+    parameters: obj({ title: str('Short title, e.g. "Nippard minimalist program (video)"'), text: str('The material, cleaned up but complete (leave out when use_last_message is true)'), use_last_message: { type: 'boolean', description: "true = save the athlete's last message as it is" } }, ['title']),
   },
   {
     name: 'save_exercise_video',
@@ -194,6 +197,13 @@ export const COACH_TOOLS = [
       },
       ['text', 'metric'],
     ),
+  },
+  {
+    name: 'propose_catalog_program',
+    kind: 'proposal',
+    description:
+      'Propose starting a ready-made program from the PROGRAM LIBRARY (by its id). On approval the app adds all its routines (a folder per phase) and the Train screen follows it. Use this instead of propose_program whenever the program they want is in the library.',
+    parameters: obj({ id: str('Program id from PROGRAM LIBRARY, e.g. "buff-dudes-12"'), reason: str('One line: why it fits them, or that they asked for it') }, ['id']),
   },
   {
     name: 'propose_program',
@@ -337,10 +347,39 @@ export function memoryText(list, tz) {
   return lines.join('\n')
 }
 
+/** The ready-made programs, built per request (the catalogue fills in at import time). */
+export function libraryText() {
+  let lines = ''
+  try {
+    lines = programCatalogText()
+  } catch {
+    /* catalogue unavailable */
+  }
+  return `PROGRAM LIBRARY (ready-made programs the app can install with propose_catalog_program; id: name, length, days, equipment, summary)\n${lines || '(none)'}`
+}
+
 export function systemText({ list, context, tz }) {
   const now = new Date()
   const today = new Intl.DateTimeFormat('en-GB', { timeZone: tz || undefined, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(now)
-  return `${COACH_SYSTEM}\n\nToday is ${today} (${ymd(now, tz)}).\n\n${memoryText(list, tz)}\n\nTRAINING DATA FROM THE APP\n${context || '(no data yet)'}`
+  return `${COACH_SYSTEM}\n\nToday is ${today} (${ymd(now, tz)}).\n\n${libraryText()}\n\n${memoryText(list, tz)}\n\nTRAINING DATA FROM THE APP\n${context || '(no data yet)'}`
+}
+
+/** Chat history as sent to the model: user/assistant turns only, starting with the athlete, at most 30
+ *  messages. The latest message may be long (a pasted program, up to LAST_MAX characters); older ones are
+ *  cut to OLD_MAX each and the oldest dropped once the whole history passes HISTORY_MAX. */
+export const LAST_MAX = 60000
+const OLD_MAX = 8000
+const HISTORY_MAX = 120000
+export function trimHistory(list) {
+  if (!Array.isArray(list)) return null
+  const msgs = list
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-30)
+    .map((m, i, all) => ({ role: m.role, content: m.content.slice(0, i === all.length - 1 ? LAST_MAX : OLD_MAX) }))
+  let total = msgs.reduce((n, m) => n + m.content.length, 0)
+  while (msgs.length > 1 && total > HISTORY_MAX) total -= msgs.shift().content.length
+  while (msgs.length && msgs[0].role !== 'user') msgs.shift()
+  return msgs.length ? msgs : null
 }
 
 /** The short structured requests: prompt text and the JSON shape each returns. */

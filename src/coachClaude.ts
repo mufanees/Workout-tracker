@@ -1,7 +1,8 @@
 // The coach on Claude, for the Claude-hosted copy (no server). Same instructions, memory and tools
 // as the server's Gemini coach (shared/coachSpec.mjs); look-ups read the app's own data and memory
 // is saved locally (and from there to the Claude account).
-import { COACH_TOOLS, QUICK, systemText, isPlanning } from '../shared/coachSpec.mjs'
+import { COACH_TOOLS, QUICK, systemText, isPlanning, trimHistory } from '../shared/coachSpec.mjs'
+import { PROGRAM_CATALOG } from '../shared/programs.mjs'
 import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
@@ -63,7 +64,7 @@ function lookup(name: string, a: Record<string, unknown>): string {
   return `Unknown tool ${name}`
 }
 
-async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHandlers, 'onMemory'>): Promise<unknown> {
+async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHandlers, 'onMemory'>, lastUser = ''): Promise<unknown> {
   const items = coachItems.value
   if (name === 'save_exercise_video') {
     const url = findUrl(String(a.url || ''))
@@ -109,8 +110,8 @@ async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHand
   }
   if (name === 'save_to_library') {
     const title = String(a.title || '').trim().slice(0, 120)
-    const text = String(a.text || '').trim().slice(0, 60000)
-    if (!title || !text) throw new Error('title and text are required')
+    const text = String(a.use_last_message ? lastUser : a.text || '').trim().slice(0, 60000)
+    if (!title || !text) throw new Error('title and text are required (or use_last_message: true)')
     const dupe = items.find((x) => x.kind === 'source' && norm(x.text) === norm(title))
     const rec = await saveCoachItem({ id: dupe?.id || uid('src-'), kind: 'source', text: title, body: text, created: dupe?.created || Date.now(), source: 'coach', updatedAt: dupe?.updatedAt || 0 })
     h.onMemory({ action: 'library', text: title })
@@ -127,7 +128,8 @@ async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHand
   throw new Error(`unknown tool ${name}`)
 }
 
-const turnsFor = (system: string, history: { role: 'user' | 'assistant'; content: string }[]) => [{ role: 'user' as const, content: system }, ...history.map((m) => ({ role: m.role, content: m.content.slice(0, 8000) }))]
+// Same limits as the server: a long latest message (a pasted program) arrives whole, older ones are trimmed.
+const turnsFor = (system: string, history: { role: 'user' | 'assistant'; content: string }[]) => [{ role: 'user' as const, content: system }, ...(trimHistory(history) || [])]
 
 /** One chat turn on Claude. Resolves with the reply text. */
 export async function claudeChat(history: { role: 'user' | 'assistant'; content: string }[], focusWorkoutId: string | undefined, h: ChatHandlers): Promise<string> {
@@ -141,7 +143,12 @@ export async function claudeChat(history: { role: 'user' | 'assistant'; content:
     execute: async (input: Record<string, unknown>) => {
       h.onTool(t.name)
       if (t.kind === 'lookup') return lookup(t.name, input || {}).slice(0, 30000)
-      if (t.kind === 'memory') return memory(t.name, input || {}, h)
+      if (t.kind === 'memory') return memory(t.name, input || {}, h, history[history.length - 1]?.content || '')
+      if (t.name === 'propose_catalog_program') {
+        const prog = PROGRAM_CATALOG.find((x) => x.id === String(input?.id || '').trim())
+        if (!prog) return { error: `No program "${String(input?.id)}" in the library. Ids: ${PROGRAM_CATALOG.map((x) => x.id).join(', ') || '(none)'}` }
+        input = { ...input, id: prog.id }
+      }
       h.onProposal({ id: uid('prop-'), tool: t.name as Proposal['tool'], args: input || {}, state: 'pending' })
       return { status: 'Shown to the athlete with Approve and Dismiss buttons. They decide in the app.' }
     },

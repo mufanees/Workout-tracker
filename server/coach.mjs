@@ -11,7 +11,8 @@ import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise } from '../shared/planImport.mjs'
 import { videoInfo } from './video.mjs'
-import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
+import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, trimHistory, ymd as ymdShared } from '../shared/coachSpec.mjs'
+import { PROGRAM_CATALOG } from '../shared/programs.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
 // Optional stronger model for planning questions and weekly reviews (e.g. a Pro model); defaults to MODEL.
@@ -24,15 +25,37 @@ export const coachEnabled = () => !!process.env.GEMINI_API_KEY
 
 // ---- Gemini REST -----------------------------------------------------------------
 
+// A chat round that sends nothing for this long is given up on (Gemini went quiet); a whole chat
+// reply, tool rounds included, is capped at COACH_TOTAL_MS. Both are env-tunable for tests.
+const IDLE_MS = Number(process.env.COACH_IDLE_MS) || 90000
+const TOTAL_MS = Number(process.env.COACH_TOTAL_MS) || 5 * 60000
+const MAX_ROUNDS = 8
+// Longest wait for a per-minute free-tier limit before retrying (Gemini says how long in RetryInfo).
+const MAX_QUOTA_WAIT = 65000
+
 const sleep = (ms, signal) =>
   new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
     const t = setTimeout(resolve, ms)
     signal?.addEventListener('abort', () => (clearTimeout(t), reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))), { once: true })
   })
 
-/** POST to Gemini. Busy or flaky answers (429, 5xx, network) are retried twice with backoff before giving up. */
-async function geminiFetch(method, payload, signal, model = MODEL) {
+/** Gemini's error body → { message, retryMs, daily }. 429s carry RetryInfo ("37s") and the quota that ran out. */
+function parseGeminiError(json) {
+  const err = json?.error || {}
+  const details = Array.isArray(err.details) ? err.details : []
+  const retry = details.find((d) => String(d?.['@type'] || '').includes('RetryInfo'))?.retryDelay
+  const retryMs = retry ? Math.ceil(parseFloat(String(retry)) * 1000) || 0 : 0
+  const quotaIds = details.flatMap((d) => (Array.isArray(d?.violations) ? d.violations.map((v) => String(v?.quotaId || v?.quotaMetric || '')) : [])).join(' ')
+  const daily = /per ?day|perday|daily/i.test(quotaIds + ' ' + (err.message || ''))
+  return { message: String(err.message || ''), retryMs, daily }
+}
+
+/** POST to Gemini. Busy or flaky answers (429, 5xx, network) are retried with backoff before giving up.
+ *  A per-minute free-tier 429 waits as long as Gemini asks (up to about a minute); a daily one fails at once. */
+async function geminiFetch(method, payload, signal, model = MODEL, onWait) {
   let res
+  let quotaWaited = false
   for (let attempt = 0; ; attempt++) {
     try {
       res = await fetch(`${BASE}/v1beta/models/${encodeURIComponent(model)}:${method}`, {
@@ -42,85 +65,161 @@ async function geminiFetch(method, payload, signal, model = MODEL) {
         body: JSON.stringify(payload),
       })
     } catch (e) {
-      if (e?.name === 'AbortError' || attempt >= 2) throw e
+      if (e?.name === 'AbortError' || attempt >= 2) throw Object.assign(e, { network: e?.name !== 'AbortError' })
       await sleep(1500 * 2 ** attempt, signal)
       continue
     }
-    if ((res.status === 429 || res.status >= 500) && attempt < 2) {
-      const wait = Math.min(8000, Number(res.headers.get('retry-after')) * 1000 || 1500 * 2 ** attempt)
-      await sleep(wait, signal)
-      continue
-    }
-    break
-  }
-  if (!res.ok) {
-    let message = ''
+    if (res.ok) return res
+    let info = { message: '', retryMs: 0, daily: false }
     try {
-      message = (await res.json())?.error?.message || ''
+      info = parseGeminiError(await res.json())
     } catch {
       /* not JSON */
     }
-    throw Object.assign(new Error(message || `HTTP ${res.status}`), { status: res.status, gemini: true })
+    const header = Number(res.headers.get('retry-after')) * 1000 || 0
+    const fail = () => Object.assign(new Error(info.message || `HTTP ${res.status}`), { status: res.status, gemini: true, model, daily: info.daily, retryMs: info.retryMs || header })
+    if (res.status === 429) {
+      if (info.daily) throw fail()
+      const wait = info.retryMs || header
+      if (wait > 8000) {
+        // Per-minute limit (tokens or requests): wait it out once if it's short enough.
+        if (quotaWaited || wait > MAX_QUOTA_WAIT) throw fail()
+        quotaWaited = true
+        onWait?.(wait)
+        await sleep(wait + 500, signal)
+        attempt--
+        continue
+      }
+      if (attempt >= 2) throw fail()
+      await sleep(wait || 1500 * 2 ** attempt, signal)
+      continue
+    }
+    if (res.status >= 500 && attempt < 2) {
+      await sleep(Math.min(8000, header || 1500 * 2 ** attempt), signal)
+      continue
+    }
+    // Some models cap output lower than we ask; drop the cap rather than fail.
+    if (res.status === 400 && /max_?output_?tokens|maxOutputTokens/i.test(info.message) && payload.generationConfig?.maxOutputTokens) {
+      const { maxOutputTokens, ...rest } = payload.generationConfig
+      payload = { ...payload, generationConfig: rest }
+      attempt--
+      continue
+    }
+    throw fail()
   }
-  return res
 }
 
 export function friendlyError(e) {
   const status = e?.status
   const message = e?.message
-  if (!e?.gemini) return 'The coach is unavailable right now.'
-  if (status === 429) return 'The free Gemini limit is used up for now. Try again in a minute (or tomorrow if the daily limit is reached).'
+  if (e?.code === 'idle') return `Gemini stopped responding (nothing for ${Math.round(IDLE_MS / 1000)} seconds), so I stopped waiting. Try again; if it keeps happening, ask for a smaller piece, e.g. one phase.`
+  if (e?.code === 'total') return `That took over ${Math.round(TOTAL_MS / 60000)} minutes, so I stopped. Try again, or ask for a smaller piece, e.g. one phase.`
+  if (!e?.gemini) return e?.network ? 'The server couldn’t reach Gemini (network problem on the server). Try again in a minute.' : 'The coach is unavailable right now.'
+  if (status === 429) {
+    if (e.daily) return 'The free Gemini daily limit is used up. It resets at midnight Pacific time (or add billing to the key for more).'
+    const s = Math.round((e.retryMs || 0) / 1000)
+    return `The free Gemini limit is used up for the moment (it allows only so many requests and tokens per minute). Try again in ${s > 5 ? `about ${s} seconds` : 'a minute'}.`
+  }
   if (status === 400 && /api key/i.test(message || '')) return 'The server’s GEMINI_API_KEY was rejected.'
   if (status === 403) return 'The server’s GEMINI_API_KEY isn’t allowed to use this model.'
-  if (status === 404) return `Gemini doesn’t know the model “${MODEL}”. Set GEMINI_MODEL on the server.`
+  if (status === 404) return `Gemini doesn’t know the model “${e.model || MODEL}”. Set GEMINI_MODEL${e.model && e.model !== MODEL ? ' / GEMINI_PLAN_MODEL' : ''} on the server.`
+  if (status === 503) return 'Gemini is overloaded right now (Google’s side). Try again in a minute.'
+  if (status >= 500) return 'Gemini had an internal error. Try again in a minute.'
   return `Gemini: ${message}`
 }
 
-/** One streamed model turn. Calls onText for visible text; returns the raw parts (kept for tool loops). */
-async function streamTurn(payload, { onText, signal, model }) {
-  const res = await geminiFetch('streamGenerateContent?alt=sse', payload, signal, model)
-  const reader = res.body.getReader()
-  const dec = new TextDecoder()
-  let buf = ''
+/** One streamed model turn. Calls onText for visible text; returns the raw parts (kept for tool loops).
+ *  Gives up with code 'idle' when Gemini sends nothing for idleMs; a malformed event is skipped, not fatal. */
+async function streamTurn(payload, { onText, onWait, signal, model, idleMs = IDLE_MS }) {
+  const ctrl = new AbortController()
+  const stop = () => ctrl.abort()
+  if (signal?.aborted) ctrl.abort()
+  signal?.addEventListener('abort', stop, { once: true })
+  let idle = false
+  let timer
+  const arm = (ms = idleMs) => {
+    clearTimeout(timer)
+    timer = setTimeout(() => ((idle = true), ctrl.abort()), ms)
+  }
   const parts = []
   let finish = ''
   let blocked = ''
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buf += dec.decode(value, { stream: true })
-    let i
-    while ((i = buf.search(/\r?\n\r?\n/)) >= 0) {
-      const chunk = buf.slice(0, i)
-      buf = buf.slice(i).replace(/^\r?\n\r?\n/, '')
-      const data = chunk
-        .split(/\r?\n/)
-        .filter((l) => l.startsWith('data:'))
-        .map((l) => l.slice(5).trim())
-        .join('')
-      if (!data) continue
-      const ev = JSON.parse(data)
-      if (ev.promptFeedback?.blockReason) blocked = ev.promptFeedback.blockReason
-      const cand = ev.candidates?.[0]
-      for (const part of cand?.content?.parts || []) {
-        // Keep every part exactly as received: Gemini 3 attaches thought signatures that must be sent back.
-        parts.push(part)
-        if (part.text && !part.thought) onText(part.text)
-      }
-      if (cand?.finishReason) finish = cand.finishReason
+  let bad = 0
+  const handle = (chunk) => {
+    const data = chunk
+      .split(/\r?\n/)
+      .filter((l) => l.startsWith('data:'))
+      .map((l) => l.slice(5).trim())
+      .join('')
+    if (!data) return
+    let ev
+    try {
+      ev = JSON.parse(data)
+    } catch {
+      bad++
+      return
     }
+    if (ev?.error) {
+      const info = parseGeminiError(ev)
+      throw Object.assign(new Error(info.message || 'error in stream'), { status: Number(ev.error.code) || 500, gemini: true, model, daily: info.daily, retryMs: info.retryMs })
+    }
+    if (ev.promptFeedback?.blockReason) blocked = ev.promptFeedback.blockReason
+    const cand = ev.candidates?.[0]
+    for (const part of cand?.content?.parts || []) {
+      // Keep every part exactly as received: Gemini 3 attaches thought signatures that must be sent back.
+      parts.push(part)
+      if (part.text && !part.thought) onText(part.text)
+    }
+    if (cand?.finishReason) finish = cand.finishReason
   }
+  try {
+    arm()
+    const res = await geminiFetch('streamGenerateContent?alt=sse', payload, ctrl.signal, model, (ms) => (arm(ms + idleMs), onWait?.(ms)))
+    arm()
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let buf = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      arm()
+      buf += dec.decode(value, { stream: true })
+      let i
+      while ((i = buf.search(/\r?\n\r?\n/)) >= 0) {
+        const chunk = buf.slice(0, i)
+        buf = buf.slice(i).replace(/^\r?\n\r?\n/, '')
+        handle(chunk)
+      }
+    }
+    buf += dec.decode()
+    if (buf.trim()) handle(buf)
+  } catch (e) {
+    if (idle && !signal?.aborted) throw Object.assign(new Error('Gemini went quiet'), { code: 'idle' })
+    throw e
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', stop)
+  }
+  if (bad) console.warn(`coach: skipped ${bad} unreadable event(s) from Gemini`)
   return { parts, finish, blocked }
 }
 
 /** A single JSON answer that follows `schema` (Gemini Schema format, uppercase types). */
 async function generateJson(system, prompt, schema, model = MODEL) {
-  const res = await geminiFetch('generateContent', {
-    systemInstruction: { parts: [{ text: system }] },
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: 'application/json', responseSchema: schema, maxOutputTokens: 4096 },
-  }, undefined, model)
-  const json = await res.json()
+  // Same patience as a chat reply: never hang a pre-workout card or the weekly review forever.
+  const signal = AbortSignal.timeout(IDLE_MS + 30000)
+  let json
+  try {
+    const res = await geminiFetch('generateContent', {
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, maxOutputTokens: 4096 },
+    }, signal, model)
+    json = await res.json()
+  } catch (e) {
+    if (e?.name === 'TimeoutError' || (e?.name === 'AbortError' && signal.aborted)) throw Object.assign(new Error('Gemini went quiet'), { code: 'idle' })
+    throw e
+  }
   const text = (json.candidates?.[0]?.content?.parts || [])
     .filter((p) => p.text && !p.thought)
     .map((p) => p.text)
@@ -156,7 +255,7 @@ export function createCoach({ db, q, mcp, push }) {
   const same = (a, b) => String(a || '').toLowerCase().replace(/[^a-z0-9]/g, '') === String(b || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 
   /** Runs a tool call. `emit` sends events (proposals, memory changes) to the app. */
-  async function runTool(name, args, emit, appRoutines) {
+  async function runTool(name, args, emit, appRoutines, lastUser = '') {
     args = args || {}
     switch (name) {
       case 'list_routines':
@@ -176,8 +275,9 @@ export function createCoach({ db, q, mcp, push }) {
         return { result: searchLibrary(items(), String(args.query || '')) }
       case 'save_to_library': {
         const title = String(args.title || '').trim().slice(0, 120)
-        const text = String(args.text || '').trim().slice(0, 60000)
-        if (!title || !text) return { error: 'title and text are required' }
+        // use_last_message saves what they pasted as-is, so the model doesn't have to retype thousands of words.
+        const text = String(args.use_last_message ? lastUser : args.text || '').trim().slice(0, 60000)
+        if (!title || !text) return { error: 'title and text are required (or use_last_message: true)' }
         const dupe = items().find((x) => x.kind === 'source' && same(x.text, title))
         const rec = { id: dupe?.id || newId('src'), kind: 'source', text: title, body: text, created: dupe?.created || Date.now(), source: 'coach' }
         write(rec)
@@ -235,6 +335,12 @@ export function createCoach({ db, q, mcp, push }) {
         emit({ memory: { action: status === 'done' ? 'goal reached' : 'goal dropped', text: g.text } })
         return { updated: g.id }
       }
+      case 'propose_catalog_program': {
+        const p = PROGRAM_CATALOG.find((x) => x.id === String(args.id || '').trim())
+        if (!p) return { error: `No program "${args.id}" in the library. Ids: ${PROGRAM_CATALOG.map((x) => x.id).join(', ') || '(none)'}` }
+        emit({ proposal: { id: newId('prop'), tool: name, args: { ...args, id: p.id } } })
+        return { status: `"${p.name}" shown to the athlete with Approve and Dismiss buttons. They decide in the app; offer adjustments (propose_routine_changes) after they approve.` }
+      }
       case 'propose_routine_changes':
       case 'propose_routine_targets':
       case 'propose_goal':
@@ -251,68 +357,176 @@ export function createCoach({ db, q, mcp, push }) {
     }
   }
 
-  /** Chat: streams text and events as SSE, running tool calls in a loop (max 6 rounds). */
+  // Replies in progress (or finished in the last few minutes), by the run id the app sends. If the
+  // phone loses the stream (screen off, network switch), it reconnects with { resume: id } and gets
+  // everything so far replayed, then the rest live; the reply keeps going on the server meanwhile.
+  const runs = new Map()
+  const RUN_KEEP = 10 * 60000
+
+  const sse = (res, obj) => {
+    if (!res.destroyed && !res.writableEnded) res.write(`data: ${JSON.stringify(obj)}\n\n`)
+  }
+
+  /** Follow a run on this response: replay what was sent, then stream the rest. Pings every 15 s keep proxies from closing a quiet connection. */
+  function attach(run, res) {
+    for (const ev of run.events) sse(res, ev)
+    if (run.finished) return res.end()
+    run.listeners.add(res)
+    const ping = setInterval(() => sse(res, {}), 15000)
+    res.on('close', () => (clearInterval(ping), run.listeners.delete(res)))
+  }
+
+  /** What the athlete reads when a round ends without a usable answer. */
+  function finishText(finish, said, planning) {
+    const smaller = planning ? 'Ask for one phase at a time, or start it from the program library if it’s there.' : 'Ask again a bit more narrowly.'
+    switch (finish) {
+      case 'MAX_TOKENS':
+        return said ? '\n\n(Answer cut short: it ran out of room.)' : `That came out too long for Gemini to finish. ${smaller}`
+      case 'MALFORMED_FUNCTION_CALL':
+      case 'UNEXPECTED_TOOL_CALL':
+        return `${said ? '\n\n' : ''}Gemini garbled the change it was preparing (twice), so nothing was proposed. ${smaller}`
+      case 'RECITATION':
+        return `${said ? '\n\n' : ''}Gemini stopped because the answer repeated published text word for word. Ask it to summarise or adapt instead of copying.`
+      case 'SAFETY':
+      case 'PROHIBITED_CONTENT':
+      case 'BLOCKLIST':
+      case 'SPII':
+        return '\n\nGemini declined to answer that one. Try asking about your training a different way.'
+      case 'TOO_MANY_TOOL_CALLS':
+        return `${said ? '\n\n' : ''}That needed too many look-ups at once. ${smaller}`
+      default:
+        return `${said ? '\n\n' : ''}Gemini came back without an answer${finish && finish !== 'STOP' ? ` (${finish})` : ''}. Try again; if it keeps happening, ${planning ? 'ask for one phase at a time.' : 'rephrase the question.'}`
+    }
+  }
+
+  /** Chat: streams text and events as SSE, running tool calls in a loop (up to MAX_ROUNDS rounds; the last one must answer in words). */
   async function streamChat(body, res) {
-    const messages = cleanMessages(body.messages)
+    // Never reject: the server doesn't await this, so an escaped error would take the process down.
+    try {
+      await chat(body || {}, res)
+    } catch (e) {
+      console.error('coach chat failed', e)
+      if (!res.headersSent) res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' })
+      sse(res, { error: 'The coach hit an error on the server. Try again.' })
+      res.end()
+    }
+  }
+
+  async function chat(body, res) {
     const tz = typeof body.tz === 'string' ? body.tz : undefined
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' })
-    const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`)
-    if (!messages) {
-      send({ error: 'Nothing to answer.' })
+    if (body.cancel) {
+      runs.get(String(body.cancel))?.ctrl.abort()
+      sse(res, { done: true })
       return res.end()
     }
-    const ctrl = new AbortController()
-    // While Gemini thinks or writes a long tool call nothing streams; a ping keeps proxies from closing the quiet connection.
-    const ping = setInterval(() => send({}), 15000)
-    res.on('close', () => (clearInterval(ping), ctrl.abort()))
+    if (body.resume) {
+      const old = runs.get(String(body.resume))
+      if (old) return attach(old, res)
+      sse(res, { error: 'That answer is no longer on the server (it restarted or too much time passed). Ask again.', gone: true })
+      return res.end()
+    }
+    const messages = cleanMessages(body.messages)
+    if (!messages) {
+      sse(res, { error: 'Nothing to answer.' })
+      return res.end()
+    }
+    const id = typeof body.run === 'string' && /^[\w-]{6,64}$/.test(body.run) ? body.run : newId('run')
+    runs.get(id)?.ctrl.abort()
+    const run = { events: [], listeners: new Set(), finished: false, ctrl: new AbortController() }
+    runs.set(id, run)
+    for (const [k, r] of runs) if (runs.size > 20 && r.finished) runs.delete(k)
+    attach(run, res)
+    const send = (obj) => {
+      run.events.push(obj)
+      for (const l of run.listeners) sse(l, obj)
+    }
+    let overTime = false
+    const cap = setTimeout(() => ((overTime = true), run.ctrl.abort()), TOTAL_MS)
+
     let said = false
+    let proposed = false
+    let retried = false
+    let forceText = false
+    let ended = false
+    const lastUser = messages[messages.length - 1]?.content || ''
+    const planning = isPlanning(lastUser)
+    const model = planning ? PLAN_MODEL : MODEL
     const contents = messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
     const system = systemText({ context: typeof body.context === 'string' ? body.context.slice(0, 300000) : '', tz })
+    const appRoutines = typeof body.routines === 'string' ? body.routines.slice(0, 50000) : ''
     try {
-      for (let round = 0; round < 6; round++) {
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        // The last round (and a retry after an empty reply) must answer in words, so a reply never ends on a silent tool call.
+        const textOnly = forceText || round === MAX_ROUNDS - 1
         const { parts, finish, blocked } = await streamTurn(
           {
             systemInstruction: { parts: [{ text: system }] },
             contents,
             tools: [{ functionDeclarations: DECLARATIONS }],
-            generationConfig: { maxOutputTokens: 32768 },
+            ...(textOnly ? { toolConfig: { functionCallingConfig: { mode: 'NONE' } } } : {}),
+            generationConfig: { maxOutputTokens: planning ? 65536 : 32768 },
           },
-          { onText: (t) => ((said = true), send({ t })), signal: ctrl.signal, model: isPlanning(messages[messages.length - 1]?.content) ? PLAN_MODEL : MODEL },
+          {
+            onText: (t) => ((said = true), send({ t })),
+            onWait: (ms) => send({ status: `Gemini’s free tier asked to wait ${Math.round(ms / 1000)} s` }),
+            signal: run.ctrl.signal,
+            model,
+          },
         )
-        if (blocked || finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT') {
-          send({ t: '\n\nGemini declined to answer that one. Try asking about your training a different way.' })
+        ended = true // until this round asks for tools
+        if (blocked || ['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII'].includes(finish)) {
+          send({ t: finishText('SAFETY', said, planning) })
           break
         }
         const calls = parts.filter((p) => p.functionCall)
+        const wrote = parts.some((p) => p.text && !p.thought && p.text.trim())
         if (!calls.length) {
-          if (finish === 'MAX_TOKENS') send({ t: said ? '\n\n(Answer cut short.)' : 'That came out too long to finish. Ask for one part at a time, e.g. just phase 1.' })
-          else if (finish === 'MALFORMED_FUNCTION_CALL') send({ t: 'I couldn’t put that plan together in one go. Ask for one part at a time, e.g. just phase 1.' })
+          if (wrote && finish !== 'MAX_TOKENS' && finish !== 'RECITATION') break // a normal answer
+          if (proposed && !wrote && (!finish || finish === 'STOP')) break // the proposal card speaks for itself
+          // A garbled tool call or an empty reply is usually a one-off: try that round once more.
+          const flaky = ['MALFORMED_FUNCTION_CALL', 'UNEXPECTED_TOOL_CALL', 'OTHER', 'STOP', ''].includes(finish) && !wrote
+          if (flaky && !retried && round < MAX_ROUNDS - 1) {
+            retried = true
+            if (finish !== 'MALFORMED_FUNCTION_CALL' && finish !== 'UNEXPECTED_TOOL_CALL') forceText = true
+            console.warn(`coach: round ${round} ended with ${finish || 'no finish reason'} and no answer; retrying`)
+            continue
+          }
+          console.warn(`coach: round ${round} ended with ${finish || 'no finish reason'}${wrote ? '' : ' and no answer'}`)
+          send({ t: finishText(finish, said, planning) })
           break
         }
-        if (round === 5 && !said) send({ t: 'That took too many steps. Ask again with a narrower question, e.g. just phase 1.' })
+        ended = false
         contents.push({ role: 'model', parts })
         const responses = []
         for (const { functionCall } of calls) {
           send({ tool: functionCall.name })
           let response
           try {
-            response = await runTool(functionCall.name, functionCall.args, send, typeof body.routines === 'string' ? body.routines.slice(0, 50000) : '')
+            response = await runTool(functionCall.name, functionCall.args, send, appRoutines, lastUser)
           } catch (e) {
             response = { error: String(e?.message || e) }
           }
+          if (functionCall.name.startsWith('propose_') && !response.error) proposed = true
           responses.push({ functionResponse: { name: functionCall.name, ...(functionCall.id ? { id: functionCall.id } : {}), response } })
         }
         contents.push({ role: 'user', parts: responses })
       }
+      if (!ended && !said && !proposed) send({ t: 'That took too many steps without an answer. Ask again more narrowly, e.g. one phase or one routine.' })
       send({ done: true })
     } catch (e) {
-      if (e?.name !== 'AbortError') {
-        console.error('coach error', e?.status || '', e?.message || e)
-        send({ error: friendlyError(e) })
-      }
+      const err = overTime ? Object.assign(new Error('too long'), { code: 'total' }) : e
+      if (err?.name !== 'AbortError' || overTime) {
+        console.error('coach error', err?.status || err?.code || '', err?.message || err)
+        send({ error: friendlyError(err) })
+      } else send({ error: 'Stopped.', stopped: true })
+    } finally {
+      clearTimeout(cap)
+      run.finished = true
+      for (const l of run.listeners) l.end()
+      run.listeners.clear()
+      setTimeout(() => runs.get(id) === run && runs.delete(id), RUN_KEEP).unref()
     }
-    clearInterval(ping)
-    res.end()
   }
 
   /** Short structured answers: pre-workout targets, post-workout takeaway, condensing old chat. */
@@ -403,11 +617,5 @@ export function createCoach({ db, q, mcp, push }) {
 }
 
 function cleanMessages(list) {
-  if (!Array.isArray(list)) return null
-  const msgs = list
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
-    .slice(-30)
-    .map((m) => ({ role: m.role, content: m.content.slice(0, 8000) }))
-  while (msgs.length && msgs[0].role !== 'user') msgs.shift()
-  return msgs.length ? msgs : null
+  return trimHistory(list)
 }

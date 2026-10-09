@@ -8496,3 +8496,7 @@ html[data-nav='back']::view-transition-old(screen) {
   flex: none;
   min-height: var(--h-md);
 }
+/* Scroll the newest message (and the Retry bar) above the composer and tab bar, not under them. */
+.chat-end {
+  scroll-margin-bottom: calc(var(--safe-bottom) + var(--tabbar-h) + 110px);
+}

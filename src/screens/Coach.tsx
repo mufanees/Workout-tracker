@@ -14,13 +14,126 @@ import { confirmDialog, toast } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
 import { adjustMessage } from '../ui/Feedback'
 import { saveVideo } from '../videos'
-import { fmtDay } from '../util'
+import { fmtDay, uid } from '../util'
 
 interface Msg {
   role: 'user' | 'assistant'
   content: string
   memory?: { action: string; text: string }[]
   proposals?: Proposal[]
+  /** Why this reply stopped early (connection lost, timed out); shown under it. */
+  note?: string
+}
+
+// No event at all (the server pings every 15 s) for this long means the stream is dead.
+const STALL_MS = 45000
+// The Claude path has no pings; give it longer between signs of life.
+const CLAUDE_STALL_MS = 150000
+const MAX_RESUMES = 3
+
+/** The stream broke (network, screen off, proxy) but the server may still be working: worth resuming. */
+class Lost extends Error {
+  constructor(public why: 'stalled' | 'network' | 'cut') {
+    super(why)
+  }
+}
+const lostText = (why: Lost['why']) =>
+  why === 'stalled'
+    ? `No word from the coach for ${STALL_MS / 1000} seconds, so I stopped waiting.`
+    : 'The connection to the coach dropped (this happens when the screen turns off or the network changes).'
+
+/** Resolves once the page is visible (Android pauses network for a hidden page), or at once. */
+const whenVisible = (signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    if (document.visibilityState === 'visible' || signal.aborted) return resolve()
+    const on = () => {
+      if (document.visibilityState !== 'visible' && !signal.aborted) return
+      document.removeEventListener('visibilitychange', on)
+      resolve()
+    }
+    document.addEventListener('visibilitychange', on)
+    signal.addEventListener('abort', on, { once: true })
+  })
+
+type CoachEvent = { t?: string; error?: string; gone?: boolean; stopped?: boolean; done?: boolean; status?: string; tool?: string; memory?: { action: string; text: string }; proposal?: Proposal; video?: { exerciseId: string; name: string; url: string; title?: string | null } }
+
+/** One SSE request to /api/coach. Calls onEvent per event (keepalive pings arrive as {}); a watchdog
+ *  aborts after STALL_MS without any event. Throws Lost when the stream breaks without a done or error event. */
+async function coachStream(payload: Record<string, unknown>, stop: AbortSignal, onEvent: (ev: CoachEvent) => void): Promise<void> {
+  const inner = new AbortController()
+  const onStop = () => inner.abort()
+  stop.addEventListener('abort', onStop, { once: true })
+  let stalled = false
+  let last = Date.now()
+  let timer = 0
+  const arm = () => {
+    last = Date.now()
+    clearTimeout(timer)
+    timer = window.setTimeout(() => ((stalled = true), inner.abort()), STALL_MS)
+  }
+  // Coming back to the app after the screen was off: don't wait out the timer on a dead stream.
+  const onVisible = () => document.visibilityState === 'visible' && Date.now() - last > STALL_MS && ((stalled = true), inner.abort())
+  document.addEventListener('visibilitychange', onVisible)
+  const broke = (e: unknown) => {
+    if (stop.aborted) return Object.assign(new Error('Stopped'), { name: 'AbortError' })
+    return e instanceof Lost ? e : new Lost(stalled ? 'stalled' : 'network')
+  }
+  try {
+    arm()
+    let res: Response
+    try {
+      res = await fetch('/api/coach', {
+        method: 'POST',
+        signal: inner.signal,
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify(payload),
+      })
+    } catch (e) {
+      throw broke(e)
+    }
+    if (!res.ok || !res.body) {
+      const j = (await res.json().catch(() => ({}))) as { error?: string }
+      throw new Error(j.error || (res.status === 401 ? 'Connect sync first (Settings → Sync key).' : `The coach is unavailable right now (HTTP ${res.status}).`))
+    }
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let buf = ''
+    let finished = false
+    for (;;) {
+      let chunk: ReadableStreamReadResult<Uint8Array>
+      try {
+        chunk = await reader.read()
+      } catch (e) {
+        throw broke(e)
+      }
+      if (chunk.done) break
+      arm()
+      buf += dec.decode(chunk.value, { stream: true })
+      let i
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i).replace(/^data: ?/, '')
+        buf = buf.slice(i + 2)
+        if (!line.trim()) continue
+        let ev: CoachEvent
+        try {
+          ev = JSON.parse(line)
+        } catch {
+          continue // a garbled event shouldn't kill the reply
+        }
+        if (ev.error) {
+          if (ev.stopped) throw Object.assign(new Error('Stopped'), { name: 'AbortError' })
+          throw new Error(ev.error)
+        }
+        if (ev.done) finished = true
+        onEvent(ev)
+      }
+    }
+    if (!finished) throw new Lost('cut')
+  } finally {
+    clearTimeout(timer)
+    stop.removeEventListener('abort', onStop)
+    document.removeEventListener('visibilitychange', onVisible)
+  }
 }
 
 const KEY = 'reps-coach'
@@ -55,6 +168,7 @@ const TOOL_LABEL: Record<string, string> = {
   propose_goal: 'Preparing a goal',
   propose_training_block: 'Planning a training block',
   propose_program: 'Designing your program',
+  propose_catalog_program: 'Setting up the program',
   training_knowledge: 'Checking the training science',
   find_stretches: 'Picking stretches',
   propose_mobility_plan: 'Building in your mobility',
@@ -90,6 +204,8 @@ export function Coach() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
+  /** The last question that failed, with why: shown under the chat with a Retry button. */
+  const [failure, setFailure] = useState<{ q: string; text: string } | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const abort = useRef<AbortController | null>(null)
 
@@ -101,7 +217,7 @@ export function Coach() {
   }, [coachOn.value])
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
-  }, [msgs.length, busy])
+  }, [msgs.length, busy, failure])
 
   // Deep links: /coach?review=<workoutId>, /coach?adjust=<workoutId> (from a finished workout), /coach?ask=<question> (goals)
   useEffect(() => {
@@ -134,11 +250,12 @@ export function Coach() {
     return all.slice(old.length)
   }
 
-  const ask = async (text: string, focusWorkoutId?: string) => {
+  const ask = async (text: string, focusWorkoutId?: string, base: Msg[] = msgs) => {
     const q = text.trim()
     if (!q || busy) return
     if (!coachOn.value) return copyForClaude(q)
-    const history: Msg[] = [...msgs, { role: 'user', content: q }]
+    setFailure(null)
+    const history: Msg[] = [...base, { role: 'user', content: q }]
     const reply: Msg = { role: 'assistant', content: '', memory: [], proposals: [] }
     const show = () => setMsgs([...history, { ...reply }])
     show()
@@ -147,85 +264,124 @@ export function Coach() {
     setStatus('')
     const ctrl = new AbortController()
     abort.current = ctrl
+    const runId = uid('run-')
+    const sent = history.map(({ role, content }) => ({ role, content }))
     try {
       if (coachMode.value === 'claude') {
-        const text = await claudeChat(history.map(({ role, content }) => ({ role, content })), focusWorkoutId, {
-          signal: ctrl.signal,
-          onText: (t) => {
-            reply.content = t
-            setStatus('')
-            show()
-          },
-          onTool: (name) => {
-            setStatus(TOOL_LABEL[name] || 'Working on it')
-            show()
-          },
-          onMemory: (m) => {
-            reply.memory!.push(m)
-            show()
-          },
-          onProposal: (p) => {
-            reply.proposals!.push(p)
-            show()
-          },
-        })
+        // No pings on this path: abort after a long silence instead of spinning forever.
+        const inner = new AbortController()
+        ctrl.signal.addEventListener('abort', () => inner.abort(), { once: true })
+        let stalled = false
+        let timer = 0
+        const alive = () => {
+          clearTimeout(timer)
+          timer = window.setTimeout(() => ((stalled = true), inner.abort()), CLAUDE_STALL_MS)
+        }
+        alive()
+        let text: string
+        try {
+          text = await claudeChat(sent, focusWorkoutId, {
+            signal: inner.signal,
+            onText: (t) => {
+              alive()
+              reply.content = t
+              setStatus('')
+              show()
+            },
+            onTool: (name) => {
+              alive()
+              setStatus(TOOL_LABEL[name] || 'Working on it')
+              show()
+            },
+            onMemory: (m) => {
+              reply.memory!.push(m)
+              show()
+            },
+            onProposal: (p) => {
+              reply.proposals!.push(p)
+              show()
+            },
+          })
+        } catch (e) {
+          if (ctrl.signal.aborted) throw Object.assign(new Error('Stopped'), { name: 'AbortError' })
+          if (stalled) throw new Error(`No word from the coach for ${CLAUDE_STALL_MS / 1000} seconds, so I stopped waiting.`)
+          throw e
+        } finally {
+          clearTimeout(timer)
+        }
         reply.content = text || reply.content
-        if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : '…'
+        if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : 'The coach came back without an answer. Try again, or ask a bit more narrowly.'
         save(await condense([...history, reply]))
         return
       }
       await syncNow() // the coach reads your profile and memory from the server
-      const res = await fetch('/api/coach', {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), context: buildCoachContext({ focusWorkoutId }), routines: routinesText(), tz: tz() }),
-      })
-      if (!res.ok || !res.body) throw new Error(res.status === 401 ? 'Connect sync first (Settings → Sync key).' : 'The coach is unavailable right now.')
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
-      let buf = ''
-      for (;;) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buf += dec.decode(value, { stream: true })
-        let i
-        while ((i = buf.indexOf('\n\n')) >= 0) {
-          const line = buf.slice(0, i).replace(/^data: /, '')
-          buf = buf.slice(i + 2)
-          if (!line) continue
-          const ev = JSON.parse(line) as { t?: string; error?: string; tool?: string; memory?: { action: string; text: string }; proposal?: Proposal; video?: { exerciseId: string; name: string; url: string; title?: string | null } }
-          if (ev.error) throw new Error(ev.error)
-          if (ev.t) {
-            reply.content += ev.t
-            setStatus('')
-          }
-          if (ev.tool) setStatus(TOOL_LABEL[ev.tool] || 'Working on it')
-          if (ev.memory) reply.memory!.push(ev.memory)
-          if (ev.video) {
-            const ex = exMap.value.get(ev.video.exerciseId)
-            if (ex) void saveVideo(ex, ev.video.url, { title: ev.video.title || undefined })
-          }
-          if (ev.proposal) reply.proposals!.push({ ...ev.proposal, state: 'pending' })
-          show()
+      const body = { messages: sent, context: buildCoachContext({ focusWorkoutId }), routines: routinesText(), tz: tz(), run: runId }
+      const videos = new Set<string>()
+      const onEvent = (ev: CoachEvent) => {
+        if (ev.t) {
+          reply.content += ev.t
+          setStatus('')
+        }
+        if (ev.status) setStatus(ev.status)
+        if (ev.tool) setStatus(TOOL_LABEL[ev.tool] || 'Working on it')
+        if (ev.memory) reply.memory!.push(ev.memory)
+        if (ev.video && !videos.has(ev.video.url)) {
+          videos.add(ev.video.url)
+          const ex = exMap.value.get(ev.video.exerciseId)
+          if (ex) void saveVideo(ex, ev.video.url, { title: ev.video.title || undefined })
+        }
+        if (ev.proposal) reply.proposals!.push({ ...ev.proposal, state: 'pending' })
+        if (ev.t || ev.tool || ev.status || ev.memory || ev.proposal) show()
+      }
+      // The reply keeps running on the server if the stream breaks; pick it up again (it's replayed from the start).
+      for (let resumes = 0; ; resumes++) {
+        try {
+          await coachStream(resumes ? { resume: runId } : body, ctrl.signal, onEvent)
+          break
+        } catch (e) {
+          if (!(e instanceof Lost) || resumes >= MAX_RESUMES) throw e
+          setStatus('Reconnecting')
+          await whenVisible(ctrl.signal)
+          await new Promise((r) => setTimeout(r, 800 * (resumes + 1)))
+          if (ctrl.signal.aborted) throw Object.assign(new Error('Stopped'), { name: 'AbortError' })
+          Object.assign(reply, { content: '', memory: [], proposals: [] })
         }
       }
-      if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : '…'
+      if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : 'The coach came back without an answer. Try again, or ask a bit more narrowly.'
       save(await condense([...history, reply]))
       void syncNow() // pull memory the coach saved
     } catch (e) {
       if ((e as Error).name === 'AbortError') {
+        // Stopped by the athlete: tell the server to stop too (it keeps going for a lost connection otherwise).
+        if (coachMode.value !== 'claude')
+          void fetch('/api/coach', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` }, body: JSON.stringify({ cancel: runId }) }).catch(() => undefined)
         save([...history, { ...reply, content: reply.content ? reply.content + ' …' : '(stopped)' }])
       } else {
-        setMsgs(history.slice(0, -1))
-        setInput(q)
-        toast((e as Error).message || 'The coach is unavailable right now.')
+        const why = e instanceof Lost ? lostText(e.why) : (e as Error).message || 'The coach is unavailable right now.'
+        if (reply.content || reply.proposals?.length || reply.memory?.length) {
+          // Keep what arrived, say why it stopped, and offer to ask again.
+          save([...history, { ...reply, note: why }])
+          setFailure({ q, text: 'The answer above was cut off.' })
+        } else {
+          setMsgs(base)
+          setInput(q)
+          setFailure({ q, text: why })
+        }
       }
     } finally {
       setBusy(false)
       setStatus('')
       abort.current = null
     }
+  }
+
+  /** Ask the failed question again, replacing the cut-off reply. */
+  const retry = () => {
+    if (!failure) return
+    const last = msgs[msgs.length - 1]
+    const prev = msgs[msgs.length - 2]
+    const base = last?.role === 'assistant' && last.note && prev?.role === 'user' && prev.content === failure.q ? msgs.slice(0, -2) : msgs
+    void ask(failure.q, undefined, base)
   }
 
   const decide = async (mi: number, pid: string, approve: boolean) => {
@@ -314,6 +470,7 @@ export function Coach() {
           ) : (
             <div class="bubble coach">
               {m.content ? <Markdown text={m.content} /> : busy && i === msgs.length - 1 ? <GooDots /> : null}
+              {m.note && <span class="coach-note">{m.note}</span>}
               {busy && i === msgs.length - 1 && status && (
                 <span class="coach-status">
                   <span class="spinner" aria-hidden="true" /> {status}…
@@ -356,7 +513,15 @@ export function Coach() {
             </div>
           ),
         )}
-        <div ref={endRef} />
+        {failure && !busy && (
+          <div class="coach-fail" role="alert">
+            <span>{failure.text}</span>
+            <button class="btn btn-secondary btn-sm" onClick={retry}>
+              Retry
+            </button>
+          </div>
+        )}
+        <div ref={endRef} class="chat-end" />
       </div>
 
       {!busy && (
