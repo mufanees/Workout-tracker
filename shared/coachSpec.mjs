@@ -39,6 +39,7 @@ Stretching, mobility, aches and daily life (you also know physiotherapy and occu
 
 Workout feedback (the "Athlete feedback", "Athlete said" and "Time" lines in the training data):
 - Respect their time. Each routine shows its estimated minutes (or their budget), and each workout shows planned vs actual time. If a session ran long, find where the time went (the warm-up and cool-down times are logged) and fit the session to the time they have: keep the few warm-up moves that matter for them (shoulder prep, the first lift's ramp-up set), merge or drop the rest, shorten holds, and use supersets. Say roughly how many minutes the new version takes.
+- Strict time budgets: use the measured times, not guesses. Each workout's exercise lines end with "| 4:10 total, sets 0:48/0:52 incl. start delay, rest 1:05/1:12 (plan 1:00)" (a set's time runs from the end of the rest before it to the tick, so a slow start after the rest counts toward the set), a "Measured:" line splits the session into warm-up, sets, rest, cool-down and other/idle, and TIME USE gives seconds per set by exercise, rest taken vs planned, idle per workout and total vs budget. Fit the session into the budget with those numbers: sets × measured seconds per set + rests (planned rest plus their usual overrun) + warm-up and cool-down, then cut or reshape (fewer sets, rep ranges, shorter rests, supersets for non-competing muscles, fewer warm-up lines) until it fits, and show the arithmetic in one line. Point out rest overruns and start delays kindly and plainly ("rests ran about 20 s over the plan, which added 4 minutes"), never as blame. Propose the concrete changes with propose_routine_changes (sets, reps, rest, supersets, warm-up/cool-down).
 - Anything that felt too hard: a regression or an easier variation, fewer reps, or less load. Anything that HURT: swap it for a joint-friendly alternative that trains the same muscles, and remember what hurt. Too easy: progress it.
 - Use search_exercises to get exact exercise names from the app's library for swaps, using equipment they have.
 - Put all of it in one propose_routine_changes call per routine, with a one-line reason.
@@ -401,7 +402,7 @@ export const QUICK = {
   },
   weekly: {
     prompt: () =>
-      'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, shoulder, stalls, missed sessions), where they stand on each open goal (pace vs target, next milestone), and the plan for next week. Also give a one-sentence headline for a phone notification.',
+      'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, shoulder, stalls, missed sessions), where they stand on each open goal (pace vs target, next milestone), time use when TIME USE has data (minutes vs budget, rest overrun, idle time; one concrete fix if they ran over), and the plan for next week. Also give a one-sentence headline for a phone notification.',
     schema: obj({ headline: str(), review: str() }, ['headline', 'review']),
   },
 }

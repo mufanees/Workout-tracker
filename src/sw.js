@@ -13,7 +13,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('reps-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   )
 })
@@ -56,6 +56,44 @@ self.addEventListener('fetch', (event) => {
   )
 })
 
+// Text and badge drawing for live notifications (shared/live.mjs, pasted in at build time).
+/* __LIVE__ */
+
+// Which live notification the owner swiped away (kept in the Cache API so the page can read it too).
+const LIVE_CACHE = 'gloop-live'
+const DISMISSED = '/__live/dismissed'
+async function readDismissed() {
+  try {
+    const r = await (await caches.open(LIVE_CACHE)).match(DISMISSED)
+    return r ? await r.json() : {}
+  } catch {
+    return {}
+  }
+}
+async function writeDismissed(patch) {
+  try {
+    const cur = await readDismissed()
+    await (await caches.open(LIVE_CACHE)).put(DISMISSED, new Response(JSON.stringify({ ...cur, ...patch }), { headers: { 'content-type': 'application/json' } }))
+  } catch {
+    /* ignore */
+  }
+}
+
+async function showFastLive(m) {
+  const d = m.data
+  const t = fastLiveText(d) // recomputed on the phone so it's current to the minute
+  const [badge, icon] = await Promise.all([liveDataUrl(liveBadgeCanvas(t.hours)), liveDataUrl(liveIconCanvas(t.hours, 'HOURS', LIVE_FAST_COLOR, t.progress))])
+  await self.registration.showNotification(t.title, {
+    body: t.body,
+    tag: 'gloop-fast',
+    renotify: false,
+    silent: true,
+    icon: icon || 'icon-192.png',
+    badge: badge || 'badge-96.png',
+    data: { path: '/fast', kind: 'fast', start: d.start },
+  })
+}
+
 // Pushes arrive empty; ask the server what to show (the subscription endpoint identifies this device).
 self.addEventListener('push', (event) => {
   event.waitUntil(
@@ -70,25 +108,68 @@ self.addEventListener('push', (event) => {
       }
       if (!messages.length) messages = [{ title: 'Gloop', body: 'Open the app for details.', tag: 'reps' }]
       for (const m of messages) {
+        if (m.data && m.data.kind === 'fast') {
+          try {
+            await showFastLive(m)
+            continue
+          } catch {
+            /* fall back to the server's text below */
+          }
+        }
+        const live = !!m.data
         await self.registration.showNotification(m.title, {
           body: m.body,
           tag: m.tag || undefined,
-          renotify: true,
+          renotify: !live,
+          silent: live,
           icon: 'icon-192.png',
-          badge: 'icon-192.png',
-          vibrate: [200, 100, 200],
+          badge: 'badge-96.png',
+          vibrate: live ? undefined : [200, 100, 200],
+          data: live ? m.data : undefined,
         })
       }
     })(),
   )
 })
 
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
+// Swiped away: the fasting timer stays hidden for this fast (the app checks the same flag), and the
+// server stops sending its updates. Heart rate is hidden for the rest of the session.
+self.addEventListener('notificationclose', (event) => {
+  const n = event.notification
+  if (n.tag !== 'gloop-fast' && n.tag !== 'gloop-live-hr') return
   event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then((list) => {
-      for (const c of list) if ('focus' in c) return c.focus()
-      return self.clients.openWindow('./')
+    (async () => {
+      if (n.tag === 'gloop-fast') {
+        await writeDismissed({ fast: (n.data && n.data.start) || true })
+        try {
+          const sub = await self.registration.pushManager.getSubscription()
+          if (sub) await fetch('/api/push/dismiss', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint, key: 'fast-live' }) })
+        } catch {
+          /* offline: the app cancels it next time it runs */
+        }
+      }
+      const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const c of list) c.postMessage({ type: 'gloop-live-dismissed', tag: n.tag, start: n.data && n.data.start })
+    })(),
+  )
+})
+
+const PATHS = { 'gloop-fast': '/fast', 'gloop-live-hr': '/live', 'gloop-zone-alert': '/live', fast: '/fast', eat: '/fast' }
+
+self.addEventListener('notificationclick', (event) => {
+  const n = event.notification
+  const path = (n.data && n.data.path) || PATHS[n.tag] || null
+  // the live ones stay up (closing them would read as a swipe-away to nobody, but they'd vanish)
+  if (n.tag !== 'gloop-fast' && n.tag !== 'gloop-live-hr') n.close()
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ('focus' in c) {
+          if (path) c.postMessage({ type: 'gloop-open', path })
+          return c.focus()
+        }
+      }
+      return self.clients.openWindow(path ? './#' + path : './')
     }),
   )
 })

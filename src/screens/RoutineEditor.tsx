@@ -138,7 +138,7 @@ function TimeBudgetField({ draft, onChange }: { draft: Routine; onChange: (v: nu
         onInput={(ev) => onChange(Number(ev.currentTarget.value.replace(/\D/g, '')) || null)}
       />
       <span class="field-hint">
-        Estimated {total} min: warm-up {e.warmup}, sets {e.main}, cool-down {e.cooldown}. The workout screen shows whether you’re on pace.
+        Estimated {total} min{e.paced ? ' from your pace' : ''}: warm-up {e.warmup}, sets {e.main}, cool-down {e.cooldown}. The workout screen shows whether you’re on pace.
       </span>
     </label>
   )

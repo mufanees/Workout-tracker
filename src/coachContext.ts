@@ -12,6 +12,7 @@ import { programStatus, programText } from './program'
 import { summarizeHR, zoneRange } from './hr'
 import { counts, e1rm, phaseMinutes, startOfWeek } from './util'
 import { mobilityText } from './mobility'
+import { exerciseTimes, fmtSecs, pace6w, PACE_DAYS, workoutTiming } from './timing'
 import type { Workout, WSet } from './types'
 
 const DAY = 86400000
@@ -36,9 +37,11 @@ export function workoutLine(w: Workout) {
   if (prs) bits.push(`, ${prs} PR set${prs > 1 ? 's' : ''}`)
   bits.push(')')
   const lines = [bits.join('')]
+  const times = new Map(exerciseTimes(w).map((t) => [t.weId, t]))
   for (const e of w.exercises) {
     const ex = exMap.value.get(e.exerciseId)
-    lines.push(`  ${ex?.name || e.exerciseId}${e.target ? ` [target ${e.target}]` : ''}: ${e.sets.map((s) => fmtSet(s, ex?.type || 'weight_reps')).join(', ')}${e.notes ? ` (note: ${e.notes})` : ''}`)
+    const t = times.get(e.id)
+    lines.push(`  ${ex?.name || e.exerciseId}${e.target ? ` [target ${e.target}]` : ''}: ${e.sets.map((s) => fmtSet(s, ex?.type || 'weight_reps')).join(', ')}${e.notes ? ` (note: ${e.notes})` : ''}${t ? ` | ${timeText(t)}` : ''}`)
   }
   if (w.notes) lines.push(`  Session notes: ${w.notes}`)
   const ph = phaseMinutes(w)
@@ -47,6 +50,8 @@ export function workoutLine(w: Workout) {
     lines.push(
       `  Time: took ${mins} min${tp ? ` vs ${tp.fixed ? 'a budget of' : 'an estimated'} ${tp.budget} min (plan: warm-up ${tp.warmup}, sets ${tp.main}, cool-down ${tp.cooldown})` : ''}; actual warm-up ${ph.warmup ?? '?'} min, cool-down ${ph.cooldown ?? '?'} min`,
     )
+  const tm = w.timing || workoutTiming(w)
+  if (tm) lines.push(`  Measured: warm-up ${fmtSecs(tm.warmup)}, sets ${fmtSecs(tm.work)}, rest ${fmtSecs(tm.rest)}, cool-down ${fmtSecs(tm.cooldown)}, other/idle ${fmtSecs(tm.transition)}, total ${fmtSecs(tm.total)}`)
   const fb = w.feedback
   if (fb) {
     const felt: string[] = []
@@ -63,6 +68,27 @@ export function workoutLine(w: Workout) {
     if (fb.note) lines.push(`  Athlete said: ${fb.note}`)
   }
   return lines.join('\n')
+}
+
+/** "4:10 total, sets 0:48/0:52/? incl. start delay, rest 1:05/1:12 (plan 1:00)" */
+function timeText(t: ReturnType<typeof exerciseTimes>[number]) {
+  const plans = [...new Set(t.plans.filter((p): p is number => p != null))]
+  const rest = t.rests.length ? `, rest ${t.rests.map(fmtSecs).join('/')}${plans.length ? ` (plan ${plans.map(fmtSecs).join('/')})` : ''}` : ''
+  return `${fmtSecs(t.total)} total, sets ${t.works.map((x) => (x == null ? '?' : fmtSecs(x))).join('/')} incl. start delay${rest}`
+}
+
+/** Where their training time goes, from the measured ticks (last 6 weeks). */
+export function timeUseText(): string {
+  const p = pace6w.value
+  if (!p.sessions.length) return 'No timed workouts yet (set times are measured from the end of each rest to the tick).'
+  const out: string[] = []
+  const ex = [...p.exercises].sort((a, b) => b.sets - a.sets).slice(0, 25)
+  if (ex.length) out.push(`Seconds per working set (end of rest to tick, start delay included): ${ex.map((e) => `${exMap.value.get(e.exerciseId)?.name || e.exerciseId} ${fmtSecs(e.avg)} (${e.sets} set${e.sets === 1 ? '' : 's'})`).join('; ')}`)
+  if (p.rest) out.push(`Rest: ${fmtSecs(p.rest.taken)} taken on average vs ${fmtSecs(p.rest.plan)} planned (${p.rest.overrun >= 0 ? '+' : '−'}${Math.abs(p.rest.overrun)} s per rest, ${p.rest.n} rests)`)
+  if (p.transition != null) out.push(`Other/idle per workout (not in sets, rests or checklists, e.g. after the last set until Finish): ${fmtSecs(p.transition)} on average`)
+  const vs = p.sessions.slice(0, 8).map((s) => `${date(s.start)} ${s.name || 'workout'} ${Math.round(s.timing.total / 60)} min${s.budget ? ` vs ${s.budget} budget (${s.timing.total / 60 - s.budget >= 0 ? '+' : ''}${Math.round(s.timing.total / 60 - s.budget)})` : ''}`)
+  out.push(`Total vs budget: ${vs.join('; ')}`)
+  return out.join('\n')
 }
 
 export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): string {
@@ -126,6 +152,8 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
     const stall = ex.type === 'weight_reps' ? stalledAt(id) : null
     prog.push(`${ex.name} (${ex.equipment}): ${pts.join(' | ')}${stall ? `  ← same ${stall} kg for 3 sessions without more reps` : ''}`)
   }
+  out.push(`\nTIME USE (measured, last ${PACE_DAYS / 7} weeks)\n${timeUseText()}`)
+
   out.push(`\nPROGRESSION (top set per session, oldest → newest)\n${prog.join('\n') || 'none yet'}`)
 
   const rd = readings.value.filter((r) => r.date > now - 30 * DAY)
@@ -168,7 +196,7 @@ export function routinesText() {
       })
       const extra = [r.warmup?.length ? `\n    warm-up: ${r.warmup.join('; ')}` : '', r.cooldown?.length ? `\n    cool-down: ${r.cooldown.join('; ')}` : ''].join('')
       const tp = planFor(r)
-      return `${r.program ? r.program + ' / ' : ''}${r.folder ? r.folder + ' / ' : ''}${r.name} (~${tp.budget} min${tp.fixed ? ' budget' : ' estimated'}): ${ex.join(', ')}${extra}`
+      return `${r.program ? r.program + ' / ' : ''}${r.folder ? r.folder + ' / ' : ''}${r.name} (${tp.fixed ? `${tp.budget} min budget; estimated ${tp.warmup + tp.main + tp.cooldown} min` : `~${tp.budget} min estimated`}${tp.paced ? ' from their measured pace' : ''}): ${ex.join(', ')}${extra}`
     })
     .join('\n')
 }

@@ -3,6 +3,7 @@ import { route, navigate } from './router'
 import { active, ready, settings } from './store'
 import { Train, MiniBar } from './screens/Train'
 import { Live } from './screens/Live'
+import { CardioLive } from './screens/CardioLive'
 import { History, WorkoutDetail, EditWorkout } from './screens/History'
 import { Exercises, ExerciseDetail } from './screens/Exercises'
 import { RoutineEditor } from './screens/RoutineEditor'
@@ -64,7 +65,7 @@ export function App() {
   const [a, b, c] = r.parts
   let screen
   let tab: string | null = null
-  if (a === 'live') screen = <Live />
+  if (a === 'live') screen = active.value?.cardio ? <CardioLive /> : <Live />
   else if (a === 'history' && b) screen = <WorkoutDetail id={b} key={b} />
   else if (a === 'history') (screen = <History />), (tab = '/history')
   else if (a === 'edit' && b) screen = <EditWorkout id={b} key={b} />

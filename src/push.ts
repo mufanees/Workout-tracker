@@ -63,9 +63,22 @@ export async function disablePush() {
 }
 
 /** Schedule (or replace) a notification by key. Fire-and-forget; quietly does nothing when off. */
-export function schedulePush(key: string, at: number, title: string, body: string) {
+export function schedulePush(key: string, at: number, title: string, body: string, extra?: PushExtra) {
   if (!pushOn.value) return
-  void api('/api/push/schedule', { key, at, title, body, tag: key }).catch(() => {})
+  void api('/api/push/schedule', { key, at, title, body, tag: key, ...extra }).catch(() => {})
+}
+
+/**
+ * Options for recurring "live" pushes (see server/push.mjs): repeat `every` ms until `until`, also
+ * firing at each of `marks`; `data` reaches the service worker, and the server writes the text from
+ * it when the worker asks, so it's current when shown.
+ */
+export interface PushExtra {
+  tag?: string
+  every?: number
+  until?: number
+  marks?: number[]
+  data?: Record<string, unknown>
 }
 
 export function cancelPush(key: string) {

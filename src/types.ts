@@ -36,6 +36,13 @@ export interface WSet {
   cr?: number | null
   /** Reps left in the tank on this set (0 = couldn't do another), from the effort tap after an exercise. */
   rir?: number | null
+  /** Timing, from live ticks (see shared/timing.mjs): when it was ticked done (epoch ms), */
+  at?: number
+  /** seconds from its start anchor (end of the rest before it, or the previous tick) to the tick; null = unknown (ticked during a rest), */
+  work?: number | null
+  /** seconds actually rested before it, when a rest ran, and the rest planned then. */
+  rested?: number | null
+  restPlan?: number | null
 }
 
 export interface WExercise {
@@ -61,9 +68,16 @@ export interface Workout extends Rec {
   checkAt?: Record<string, number> // when each warm-up / cool-down item was ticked
   feedback?: Feedback
   /** Expected minutes when the workout started (see timeplan.ts). */
-  timePlan?: { budget: number; warmup: number; main: number; cooldown: number; fixed: boolean }
+  timePlan?: { budget: number; warmup: number; main: number; cooldown: number; fixed: boolean; paced?: boolean }
+  /** Where the time went, in seconds (saved on finish; see shared/timing.mjs). */
+  timing?: { warmup: number; work: number; rest: number; transition: number; cooldown: number; total: number }
+  /** Live workout only: the last start anchor for the next set, and the rest that's running. */
+  mark?: { at: number; kind: 'tick' | 'rest-end'; rested?: number; plan?: number } | null
+  restRun?: { start: number; plan: number; end: number } | null
   /** The mobility plan day (YYYY-MM-DD) this session came from, for a standalone mobility session. */
   mobility?: string
+  /** A cardio session (see cardio.ts): one clock through warm-up → main → cool-down stretches; no exercises. */
+  cardio?: CardioSession
   /** Copied from the routine when the workout started (plus that day's mobility add-ons). */
   warmup?: string[]
   cooldown?: string[]
@@ -116,6 +130,9 @@ export interface Settings extends Rec {
   /** how to pick a time of day: clock dial (default) or scroll wheels */
   timePicker?: 'clock' | 'wheels'
   fastRemind?: boolean // notify when the eating window is about to close
+  liveFast?: boolean // running fast in the notification shade (default on)
+  liveHR?: boolean // heart rate in the notification shade while Gloop is in the background (default on)
+  liveHRVisible?: boolean // ...and also while Gloop is on screen (default off)
   moveGoal?: number // daily Move ring, minutes of any workout
   showPace?: boolean // time budget and pace on the workout screen
   /** A program the coach built and the athlete approved: routines to rotate through. Replaces the Comeback plan card while set. */
@@ -135,6 +152,27 @@ export interface Settings extends Rec {
   home?: { order?: string[]; hidden?: string[] }
   /** Warm-up and cool-down moves you've linked by hand: move name (lower-case letters only) → exercise id, or '' for text only. */
   moveLinks?: Record<string, string>
+  /** Your cardio quick start (see cardio.ts): activity ('' = not chosen yet), zone to hold (null = free), phase minutes, cool-down stretches. */
+  cardio?: CardioPrefs
+}
+
+/** A cardio session's timeline. Warm-up runs from `start` until mainStart, cool-down from cooldownStart. */
+export interface CardioSession {
+  activity: string // "Elliptical"
+  warmupMin: number
+  cooldownMin: number
+  mainStart?: number | null
+  cooldownStart?: number | null
+  stretches?: string[] // cool-down lines, ticked as checks "c0", "c1"…
+}
+
+export interface CardioPrefs {
+  activity: string
+  target: number | null
+  warmupMin: number
+  cooldownMin: number
+  /** Your own stretch list; missing = the activity's defaults. */
+  stretches?: string[]
 }
 
 export interface Quote {

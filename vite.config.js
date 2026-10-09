@@ -11,13 +11,16 @@ function serviceWorker() {
     apply: 'build',
     generateBundle(_, bundle) {
       const files = Object.keys(bundle).filter((f) => !f.endsWith('.map'))
-      const publicFiles = ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon.svg']
+      const publicFiles = ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon.svg', 'badge-96.png']
+      // shared/live.mjs (notification text and badge drawing) pasted into the worker without its exports
+      const live = readFileSync(new URL('./shared/live.mjs', import.meta.url), 'utf8').replace(/^export /gm, '')
       const precache = ['./', ...files, ...publicFiles]
       const version = createHash('sha1').update(precache.join('|')).digest('hex').slice(0, 10)
       const template = readFileSync(new URL('./src/sw.js', import.meta.url), 'utf8')
       const source = template
         .replace('__VERSION__', version)
         .replace('__PRECACHE__', JSON.stringify(precache))
+        .replace('/* __LIVE__ */', () => live)
       this.emitFile({ type: 'asset', fileName: 'sw.js', source })
     },
   }

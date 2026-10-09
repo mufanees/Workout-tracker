@@ -7,7 +7,20 @@ export const COMEBACK_PHASE_FOLDERS = ['Phase 1 · Rebuild', 'Phase 2 · Build',
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
+/** A workout's timing summary: every part a number of seconds, else dropped. */
+function cleanTiming(v: unknown) {
+  if (!isObj(v)) return undefined
+  const keys = ['warmup', 'work', 'rest', 'transition', 'cooldown', 'total']
+  return keys.every((k) => num(v[k]) != null) ? Object.fromEntries(keys.map((k) => [k, num(v[k])])) : undefined
+}
+
 const strs = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map(String) : undefined)
+
+/** A cardio session's timeline (Workout.cardio): kept when it has an activity, numbers checked. */
+function cleanCardio(v: unknown) {
+  if (!isObj(v) || typeof v.activity !== 'string') return undefined
+  return { activity: v.activity, warmupMin: num(v.warmupMin) ?? 0, cooldownMin: num(v.cooldownMin) ?? 0, mainStart: num(v.mainStart), cooldownStart: num(v.cooldownStart), stretches: strs(v.stretches) }
+}
 
 function cleanExercises(list: unknown) {
   if (!Array.isArray(list)) return []
@@ -26,6 +39,11 @@ function cleanExercises(list: unknown) {
       reps: num(s.reps),
       seconds: num(s.seconds),
       done: !!s.done,
+      // timing from live ticks (all optional)
+      at: num(s.at) ?? undefined,
+      work: s.work === undefined ? undefined : num(s.work),
+      rested: s.rested === undefined ? undefined : num(s.rested),
+      restPlan: s.restPlan === undefined ? undefined : num(s.restPlan),
     })),
   }))
 }
@@ -39,7 +57,7 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     const start = num(rec.start)
     if (start == null) return null
     const hr = Array.isArray(rec.hr) ? rec.hr.filter((p) => Array.isArray(p) && num(p[0]) != null && num(p[1]) != null) : undefined
-    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr, warmup: strs(rec.warmup), cooldown: strs(rec.cooldown), shoulder: num(rec.shoulder) }
+    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr, warmup: strs(rec.warmup), cooldown: strs(rec.cooldown), shoulder: num(rec.shoulder), timing: cleanTiming(rec.timing), cardio: cleanCardio(rec.cardio) }
   }
   if (store === 'routines') {
     let program = typeof rec.program === 'string' ? rec.program : ''

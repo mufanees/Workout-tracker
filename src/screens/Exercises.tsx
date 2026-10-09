@@ -9,6 +9,8 @@ import { actionSheet, confirmDialog, toast } from '../ui/overlay'
 import { counts, e1rm, fmtDay, fmtNum, fmtSeconds, fmtSet, fmtVolume, fmtWeight, relDays, setVolume, toDisplay } from '../util'
 import { hasOwnVideo, videoFor } from '../videos'
 import { openVideoSheet } from '../ui/VideoSheet'
+import type { WSet } from '../types'
+import { fmtSecs, MAX_SET_SECS } from '../timing'
 
 export function Exercises() {
   const [query, setQuery] = useState('')
@@ -204,6 +206,8 @@ export function ExerciseDetail({ id }: { id: string }) {
             </section>
           )}
 
+          <SetTimeSection sessions={recs.sessions} />
+
           <section>
             <h2 class="section-title">History</h2>
             <div class="history-list">
@@ -231,5 +235,39 @@ export function ExerciseDetail({ id }: { id: string }) {
       )}
       <ExerciseForm open={editing} existing={ex} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />
     </div>
+  )
+}
+
+/** Measured time per working set (end of rest to tick) and rest taken, over the last 6 timed sessions. */
+function SetTimeSection({ sessions }: { sessions: { workout: { start: number }; sets: WSet[] }[] }) {
+  const timed = sessions.filter((x) => x.sets.some((st) => st.kind !== 'warmup' && st.work != null)).slice(0, 6)
+  if (!timed.length) return null
+  const work = timed.flatMap((x) => x.sets.filter((st) => st.kind !== 'warmup' && st.work != null && st.work <= MAX_SET_SECS).map((st) => st.work!))
+  const rests = timed.flatMap((x) => x.sets.filter((st) => st.rested != null && st.restPlan != null && st.rested <= MAX_SET_SECS))
+  if (!work.length) return null
+  const avg = (l: number[]) => Math.round(l.reduce((a, b) => a + b, 0) / l.length)
+  const taken = rests.length ? avg(rests.map((st) => st.rested!)) : null
+  const plan = rests.length ? avg(rests.map((st) => st.restPlan!)) : null
+  return (
+    <section>
+      <h2 class="section-title">Time</h2>
+      <div class="records">
+        <div class="record">
+          <span>Per working set</span>
+          <b>{fmtSecs(avg(work))}</b>
+          <small class="record-sub">
+            {work.length} {work.length === 1 ? 'set' : 'sets'}, {timed.length === 1 ? 'last session' : `last ${timed.length} sessions`}
+          </small>
+        </div>
+        {taken != null && (
+          <div class="record">
+            <span>Rest taken</span>
+            <b>{fmtSecs(taken)}</b>
+            <small class="record-sub">plan {fmtSecs(plan!)}</small>
+          </div>
+        )}
+      </div>
+      <p class="field-hint records-hint">From the end of each rest to the tick, so a slow start counts toward the set.</p>
+    </section>
   )
 }

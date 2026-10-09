@@ -1,8 +1,9 @@
 // Starting, finishing and timing workouts.
 import { planFor } from './timeplan'
 import { signal } from '@preact/signals'
-import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap, workouts, exercises } from './store'
-import type { Routine, Workout, WExercise } from './types'
+import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap, workouts, exercises, updateActive } from './store'
+import { lineTick, restEndMark, tickTiming, untickAnchor, untickSet, workoutTiming } from './timing'
+import type { Routine, Workout, WExercise, WSet } from './types'
 import { uid, clone } from './util'
 import { navigate } from './router'
 import { confirmDialog } from './ui/overlay'
@@ -158,8 +159,10 @@ export async function finishActive(name: string, notes: string, extra: Partial<W
   const exercises = w.exercises
     .map((e) => ({ ...e, sets: e.sets.filter((s) => s.done).map(({ tw: _tw, tr: _tr, ts: _ts, cw: _cw, cr: _cr, ...s }) => s) }))
     .filter((e) => e.sets.length)
-  const { coachPlan: _plan, coachPlanAsked: _asked, ...rest } = w
-  const saved = await saveWorkout({ ...rest, ...extra, name: name.trim() || w.name, notes, end: Date.now(), exercises })
+  const { coachPlan: _plan, coachPlanAsked: _asked, mark: _mark, restRun: _restRun, ...rest } = w
+  const end = Date.now()
+  const timing = workoutTiming({ ...w, end, exercises }) ?? undefined
+  const saved = await saveWorkout({ ...rest, ...extra, name: name.trim() || w.name, notes, end, exercises, ...(timing ? { timing } : {}) })
   setActive(null)
   stopRest()
   cancelSetTimer()
@@ -271,9 +274,67 @@ function beep(notes = [880, 880, 1320]) {
 export function startRest(seconds: number, label: string) {
   // a timed set is running: its own end starts the rest, and the two bars never show together
   if (!seconds || setTimer.value) return
-  restTimer.value = { end: Date.now() + seconds * 1000, total: seconds, label }
+  const now = Date.now()
+  restTimer.value = { end: now + seconds * 1000, total: seconds, label }
+  // on the workout too, so the set after it knows how long you rested (survives a reload)
+  updateActive((x) => void (x.restRun = { start: now, plan: seconds, end: now + seconds * 1000 }))
   armRest()
   pushRest()
+}
+
+/** The rest ended at `at` (ran out, Skip, −15 to zero, a set timer started): the next set's time starts here. */
+function endRestRun(at: number) {
+  if (!active.value?.restRun) return
+  updateActive((x) => {
+    if (!x.restRun) return
+    x.mark = restEndMark(x.restRun, at)
+    x.restRun = null
+  })
+}
+
+// ---- Ticks: each one stamps the set's time in the same write ----------------------------
+
+/**
+ * Tick a set of the live workout: apply `patch` (values, done) and its timing, and make it the anchor
+ * for the next set. `timedFrom`: when its set timer started, for a timed set.
+ */
+export function logTick(weId: string, setId: string, patch: Partial<WSet>, at = Date.now(), timedFrom: number | null = null) {
+  updateActive((x) => {
+    const st = x.exercises.find((e) => e.id === weId)?.sets.find((y) => y.id === setId)
+    if (!st) return
+    const t = tickTiming(x, at, timedFrom)
+    Object.assign(st, patch, t.set)
+    x.mark = t.mark
+    x.restRun = t.restRun
+  })
+}
+
+/** Untick a set of the live workout: its timing goes with it. */
+export function unlogTick(weId: string, setId: string) {
+  updateActive((x) => {
+    const we = x.exercises.find((e) => e.id === weId)
+    const i = we ? we.sets.findIndex((y) => y.id === setId) : -1
+    if (!we || i < 0) return
+    // unticked right after ticking it: the next tick is timed from where this one was
+    const back = untickAnchor(x, we.sets[i])
+    if (back) {
+      x.mark = back.mark
+      x.restRun = back.restRun
+    }
+    we.sets[i] = untickSet(we.sets[i])
+  })
+}
+
+/** Tick or untick a warm-up / cool-down line ("w2", "c0"). A tick is the next set's anchor. */
+export function logLine(key: string, on: boolean, at = Date.now()) {
+  updateActive((x) => {
+    x.checks = { ...(x.checks || {}), [key]: on }
+    if (!on) return
+    x.checkAt = { ...(x.checkAt || {}), [key]: at }
+    const t = lineTick(x, at)
+    x.mark = t.mark
+    x.restRun = t.restRun
+  })
 }
 
 // The server sends "rest is over" a moment after the end, so it only shows if the app didn't beep itself.
@@ -289,6 +350,7 @@ export function adjustRest(delta: number) {
   const end = r.end + delta * 1000
   if (end <= Date.now()) return stopRest()
   restTimer.value = { ...r, end, total: Math.max(r.total + delta, 1) }
+  if (active.value?.restRun) updateActive((x) => void (x.restRun &&= { ...x.restRun, end }))
   armRest()
   pushRest()
 }
@@ -296,6 +358,7 @@ export function adjustRest(delta: number) {
 export function stopRest() {
   if (restTimer.value) cancelPush('rest')
   restTimer.value = null
+  endRestRun(Date.now())
   if (restTick) clearTimeout(restTick)
 }
 
@@ -306,6 +369,8 @@ export function armRest() {
   restTick = setTimeout(() => {
     if (restTimer.value !== r) return
     restTimer.value = null
+    // the scheduled end, not now: a frozen page runs this late
+    endRestRun(r.end)
     beep()
     try {
       navigator.vibrate?.([200, 100, 200])
@@ -335,6 +400,7 @@ export interface SetTimer {
   end: number // when the current phase ends (while running)
   left: number | null // ms left in the current phase while paused
   total: number // seconds in the current phase
+  started?: number // when it was first started (a timed set's time runs from here at the latest)
 }
 
 /** Seconds to change sides between side 1 and side 2. */
@@ -359,10 +425,10 @@ setTimer.subscribe((t) => {
 })
 
 let timerTick: ReturnType<typeof setTimeout> | null = null
-let timerDone: ((t: SetTimer, held: number) => void) | null = null
+let timerDone: ((t: SetTimer, held: number, at: number) => void) | null = null
 
 /** The live screen says what finishing means (fill the set and tick it, or tick the line). */
-export function onSetTimerDone(fn: (t: SetTimer, held: number) => void) {
+export function onSetTimerDone(fn: (t: SetTimer, held: number, at: number) => void) {
   timerDone = fn
 }
 
@@ -379,7 +445,8 @@ export function startSetTimer(o: { label: string; target: TimerTarget; secs: num
   unlockAudio()
   stopRest()
   const secs = Math.max(1, Math.round(o.secs))
-  setTimer.value = { ...o, secs, side: 1, phase: 'work', end: Date.now() + secs * 1000, left: null, total: secs }
+  const now = Date.now()
+  setTimer.value = { ...o, secs, side: 1, phase: 'work', end: now + secs * 1000, left: null, total: secs, started: now }
   armSetTimer()
   pushSetTimer()
 }
@@ -424,7 +491,7 @@ export function finishSetTimer() {
   if (!t) return
   const held = heldSeconds(t)
   cancelSetTimer()
-  if (held >= 1) timerDone?.(t, held)
+  if (held >= 1) timerDone?.(t, held, Date.now())
 }
 
 // One push for the very end (the server sends it only if the app didn't beep on screen).
@@ -458,7 +525,8 @@ function advanceSetTimer() {
       }
       // on screen and beeped, so the server's notification isn't needed
       if (document.visibilityState === 'visible') cancelPush('rest')
-      timerDone?.(t, t.secs)
+      // it ran out at its scheduled end, even if the page was frozen then
+      timerDone?.(t, t.secs, t.end)
       return
     }
   }

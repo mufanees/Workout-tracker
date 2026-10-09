@@ -6,6 +6,7 @@ import { loadAccount } from './account'
 import { handleShare, takeShare } from './share'
 import { reconnectSaved } from './hr'
 import { scheduleTrainingReminder } from './workout'
+import { startLiveNotifications } from './liveNotify'
 import '@fontsource-variable/space-grotesk/wght.css'
 import '@fontsource-variable/inter/opsz.css'
 import './styles.css'
@@ -20,6 +21,7 @@ init()
     handleShare()
     void reconnectSaved()
     scheduleTrainingReminder()
+    startLiveNotifications()
   })
   .catch((e) => {
     console.error(e)

@@ -7,7 +7,7 @@ import { navigate } from '../router'
 import type { Exercise, SetKind, WExercise, WSet } from '../types'
 import { clone, fmtNum, fmtRest, fmtTarget, fromDisplay, haptic, newSet, newWExercise, perSide, supersetColor, targetSeconds, targetTop, toDisplay, uid } from '../util'
 import { twoDumbbells } from '../goals'
-import { finishSetTimer, pauseSetTimer, resumeSetTimer, setTimer, startSetTimer } from '../workout'
+import { finishSetTimer, logTick, pauseSetTimer, resumeSetTimer, setTimer, startSetTimer, unlogTick } from '../workout'
 import { gooSplash } from './Goo'
 import { Icon } from './icons'
 import { NumInput } from './inputs'
@@ -424,7 +424,8 @@ function ExerciseCard({
 
   const toggleDone = (i: number) => {
     const s = we.sets[i]
-    if (s.done) return mutSet(s.id, (t) => void (t.done = false))
+    // live: unticking drops the set's time; a finished workout being edited keeps its times as they were
+    if (s.done) return mode === 'live' ? unlogTick(we.id, s.id) : mutSet(s.id, (t) => void (t.done = false))
     // its timer is running: stop it and log the time held, as its Done button would
     const tm = setTimer.value
     if (tm?.target.kind === 'set' && tm.target.setId === s.id) return finishSetTimer()
@@ -442,7 +443,9 @@ function ExerciseCard({
     }
     haptic(12)
     gooSplash(cardRef.current?.querySelectorAll('button.check')[i], cardRef.current)
-    mutSet(s.id, (t) => Object.assign(t, next))
+    // live: the tick also records when, and how long the set took (same write)
+    if (mode === 'live') logTick(we.id, s.id, next)
+    else mutSet(s.id, (t) => Object.assign(t, next))
     onSetDone()
   }
 

@@ -12,6 +12,7 @@ import { fmtRest } from '../util'
 import { QuoteText } from '../ui/Quote'
 import { disablePush, enablePush, pushOn, pushSupported } from '../push'
 import { scheduleTrainingReminder } from '../workout'
+import { notifyAllowed, resetLiveDismissed } from '../liveNotify'
 import { connectHR, disconnectHR, hrName, hrStatus, hrSupported, ZONE_COLORS, ZONE_NAMES, zoneRange } from '../hr'
 import type { StoreName } from '../types'
 import { sanitize } from '../validate'
@@ -257,6 +258,41 @@ export function Settings() {
                 }}
               />
             </div>
+            {(pushOn.value || notifyAllowed()) && (
+              <>
+                <div class="setting">
+                  <span>
+                    Fasting in the notification shade
+                    <small>Time fasted and your goal while a fast runs</small>
+                  </span>
+                  <Toggle
+                    label="Fasting in the notification shade"
+                    checked={st.liveFast !== false}
+                    onChange={async (v) => {
+                      await saveSettings({ liveFast: v })
+                      if (v) void resetLiveDismissed()
+                    }}
+                  />
+                </div>
+                <div class="setting">
+                  <span>
+                    Heart rate in the notification shade
+                    <small>Bpm and zone while Gloop is in the background</small>
+                  </span>
+                  <Toggle
+                    label="Heart rate in the notification shade"
+                    checked={st.liveHR !== false}
+                    onChange={async (v) => {
+                      await saveSettings({ liveHR: v })
+                      if (v) void resetLiveDismissed()
+                    }}
+                  />
+                </div>
+                <p class="setting-note">
+                  Android lets you swipe these away. They update while Gloop runs in the background; the fasting one also every 15 minutes when it’s closed.
+                </p>
+              </>
+            )}
           </>
         ) : (
           <p class="setting-note">Notifications work in the installed app from your server (Chrome on Android, or Safari on iPhone after Add to Home Screen).</p>

@@ -1,0 +1,674 @@
+/* =====================================================================================
+   Cardio session screen (src/screens/CardioLive.tsx), the setup sheet and the shared
+   heart-rate pieces (zone breakdown, warm-up line). Tokens from the top of styles.css.
+   Loaded before styles.css, so selectors here are scoped (.cardio …) where they override.
+   ===================================================================================== */
+
+/* ---- zone breakdown (live panels and the cardio screen) ---- */
+.zb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.zb-bar {
+  display: flex;
+  height: var(--sp-3);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  gap: var(--sp-0-5);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.zb-bar span {
+  flex: 1 1 0;
+  min-width: var(--sp-0-5);
+  transition: flex-grow 0.6s cubic-bezier(0.2, 0, 0, 1);
+}
+.zb-bar .zb-empty {
+  background: transparent;
+}
+.zb-cells {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-1);
+}
+.zb-cells li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  padding: var(--sp-1-5) var(--sp-2);
+  border-radius: var(--r-md);
+  min-width: 0;
+}
+.zb-cells li span {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-12);
+  font-weight: 650;
+  opacity: 0.7;
+}
+.zb-cells li i {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--c);
+  flex: none;
+}
+.zb-cells li b {
+  font-size: var(--fs-16);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.zb-cells li.target {
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+}
+.zb-cells li.target span {
+  opacity: 1;
+}
+.zb-cells li.now b {
+  color: var(--c);
+}
+:root[data-theme='light'] .cardio-zones .zb-cells li.now b {
+  color: inherit;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .cardio-zones .zb-cells li.now b {
+    color: inherit;
+  }
+}
+
+/* strength workouts' live panel */
+.hr-grace {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* summary card: the three parts of a cardio session */
+.cp-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  padding-top: var(--sp-1);
+}
+.cp-row > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cp-row .stat-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-row b {
+  font-size: var(--fs-20);
+  font-variant-numeric: tabular-nums;
+}
+.cp-main {
+  grid-column: 1 / -1;
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  color: var(--muted);
+}
+
+/* ---- Train quick start ---- */
+.cardio-quick {
+  display: flex;
+  gap: var(--sp-1);
+}
+.cardio-quick .cq-main {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+}
+.cardio-quick .cq-main .icon {
+  color: #ff5a5a;
+}
+.quick-starts .cardio-quick .cq-main {
+  padding: 0 var(--sp-4);
+}
+.cardio-quick .cq-edit {
+  width: var(--h-md);
+  padding: 0;
+  flex: none;
+}
+.cq-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  min-width: 0;
+}
+.cq-text b {
+  font-weight: 650;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cq-text small {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-12);
+  color: var(--muted);
+  font-weight: 600;
+}
+.cs-reset {
+  align-self: flex-start;
+  min-height: var(--h-md);
+}
+
+/* ---- the live cardio screen ---- */
+.cardio {
+  --zc: var(--faint);
+  max-width: 640px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 0 var(--gutter) calc(var(--safe-bottom) + var(--sp-6));
+  display: flex;
+  flex-direction: column;
+}
+.cardio-head {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'back title set finish' 'steps steps steps steps';
+  align-items: center;
+  column-gap: var(--sp-1);
+  row-gap: var(--sp-2);
+  padding: calc(var(--safe-top) + var(--sp-1-5)) 0 var(--sp-3);
+  margin: 0 calc(var(--sp-1-5) * -1);
+}
+.cardio-head > .icon-btn:first-child {
+  grid-area: back;
+}
+.cardio-head > .icon-btn:nth-of-type(2) {
+  grid-area: set;
+}
+.cardio-head > .btn {
+  grid-area: finish;
+  margin-right: var(--sp-1-5);
+}
+.cardio-title {
+  grid-area: title;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+  padding-left: var(--sp-1);
+}
+.cardio-title b {
+  font-size: var(--fs-17);
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardio-title span {
+  font-size: var(--fs-13);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cardio-steps {
+  grid-area: steps;
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--sp-1-5);
+  display: grid;
+  grid-template-columns: 1fr 1.6fr 1fr;
+  gap: var(--sp-1-5);
+}
+.cardio-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.cs-label {
+  font-size: var(--fs-11);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardio-steps li.on .cs-label {
+  color: var(--text);
+}
+.cs-track {
+  display: block;
+  height: var(--sp-1);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.cs-track span {
+  display: block;
+  height: 100%;
+  background: var(--muted);
+  border-radius: inherit;
+  transition: width 1s linear;
+}
+.cardio-steps li.on .cs-track span {
+  background: var(--accent);
+}
+
+.cardio-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-list);
+  flex: 1;
+}
+.cardio-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-list);
+}
+
+/* heart rate hero: always dark, like the strength panel */
+.cardio-hero {
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--r-2xl);
+  padding: var(--pad-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  border: 2px solid transparent;
+  transition: border-color 0.3s ease;
+}
+/* the hero stays dark in both themes, so the alert uses the dark theme's warning colour */
+.cardio.alert .cardio-hero {
+  border-color: #ffb547;
+}
+.cd-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.cd-zone {
+  font-size: var(--fs-20);
+  font-weight: 700;
+  color: var(--zc);
+  letter-spacing: -0.01em;
+}
+.cd-zone small {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  margin-left: var(--sp-1);
+}
+.cd-zone.muted {
+  color: rgba(255, 255, 255, 0.6);
+}
+.cd-bpm {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.cd-bpm b {
+  font-size: min(34vw, 19vh);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+.cd-bpm span {
+  font-size: var(--fs-20);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+.cd-status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--h-md);
+  font-size: var(--fs-17);
+  font-weight: 650;
+  color: rgba(255, 255, 255, 0.75);
+}
+.cd-status.good {
+  color: var(--zc);
+}
+.cd-status.alert {
+  color: #ffb547;
+  font-size: var(--fs-20);
+  font-weight: 700;
+}
+.cardio .hr-connect.on-ink {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+  min-height: var(--h-lg);
+}
+.cardio .hr-scale {
+  height: var(--sp-3);
+}
+
+/* clocks */
+.cardio-clocks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+.cardio-clocks > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+}
+.cardio-clocks .stat-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardio-clocks b {
+  font-size: var(--fs-34);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.cardio-clocks b small {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+.cardio-clocks .cc-total {
+  color: var(--accent-text);
+}
+
+/* zones card */
+.cardio-zones,
+.cardio-stretches {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.cz-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.cz-avg {
+  font-size: var(--fs-13);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cz-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-3);
+}
+.cz-main > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cz-main .stat-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cz-main b {
+  font-size: var(--fs-22);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cz-main b small {
+  font-size: var(--fs-13);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* stretches */
+.cardio-stretches ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.cardio-stretches.empty p {
+  font-family: var(--font-read);
+  color: var(--muted);
+  font-size: var(--fs-15);
+}
+.cs-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.cs-row {
+  flex: none;
+}
+.cs-row.on .cl-box {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.cs-row.timing {
+  background: var(--surface-2);
+}
+.cs-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-soft);
+  transition: width 0.25s linear;
+  pointer-events: none;
+}
+.cs-row.switch .cs-fill {
+  background: color-mix(in srgb, var(--blue) 18%, transparent);
+}
+.cs-tick {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--h-md);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-2);
+  text-align: left;
+  font-family: var(--font-read);
+  font-size: var(--fs-15);
+}
+.cs-row.on .cs-tick {
+  color: var(--muted);
+}
+.cs-row.on .move-name {
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+.cs-live {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.cs-live b {
+  font-family: 'Space Grotesk Variable', 'Space Grotesk', sans-serif;
+  font-size: var(--fs-22);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cs-live span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.cardio .cs-timer,
+.cardio .cs-done {
+  position: relative;
+  color: var(--muted);
+}
+.cardio .cs-timer.on {
+  color: var(--accent-text);
+}
+.cardio .cs-done {
+  color: var(--accent-text);
+}
+
+/* the phase button */
+.cardio-action {
+  margin-top: auto;
+}
+.cardio-action.row .btn {
+  padding: 0 var(--sp-5);
+}
+
+/* ---- landscape: a phone on its side in a gym holder ---- */
+@media (orientation: landscape) and (max-height: 540px) {
+  .cardio {
+    max-width: none;
+    height: 100dvh;
+    min-height: 0;
+    padding: 0 calc(var(--gutter) + env(safe-area-inset-right, 0px)) calc(var(--safe-bottom) + var(--sp-3)) calc(var(--gutter) + env(safe-area-inset-left, 0px));
+    overflow: hidden;
+  }
+  .cardio-head {
+    position: static;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas: 'back title steps set finish';
+    column-gap: var(--sp-3);
+    padding: var(--sp-1-5) 0 var(--sp-2);
+  }
+  .cardio-title {
+    max-width: 30vw;
+  }
+  .cardio-steps {
+    padding: 0 var(--sp-2);
+  }
+  .cardio-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--sp-3);
+    min-height: 0;
+  }
+  .cardio-hero {
+    min-height: 0;
+    justify-content: space-between;
+    padding: var(--sp-4) var(--pad-card);
+    gap: var(--sp-2);
+  }
+  .cd-bpm {
+    flex: 1;
+    align-items: center;
+  }
+  .cd-bpm b {
+    font-size: min(40vh, 21vw);
+  }
+  .cardio-side {
+    min-height: 0;
+    gap: var(--sp-2);
+  }
+  .cardio-clocks > div {
+    padding: var(--sp-1-5) var(--sp-4);
+    border-radius: var(--r-lg);
+  }
+  .cardio-clocks b {
+    font-size: var(--fs-22);
+    white-space: nowrap;
+  }
+  .cd-status.alert {
+    font-size: var(--fs-17);
+  }
+  /* the stretch list needs the room: no heading, the ticks show progress */
+  .cardio-stretches .cz-head {
+    display: none;
+  }
+  /* the header's Finish is the main button here; Back lives in the session sheet */
+  .phase-cooldown .cardio-action {
+    display: none;
+  }
+  .cardio-stretches .move-text {
+    flex-wrap: nowrap;
+  }
+  .cardio-stretches .move-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .cardio-zones,
+  .cardio-stretches {
+    padding: var(--sp-3);
+    gap: var(--sp-2);
+    border-radius: var(--r-lg);
+  }
+  .cardio-stretches {
+    flex: 1;
+    min-height: 0;
+  }
+  .cardio-stretches ul {
+    overflow-y: auto;
+    min-height: 0;
+    gap: 0;
+  }
+  .cz-main {
+    padding-top: var(--sp-2);
+  }
+  .cz-main b {
+    font-size: var(--fs-20);
+  }
+  .cz-after {
+    display: none;
+  }
+}
+/* very short (phones about 360 tall on their side): tighten a little more */
+@media (orientation: landscape) and (max-height: 380px) {
+  .cardio-clocks > div {
+    padding-block: var(--sp-1);
+  }
+  .cardio-clocks b {
+    font-size: var(--fs-20);
+  }
+  .cz-head {
+    display: none;
+  }
+  .cardio-side {
+    gap: var(--sp-1-5);
+  }
+  .cardio-stretches {
+    padding-block: var(--sp-1-5);
+  }
+  .cd-status {
+    min-height: var(--h-sm);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zb-bar span,
+  .cs-track span,
+  .cs-fill {
+    transition: none;
+  }
+}

@@ -1,50 +1,92 @@
 import { useState } from 'preact/hooks'
 import { active, settings, updateActive } from '../store'
-import { bpm, connectHR, hrName, hrStatus, hrSupported, summarizeHR, zone, zoneAlert, ZONE_COLORS, ZONE_NAMES, zoneOf, zoneRange } from '../hr'
+import { alertPause, alertText, bpm, connectHR, hrName, hrStatus, hrSupported, summarizeHR, zone, zoneAlert, ZONE_COLORS, ZONE_NAMES, zoneOf, zoneRange } from '../hr'
+import { mainHR, phaseSeconds } from '../cardio'
+import { fmtClock } from '../util'
+import '../cardio.css'
 import type { Workout } from '../types'
 import { Icon } from './icons'
 import { actionSheet, toast } from './overlay'
 
 const mins = (s: number) => (s >= 60 ? `${Math.round(s / 60)} min` : `${Math.round(s)} s`)
 
-/** Live heart rate during a workout: number, zone, where you sit across the zones, time in target. */
-export function HRPanel() {
-  const w = active.value
-  if (!hrSupported || !w) return null
+/** "Connect heart rate": opens the browser's strap picker. */
+export function HRConnect({ class: cls = '' }: { class?: string }) {
   const status = hrStatus.value
-  const target = w.targetZone ?? settings.value.targetZone
+  return (
+    <button
+      class={'hr-connect ' + cls}
+      disabled={status === 'connecting'}
+      onClick={async () => {
+        if (await connectHR()) toast(`Connected to ${hrName.value}`)
+      }}
+    >
+      <Icon name="heart" size={18} />
+      <span>{status === 'connecting' ? 'Looking for your strap…' : 'Connect heart rate'}</span>
+      <Icon name="bluetooth" size={16} class="muted" />
+    </button>
+  )
+}
 
-  if (status === 'off' || status === 'connecting') {
-    return (
-      <button
-        class="hr-connect"
-        disabled={status === 'connecting'}
-        onClick={async () => {
-          if (await connectHR()) toast(`Connected to ${hrName.value}`)
-        }}
-      >
-        <Icon name="heart" size={18} />
-        <span>{status === 'connecting' ? 'Looking for your strap…' : 'Connect heart rate'}</span>
-        <Icon name="bluetooth" size={16} class="muted" />
-      </button>
-    )
-  }
-
-  const hr = bpm.value
-  const z = zone.value
+/** The five zones as one scale, the target zone raised, a marker at the current heart rate. */
+export function ZoneScale({ hr, target }: { hr: number | null; target: number | null }) {
   const bounds = settings.value.hrZones
   // Place the marker across a scale from 20 bpm below zone 2 to 15 above zone 5's start.
   const lo = bounds[0] - 20
   const hi = bounds[3] + 15
   const pos = hr ? Math.min(100, Math.max(0, ((hr - lo) / (hi - lo)) * 100)) : null
   const edges = [lo, ...bounds, hi].map((b) => ((b - lo) / (hi - lo)) * 100)
+  return (
+    <div class="hr-scale" aria-hidden="true">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span class={'hr-seg' + (target === i + 1 ? ' target' : '')} style={{ left: edges[i] + '%', width: edges[i + 1] - edges[i] + '%', background: ZONE_COLORS[i] }} />
+      ))}
+      {pos != null && <i class="hr-marker" style={{ left: pos + '%' }} />}
+    </div>
+  )
+}
+
+/** Live time in every zone: a stacked bar and Z1–Z5 with minutes:seconds. */
+export function ZoneBreakdown({ seconds, target, current }: { seconds: number[]; target: number | null; current?: number | null }) {
+  const total = seconds.reduce((a, b) => a + b, 0)
+  return (
+    <div class="zb">
+      <div class="zb-bar" role="img" aria-label={'Time in each zone: ' + seconds.map((s, i) => `zone ${i + 1} ${fmtClock(s)}`).join(', ')}>
+        {total ? seconds.map((sec, i) => (sec > 0 ? <span style={{ flexGrow: sec, background: ZONE_COLORS[i] }} /> : null)) : <span class="zb-empty" />}
+      </div>
+      <ul class="zb-cells" aria-hidden="true">
+        {seconds.map((sec, i) => (
+          <li class={(target === i + 1 ? 'target ' : '') + (current === i + 1 ? 'now' : '')} style={{ '--c': ZONE_COLORS[i] }}>
+            <span>
+              <i />Z{i + 1}
+            </span>
+            <b>{fmtClock(sec)}</b>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Live heart rate during a workout: number, zone, where you sit across the zones, time in every zone. */
+export function HRPanel() {
+  const w = active.value
+  if (!hrSupported || !w) return null
+  const status = hrStatus.value
+  const target = w.targetZone ?? settings.value.targetZone
+
+  if (status === 'off' || status === 'connecting') return <HRConnect />
+
+  const hr = bpm.value
+  const z = zone.value
   const summary = summarizeHR(w.hr)
   const alert = zoneAlert.value
+  const pause = alertPause(w)
 
   const pickTarget = () =>
     actionSheet({
       title: 'Hold a zone',
-      message: 'Your phone buzzes when you drift out of it for 15 seconds.',
+      message: 'Your phone buzzes when you drift out of it for 15 seconds, after the first 5 minutes.',
       actions: [
         { label: 'No target', selected: !target, onSelect: () => updateActive((x) => void (x.targetZone = null)) },
         ...[1, 2, 3, 4, 5].map((n) => ({
@@ -78,31 +120,25 @@ export function HRPanel() {
           <Icon name="target" size={13} /> {target ? `Z${target}` : 'Target'}
         </button>
       </div>
-      <div class="hr-scale" aria-hidden="true">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <span
-            class={'hr-seg' + (target === i + 1 ? ' target' : '')}
-            style={{ left: edges[i] + '%', width: edges[i + 1] - edges[i] + '%', background: ZONE_COLORS[i] }}
-          />
-        ))}
-        {pos != null && <i class="hr-marker" style={{ left: pos + '%' }} />}
-      </div>
-      {alert && (
+      <ZoneScale hr={hr} target={target} />
+      {alert && target ? (
         <p class="hr-alert">
           <Icon name={alert === 'above' ? 'downArrow' : 'up'} size={16} />
-          {alert === 'above' ? `Above zone ${target}. Ease off a little.` : `Below zone ${target}. Pick it up a little.`}
+          {alertText(alert, target)}
         </p>
-      )}
+      ) : pause?.reason === 'warmup' ? (
+        <p class="hr-grace">
+          <Icon name="clock" size={14} /> Warming up · zone alerts from {fmtClock((pause.until - w.start) / 1000)}
+        </p>
+      ) : null}
       {summary && (
-        <div class="hr-mini">
-          <span>Avg {summary.avg}</span>
-          <span>Max {summary.max}</span>
-          {target ? (
-            <span>
-              Z{target} {mins(summary.zoneSeconds[target - 1])}
-            </span>
-          ) : null}
-        </div>
+        <>
+          <ZoneBreakdown seconds={summary.zoneSeconds} target={target} current={z} />
+          <div class="hr-mini">
+            <span>Avg {summary.avg}</span>
+            <span>Max {summary.max}</span>
+          </div>
+        </>
       )}
     </section>
   )
@@ -129,6 +165,7 @@ export function HRSummaryCard({ w }: { w: Workout }) {
         </div>
       </div>
       <HRChart samples={w.hr} />
+      <CardioPhases w={w} />
       <div class="zone-stack" role="img" aria-label="Time in each zone">
         {s.zoneSeconds.map((sec, i) => (sec > 0 ? <span style={{ width: (sec / total) * 100 + '%', background: ZONE_COLORS[i] }} /> : null))}
       </div>
@@ -149,6 +186,35 @@ export function HRSummaryCard({ w }: { w: Workout }) {
         })}
       </ul>
     </section>
+  )
+}
+
+/** A cardio session's three parts, and how the main part went. */
+function CardioPhases({ w }: { w: Workout }) {
+  const ph = phaseSeconds(w)
+  if (!ph || !w.cardio) return null
+  const main = mainHR(w)
+  const t = w.targetZone
+  const parts: [string, number][] = [
+    ['Warm-up', ph.warmup],
+    [w.cardio.activity, ph.main],
+    ['Cool-down', ph.cooldown],
+  ]
+  return (
+    <div class="cp-row">
+      {parts.map(([label, sec]) => (
+        <div>
+          <span class="stat-label">{label}</span>
+          <b>{fmtClock(sec)}</b>
+        </div>
+      ))}
+      {main && (
+        <p class="cp-main">
+          {w.cardio.activity}: avg {main.avg} bpm
+          {t ? ` · ${mins(main.zoneSeconds[t - 1])} in zone ${t} (${Math.round((main.zoneSeconds[t - 1] / Math.max(1, ph.main)) * 100)}%)` : ''}
+        </p>
+      )}
+    </div>
   )
 }
 

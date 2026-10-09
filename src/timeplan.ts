@@ -2,8 +2,11 @@
 // Estimates come from the plan itself: warm-up and cool-down lines ("Cat–cow × 8",
 // "Child's pose · 30 s / side"), sets × work time, rest between sets and superset rounds.
 // A routine can also carry a fixed time budget that overrides the estimate.
+// Once workouts have been timed (shared/timing.mjs), each exercise's measured seconds per set and
+// your usual rest overrun replace the guesses ("from your pace").
 import type { Routine, WExercise, Workout } from './types'
 import { exMap } from './store'
+import { pace6w } from './timing'
 
 export interface TimePlan {
   budget: number // minutes you have (the routine's budget, or the estimate)
@@ -11,6 +14,22 @@ export interface TimePlan {
   main: number
   cooldown: number
   fixed: boolean // true when the routine has its own budget
+  paced?: boolean // sets and rests come from your measured pace
+}
+
+/** Measured sets needed before an exercise's own pace replaces the guess. */
+const MIN_PACE_SETS = 2
+
+/** Your measured seconds per set for an exercise (start delay included), if there's enough data. */
+function pacedSet(exerciseId: string): number | null {
+  const p = pace6w.value.byEx.get(exerciseId)
+  return p && p.sets >= MIN_PACE_SETS ? p.avg : null
+}
+
+/** How much longer (or shorter) than planned you usually rest, in seconds; 0 without data. */
+function restOverrun(): number {
+  const r = pace6w.value.rest
+  return r && r.n >= 3 ? r.overrun : 0
 }
 
 const TRANSITION = 10 // seconds between checklist moves
@@ -31,8 +50,10 @@ export function lineSeconds(line: string): number {
   return 45
 }
 
-/** Seconds of work for one set. */
+/** Seconds of work for one set: your measured pace, else a guess from the reps. */
 function setWork(we: WExercise, i: number): number {
+  const measured = pacedSet(we.exerciseId)
+  if (measured != null) return measured
   const ex = exMap.value.get(we.exerciseId)
   const s = we.sets[i]
   if (ex?.type === 'duration') return (s.seconds || 40) + 5
@@ -41,30 +62,43 @@ function setWork(we: WExercise, i: number): number {
 }
 
 /** Seconds for the strength part: sets, rest between sets / rounds, moving between exercises. */
-function mainSeconds(exercises: WExercise[]): number {
+function mainSeconds(exercises: WExercise[]): { secs: number; paced: boolean } {
   let total = 0
+  let paced = false
+  const over = restOverrun()
   const seen = new Set<string>()
+  const groups: WExercise[][] = []
   for (const we of exercises) {
     if (we.superset && seen.has(we.superset)) continue
-    const group = we.superset ? exercises.filter((e) => e.superset === we.superset) : [we]
     if (we.superset) seen.add(we.superset)
+    groups.push(we.superset ? exercises.filter((e) => e.superset === we.superset) : [we])
+  }
+  groups.forEach((group, gi) => {
     const rounds = Math.max(...group.map((e) => e.sets.length))
-    const rest = Math.max(...group.map((e) => e.rest || 0)) || SET_REST_FALLBACK
+    const planned = Math.max(...group.map((e) => e.rest || 0))
+    const rest = Math.max(0, (planned || SET_REST_FALLBACK) + (planned ? over : 0))
+    // measured set times already hold the walk to the next exercise and the start delay
+    const measured = group.every((e) => pacedSet(e.exerciseId) != null)
+    if (measured) paced = true
     for (let r = 0; r < rounds; r++) {
-      for (const e of group) if (r < e.sets.length) total += setWork(e, r) + (group.length > 1 ? 10 : 0)
+      for (const e of group) if (r < e.sets.length) total += setWork(e, r) + (group.length > 1 && !measured ? 10 : 0)
       if (r < rounds - 1) total += rest
     }
-    total += 45 // set up the next exercise
-  }
-  return total
+    // the move to the next exercise: the rest that runs after the last round when measured, else a guess
+    if (measured) total += gi < groups.length - 1 && planned ? rest : 0
+    else total += 45
+  })
+  return { secs: total, paced }
 }
 
 export function estimate(src: Pick<Routine, 'exercises' | 'warmup' | 'cooldown'>): Omit<TimePlan, 'budget' | 'fixed'> {
   const min = (s: number) => Math.round(s / 60)
+  const main = mainSeconds(src.exercises)
   return {
     warmup: min((src.warmup || []).reduce((a, l) => a + lineSeconds(l), 0)),
-    main: min(mainSeconds(src.exercises)),
+    main: min(main.secs),
     cooldown: min((src.cooldown || []).reduce((a, l) => a + lineSeconds(l), 0)),
+    ...(main.paced ? { paced: true } : {}),
   }
 }
 

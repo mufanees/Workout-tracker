@@ -2,7 +2,8 @@ import { Fragment } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import { active, routines, saveRoutine, remove, saveSettings, exMap, settings } from '../store'
 import { navigate } from '../router'
-import { startCardio, startEmpty, startRoutine } from '../workout'
+import { startEmpty, startRoutine } from '../workout'
+import { CardioQuick } from '../ui/CardioSetup'
 import { planStatus } from '../plan'
 import { programStatus } from '../program'
 import { Icon } from '../ui/icons'
@@ -87,9 +88,7 @@ export function Train() {
             <button class="btn btn-secondary btn-lg grow" onClick={startEmpty}>
               <Icon name="plus" /> Empty workout
             </button>
-            <button class="btn btn-secondary btn-lg grow" onClick={() => startCardio(2)}>
-              <Icon name="heart" /> Zone 2 cardio
-            </button>
+            <CardioQuick />
           </div>
         )
       case 'routines':

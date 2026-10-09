@@ -78,6 +78,11 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --tabbar-h: 58px;
+  /* where a workout's time went (Time card): checked for colour-blind separation in both themes */
+  --seg-work: var(--accent);
+  --seg-rest: var(--blue);
+  --seg-prep: #c58cff; /* warm-up and cool-down */
+  --seg-other: #5c626d;
   color-scheme: dark;
 }
 
@@ -100,6 +105,9 @@
     --gold-soft: rgba(225, 160, 40, 0.16);
     --blue: #2f6fe0;
     --shadow: 0 10px 40px rgba(0, 0, 0, 0.14);
+    --seg-work: var(--accent-text);
+    --seg-prep: #9b5de5;
+    --seg-other: #b4b6bb;
     color-scheme: light;
   }
 }
@@ -121,6 +129,9 @@
   --gold-soft: rgba(225, 160, 40, 0.16);
   --blue: #2f6fe0;
   --shadow: 0 10px 40px rgba(0, 0, 0, 0.14);
+  --seg-work: var(--accent-text);
+  --seg-prep: #9b5de5;
+  --seg-other: #b4b6bb;
   color-scheme: light;
 }
 
@@ -2135,6 +2146,14 @@ textarea {
 .record b {
   font-size: var(--fs-17);
   font-variant-numeric: tabular-nums;
+}
+.records-hint {
+  margin-top: var(--sp-2);
+}
+.record-sub {
+  font-family: var(--font-read);
+  font-size: var(--fs-12);
+  color: var(--muted);
 }
 .history-list {
   display: flex;
@@ -5438,6 +5457,122 @@ label.setting:active {
 .tc-parts {
   font-size: var(--fs-13);
   color: var(--muted);
+}
+.tc-note {
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+/* where the time went: one stacked bar, then a row per part */
+.tc-stack {
+  display: flex;
+  gap: var(--sp-0-5);
+  height: var(--sp-3);
+}
+.tc-stack i {
+  display: block;
+  min-width: var(--sp-1);
+  border-radius: var(--r-xs);
+}
+.seg-work {
+  background: var(--seg-work);
+}
+.seg-rest {
+  background: var(--seg-rest);
+}
+.seg-warmup,
+.seg-cooldown {
+  background: var(--seg-prep);
+}
+.seg-transition {
+  background: var(--seg-other);
+}
+.tc-legend {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+}
+.tc-legend li {
+  display: grid;
+  grid-template-columns: var(--sp-3) 1fr auto var(--sp-10);
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-14);
+}
+.tc-legend li i {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--r-pill);
+}
+.tc-legend span {
+  color: var(--muted);
+}
+.tc-legend b {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tc-legend small {
+  text-align: right;
+  font-size: var(--fs-12);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.tc-legend .tc-total {
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-1-5);
+}
+.tc-legend .tc-total span {
+  color: var(--text);
+  font-weight: 600;
+}
+.tc-sub {
+  display: block;
+  font-size: var(--fs-11);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: var(--sp-2);
+}
+.tc-ex ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.tc-ex li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--fs-14);
+}
+.tc-ex-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tc-ex-name small {
+  font-family: var(--font-read);
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.tc-ex b {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.last-set {
+  display: block;
+  font-size: var(--fs-12);
+  color: var(--faint);
+  margin-top: var(--sp-0-5);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .tt-bars {
   display: grid;

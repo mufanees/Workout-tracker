@@ -265,6 +265,12 @@ const server = http.createServer(async (req, res) => {
       }
       return send(res, 200, { messages: [] })
     }
+    // Swiping away a live notification (fasting timer) stops its pushes; same endpoint rule as above.
+    if (pathname === '/api/push/dismiss' && req.method === 'POST') {
+      const { endpoint, key } = await readBody(req)
+      for (const ctx of contexts.values()) if (ctx.push.dismiss(endpoint, key)) return send(res, 200, { ok: true })
+      return send(res, 200, { ok: false })
+    }
     // ---- signing in (no session needed) ----
     if (pathname === '/api/auth/config') return send(res, 200, { googleClientId: accounts.clientId || null })
     if (pathname === '/api/auth/invite' && req.method === 'GET') return send(res, 200, accounts.inviteInfo(url.searchParams.get('code')))

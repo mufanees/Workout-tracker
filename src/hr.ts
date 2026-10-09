@@ -3,6 +3,9 @@
 import { signal, computed } from '@preact/signals'
 import { active, settings, updateActive } from './store'
 import { haptic } from './util'
+import { cardioPhase, PHASE_NAMES } from './cardio'
+import type { Workout } from './types'
+import { liveHR, zoneAlert as notifyZone, type LiveHRState } from './liveNotify'
 
 /* Minimal Web Bluetooth typings (not in TypeScript's DOM lib). */
 interface BTChar extends EventTarget {
@@ -86,6 +89,10 @@ function onMeasurement(e: Event) {
     bpm.value = hr
     lastBeatAt = Date.now()
     for (const fn of rrListeners) fn(rr, hr)
+    // Timers are throttled to about once a minute in the background; the strap's own events
+    // keep the recording and the notification going (both are paced to 5 s inside).
+    if (Date.now() - lastTick >= SAMPLE_MS - 250) tick()
+    else pushLiveHR()
   }
 }
 
@@ -209,13 +216,66 @@ export async function reconnectSaved() {
 // ---- recording + target zone alerts -------------------------------------------
 
 const SAMPLE_MS = 5000
+/** Zone alerts stay quiet this long into a workout with a target zone: nobody starts in zone 2. */
+export const GRACE_MS = 5 * 60000
 let outSince = 0
 export const zoneAlert = signal<'above' | 'below' | null>(null)
 
-setInterval(() => {
+/**
+ * Why zone alerts are paused right now, if they are: the warm-up (a cardio session's warm-up phase,
+ * else the first 5 minutes of any workout with a target zone; `until` = when alerts start) or a
+ * cardio session's cool-down. Null when alerts are live (or there's no target to hold).
+ */
+export function alertPause(w: Workout | null, now = Date.now()): { reason: 'warmup'; until: number } | { reason: 'cooldown' } | null {
+  if (!w) return null
+  const target = w.targetZone ?? (w.cardio ? null : settings.value.targetZone)
+  if (!target) return null
+  const phase = cardioPhase(w, now)
+  if (phase === 'cooldown') return { reason: 'cooldown' }
+  if (phase === 'warmup') return { reason: 'warmup', until: w.start + w.cardio!.warmupMin * 60000 }
+  if (phase === 'main') return null
+  return now - w.start < GRACE_MS ? { reason: 'warmup', until: w.start + GRACE_MS } : null
+}
+
+/** The zone a workout holds: its own, else (outside cardio sessions) the one in Settings. */
+export const targetOf = (w: Workout) => w.targetZone ?? (w.cardio ? null : settings.value.targetZone) ?? null
+
+export const alertText = (dir: 'above' | 'below', target: number) => (dir === 'above' ? `Above zone ${target}. Ease off a little.` : `Below zone ${target}. Pick it up a little.`)
+
+let liveSent = false
+/** Tell the live notification where heart rate is (every sample, zone change, phase change); null once it's over. */
+export function pushLiveHR() {
+  const w = active.value
+  if (!w || hrStatus.value === 'off') {
+    if (liveSent) liveHR(null)
+    liveSent = false
+    return
+  }
+  const fresh = bpm.value != null && Date.now() - lastBeatAt < 6000
+  const hr = fresh ? bpm.value : null
+  const z = hr ? zoneOf(hr) : null
+  const target = targetOf(w)
+  const phase = cardioPhase(w)
+  const state: LiveHRState = {
+    bpm: hr,
+    zone: z,
+    inZone: target && z ? z === target : null,
+    elapsedSec: Math.round((Date.now() - w.start) / 1000),
+    phase: phase ? PHASE_NAMES[phase] : alertPause(w)?.reason === 'warmup' ? 'Warm-up' : undefined,
+    target,
+  }
+  liveSent = true
+  liveHR(state)
+}
+
+let lastTick = 0
+/** One 5 s step: record a sample into the active workout, update the notification, check the zone. */
+function tick() {
+  lastTick = Date.now()
   const w = active.value
   const hr = bpm.value
   const fresh = hr != null && Date.now() - lastBeatAt < 6000
+  pushLiveHR()
   if (!w || !fresh) {
     zoneAlert.value = null
     return
@@ -224,8 +284,13 @@ setInterval(() => {
     x.hr = x.hr || []
     x.hr.push([Math.round((Date.now() - x.start) / 1000), hr!])
   })
-  const target = w.targetZone ?? settings.value.targetZone
-  if (!target) return
+  const target = targetOf(w)
+  // no target, or still warming up / cooling down: never nag
+  if (!target || alertPause(w)) {
+    outSince = 0
+    zoneAlert.value = null
+    return
+  }
   const z = zoneOf(hr!)
   if (z === target) {
     outSince = 0
@@ -236,10 +301,24 @@ setInterval(() => {
   // Only nudge after 15 s out of zone, so brief spikes don't nag.
   if (Date.now() - outSince >= 15000) {
     const next = z > target ? 'above' : 'below'
-    if (zoneAlert.value !== next) haptic(300)
+    if (zoneAlert.value !== next) {
+      haptic(300)
+      notifyZone(alertText(next, target))
+    }
     zoneAlert.value = next
   }
-}, SAMPLE_MS)
+}
+setInterval(() => {
+  if (Date.now() - lastTick >= SAMPLE_MS - 250) tick()
+}, 1000)
+
+// a zone change shows on the notification at once, not at the next sample
+let lastZone: number | null = null
+zone.subscribe((z) => {
+  if (z === lastZone) return
+  lastZone = z
+  if (active.value) pushLiveHR()
+})
 
 // ---- summaries ------------------------------------------------------------------
 

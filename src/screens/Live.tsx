@@ -2,7 +2,7 @@ import { pace } from '../timeplan'
 import { useEffect, useState } from 'preact/hooks'
 import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate, navPending } from '../router'
-import { adjustRest, armRest, armSetTimer, cancelSetTimer, discardActive, finishActive, finishSetTimer, onSetTimerDone, pauseSetTimer, restTimer, resumeSetTimer, setTimer, startRest, startSetTimer, stopRest, unlockAudio, type SetTimer } from '../workout'
+import { adjustRest, armRest, armSetTimer, cancelSetTimer, discardActive, finishActive, finishSetTimer, logLine, logTick, onSetTimerDone, pauseSetTimer, restTimer, resumeSetTimer, setTimer, startRest, startSetTimer, stopRest, unlockAudio, type SetTimer } from '../workout'
 import { HRPanel } from '../ui/HR'
 import { checkCoach, coachOn, quick } from '../coach'
 import { summarizeHR } from '../hr'
@@ -16,6 +16,7 @@ import { moveExercise, moveVideo, parseMove } from '../moves'
 import { MoveText } from '../ui/MoveList'
 import { hasOwnVideo } from '../videos'
 import { matchPrevious, previousSets } from '../stats'
+import { fmtSecs } from '../timing'
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now())
@@ -64,6 +65,15 @@ function PaceLine() {
       {p && (over || Math.abs(p.behind) >= 2) ? <b> · {p.behind > 0 ? `${p.behind} min behind` : `${-p.behind} min ahead`}</b> : p ? <b> · on pace</b> : null}
     </span>
   )
+}
+
+/** The last set's time, faintly, under the set count: start (end of rest) to tick. */
+function LastSetTime() {
+  const w = active.value
+  let last: WSet | null = null
+  for (const e of w?.exercises || []) for (const s of e.sets) if (s.done && s.at != null && (!last || s.at > last.at!)) last = s
+  if (!last || last.work == null) return null
+  return <span class="last-set" aria-label={`Last set took ${fmtSecs(last.work)}`}>last {fmtSecs(last.work)}</span>
 }
 
 export function Elapsed({ start }: { start: number }) {
@@ -184,6 +194,7 @@ export function Live() {
                 {done}
                 <small>/{total}</small>
               </b>
+              <LastSetTime />
             </div>
           </>
         ) : (
@@ -266,7 +277,7 @@ function afterSetDone(weId: string) {
 
 // A set timer that runs out (here, on another screen, or while the app was closed) logs the time
 // held and ticks the set, exactly like tapping its check; a timed warm-up line gets ticked off.
-onSetTimerDone((t, held) => {
+onSetTimerDone((t, held, at) => {
   const apply = (tries: number) => {
     const w = active.value
     // after a reload the workout is still loading from IndexedDB
@@ -274,20 +285,15 @@ onSetTimerDone((t, held) => {
     const target = t.target
     if (target.kind === 'line') {
       if (w.checks?.[target.key]) return
-      updateActive((x) => {
-        x.checks = { ...(x.checks || {}), [target.key]: true }
-        x.checkAt = { ...(x.checkAt || {}), [target.key]: Date.now() }
-      })
+      logLine(target.key, true, at)
       return
     }
     const s = w.exercises.find((e) => e.id === target.weId)?.sets.find((x) => x.id === target.setId)
     if (!s || s.done) return
     const check = document.querySelector(`[data-set="${target.setId}"] button.check`)
     gooSplash(check, check?.closest<HTMLElement>('.ex-card'))
-    updateActive((x) => {
-      const st = x.exercises.find((e) => e.id === target.weId)?.sets.find((y) => y.id === target.setId)
-      if (st) Object.assign(st, { seconds: held, done: true })
-    })
+    // its time runs from the anchor (end of the rest, or the timer's start if the rest was still on) to the end
+    logTick(target.weId, target.setId, { seconds: held, done: true }, at, t.started ?? null)
     afterSetDone(target.weId)
   }
   apply(0)
@@ -428,10 +434,7 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
                   aria-pressed={on}
                   onClick={() => {
                     haptic(8)
-                    updateActive((x) => {
-                      x.checks = { ...(x.checks || {}), [kind + i]: !on }
-                      if (!on) x.checkAt = { ...(x.checkAt || {}), [kind + i]: Date.now() }
-                    })
+                    logLine(kind + i, !on)
                   }}
                 >
                   <span class="cl-box">{on && <Icon name="check" size={14} stroke={3} />}</span>

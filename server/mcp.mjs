@@ -5,6 +5,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { rehabLibraryRows } from '../shared/rehabKnowledge.mjs'
 import { PLAN_FORMAT, planPrompt, resolvePlan, slug } from '../shared/planImport.mjs'
+import { exerciseTimes, fmtSecs, workoutTiming } from '../shared/timing.mjs'
 
 const PROTOCOL = '2025-06-18'
 
@@ -123,7 +124,7 @@ export function createMcpHandler({ db, q, rootDir }) {
     },
     {
       name: 'recent_workouts',
-      description: 'Recent finished workouts with sets, duration and heart rate summary.',
+      description: 'Recent finished workouts with sets, duration, heart rate summary and, when timed, the measured time per exercise (set times from the end of the rest to the tick, rests taken vs planned) and where the session time went.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -145,8 +146,18 @@ export function createMcpHandler({ db, q, rootDir }) {
           .map((w) => {
             const hr = w.hr?.length ? ` · HR avg ${Math.round(w.hr.reduce((a, p) => a + p[1], 0) / w.hr.length)} max ${Math.max(...w.hr.map((p) => p[1]))}` : ''
             const mins = w.end ? Math.round((w.end - w.start) / 60000) : '?'
-            const ex = w.exercises.map((e) => `  ${name(e.exerciseId)}: ${e.sets.filter((s) => s.done).map(fmtSet).join(', ')}`).join('\n')
-            return `${new Date(w.start).toISOString().slice(0, 16).replace('T', ' ')} ${w.name} (${mins} min${hr})${ex ? '\n' + ex : ''}`
+            const times = new Map(exerciseTimes(w).map((t) => [t.weId, t]))
+            const ex = w.exercises
+              .map((e) => {
+                const t = times.get(e.id)
+                const plans = t ? [...new Set(t.plans.filter((p) => p != null))] : []
+                const time = t ? ` | ${fmtSecs(t.total)} total, sets ${t.works.map((x) => (x == null ? '?' : fmtSecs(x))).join('/')} incl. start delay${t.rests.length ? `, rest ${t.rests.map(fmtSecs).join('/')}${plans.length ? ` (plan ${plans.map(fmtSecs).join('/')})` : ''}` : ''}` : ''
+                return `  ${name(e.exerciseId)}: ${e.sets.filter((s) => s.done).map(fmtSet).join(', ')}${time}`
+              })
+              .join('\n')
+            const tm = w.timing || workoutTiming(w)
+            const split = tm ? `\n  Measured: warm-up ${fmtSecs(tm.warmup)}, sets ${fmtSecs(tm.work)}, rest ${fmtSecs(tm.rest)}, cool-down ${fmtSecs(tm.cooldown)}, other/idle ${fmtSecs(tm.transition)}, total ${fmtSecs(tm.total)}${w.timePlan?.budget ? ` (budget ${w.timePlan.budget} min)` : ''}` : ''
+            return `${new Date(w.start).toISOString().slice(0, 16).replace('T', ' ')} ${w.name} (${mins} min${hr})${ex ? '\n' + ex : ''}${split}`
           })
           .join('\n\n')
       },
