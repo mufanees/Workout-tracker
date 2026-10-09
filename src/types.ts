@@ -16,6 +16,8 @@ export interface Exercise extends Rec {
   video?: string // YouTube search words for when there's no saved video
   /** Videos you've saved for it, preferred first. */
   videos?: { url: string; title?: string; added: number }[]
+  /** How its weight is logged: 'each' = one dumbbell of a pair (per hand), 'one' = a single weight, 'total' = everything together. Missing = guessed from the name. */
+  load?: 'each' | 'one' | 'total'
 }
 
 export interface WSet {
@@ -77,6 +79,8 @@ export interface Workout extends Rec {
 
 export interface Routine extends Rec {
   name: string
+  /** The program this routine belongs to (programs hold folders, folders hold routines); '' or missing = none. */
+  program?: string
   folder: string
   notes: string
   order: number
@@ -115,7 +119,20 @@ export interface Settings extends Rec {
   moveGoal?: number // daily Move ring, minutes of any workout
   showPace?: boolean // time budget and pace on the workout screen
   /** A program the coach built and the athlete approved: routines to rotate through. Replaces the Comeback plan card while set. */
-  program?: { name: string; routineIds: string[]; daysPerWeek: number; minutes?: number; summary?: string; start: number } | null
+  program?: {
+    name: string
+    routineIds: string[]
+    daysPerWeek: number
+    minutes?: number
+    summary?: string
+    start: number
+    /** A phased program (from the program library): each phase is one folder of the program, run for `weeks` weeks. Its routines are found by program + folder, so routineIds can be empty. */
+    phases?: { folder: string; weeks: number; days?: number }[]
+    /** Which catalogue program this came from, if any. */
+    catalog?: string
+  } | null
+  /** Train (home) screen layout: section ids in your order, and the ones you've hidden. Missing = default order, all shown. */
+  home?: { order?: string[]; hidden?: string[] }
   /** Warm-up and cool-down moves you've linked by hand: move name (lower-case letters only) → exercise id, or '' for text only. */
   moveLinks?: Record<string, string>
 }

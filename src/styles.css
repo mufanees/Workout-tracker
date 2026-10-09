@@ -7903,3 +7903,596 @@ html[data-nav='back']::view-transition-old(screen) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- fast widget + fast-done edit ---- */
+/* FastWidget (src/ui/Fasting.tsx): the running fast, compact, for the home screen. */
+.fast-widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-in-card);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-4) var(--pad-card) var(--pad-card);
+  cursor: pointer;
+  transition: scale 150ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.fast-widget:active:not(:has(.btn:active)) {
+  scale: 0.98;
+}
+.fw-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--h-sm);
+  color: var(--muted);
+}
+.fw-top .eyebrow {
+  color: var(--accent-text);
+}
+.fw-main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.stage-ring.compact {
+  flex: none;
+  width: calc(var(--sp-12) * 2 + var(--sp-2)); /* 104 */
+  margin: 0;
+}
+.stage-ring.compact .sr-mark {
+  width: var(--sp-5);
+  height: var(--sp-5);
+  margin: calc(var(--sp-5) / -2) 0 0 calc(var(--sp-5) / -2);
+  border: var(--sp-0-5) solid var(--surface);
+}
+.stage-ring.compact .sr-center {
+  inset: 22%;
+}
+.fw-pct {
+  font-size: var(--fs-17);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.fw-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.fw-label {
+  font-size: var(--fs-12);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fw-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1-5);
+  font-size: var(--fs-34);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.fw-time small {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.fw-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+  font-size: var(--fs-14);
+  font-weight: 650;
+}
+.fw-stage svg {
+  color: var(--accent-text);
+}
+.fw-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.fw-meta b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+/* FastTimes (fast-done screen): Started / Ended rows that open the time picker. */
+.fast-fix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-4);
+}
+.ff-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-1) var(--sp-1);
+}
+.ff-head .eyebrow {
+  color: var(--accent-text);
+}
+.ff-hint {
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.ff-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 56px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  text-align: left;
+  transition: scale 150ms ease-out;
+}
+.ff-row:active {
+  scale: 0.98;
+}
+.ff-row span {
+  width: calc(var(--sp-8) * 2); /* 64, like the editor's rows */
+  color: var(--muted);
+  font-weight: 650;
+  font-size: var(--fs-14);
+}
+.ff-row b {
+  flex: 1;
+  font-size: var(--fs-17);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ff-row svg {
+  color: var(--accent-text);
+}
+@supports (corner-shape: squircle) {
+  .fast-widget,
+  .fast-fix {
+    corner-shape: squircle;
+  }
+}
+
+/* ---- set timers, effort copy, per-side load ---- */
+
+/* Timed sets in the live workout: a start button between the seconds and the check. */
+.sets.cols-r.timed {
+  --cols: 40px minmax(0, 1fr) 64px 44px 50px;
+}
+.set-timer-btn {
+  width: 44px;
+  height: 46px;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--accent-text);
+  touch-action: manipulation;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+/* running: in progress, not done (lime fill is for done) */
+.set-timer-btn.on {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.set-timer-btn .icon {
+  animation: icon-in 300ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The weight column says how the weight is logged ("KG / EACH"); tap to change it. */
+.load-head {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+.load-head small {
+  font-size: var(--fs-11);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+/* the header row is short; the tap target isn't */
+.load-head::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--h-md);
+  transform: translateY(-50%);
+}
+.load-opt .action-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  padding: var(--sp-3) 0;
+}
+.load-opt .action-label b {
+  font-weight: inherit;
+}
+.load-opt .action-label small {
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  font-weight: 450;
+  color: var(--muted);
+}
+
+/* Set timer bar: the rest bar's look, with a bigger clock. */
+.rest-bar.set-timer .rest-time {
+  font-size: var(--fs-34);
+}
+.rest-bar.set-timer .rest-btn {
+  display: grid;
+  place-items: center;
+}
+.rest-bar.set-timer .rest-btn.skip {
+  padding: 0 var(--sp-4);
+}
+.rest-bar.set-timer.switch .rest-fill {
+  background: color-mix(in srgb, var(--blue) 26%, transparent);
+}
+.rest-bar.set-timer.paused .rest-time {
+  color: var(--muted);
+}
+.rest-bar.set-timer .rest-label {
+  font-size: var(--fs-13);
+  color: var(--text);
+}
+.rest-bar.set-timer .rest-label .icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: var(--sp-1);
+}
+
+/* Timed warm-up / cool-down lines */
+.icon-btn.cl-timer {
+  flex: none;
+  width: var(--h-md);
+  height: var(--h-md);
+  color: var(--accent-text);
+}
+.icon-btn.cl-timer.on {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+@media (max-width: 379px) {
+  .sets.cols-r.timed {
+    --cols: 36px minmax(0, 1fr) 56px 44px 46px;
+  }
+}
+
+/* ---- programs, home customizer ---- */
+.customize-home {
+  align-self: center;
+  color: var(--muted);
+  margin-top: var(--sp-2);
+}
+.sheet-hint,
+.page-intro {
+  color: var(--muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  line-height: 1.45;
+}
+.page-intro {
+  margin: 0 0 var(--sp-1);
+}
+.home-sections {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home-sections li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 56px;
+  border-bottom: 1px solid var(--line);
+}
+.home-sections li:last-child {
+  border-bottom: 0;
+}
+.hs-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  font-weight: 600;
+  font-size: var(--fs-15);
+  min-width: 0;
+}
+.hs-label small {
+  font-family: var(--font-read);
+  font-weight: 400;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.home-sections li.off .hs-label {
+  color: var(--muted);
+}
+.home-sections .icon-btn:disabled {
+  opacity: 0.3;
+}
+.home-sections .toggle {
+  margin-left: var(--sp-2);
+}
+
+.starter-card,
+.catalog-card,
+.program-own {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-in-card);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--sp-4) var(--pad-card) var(--pad-card);
+}
+.starter-card .eyebrow {
+  color: var(--accent-text);
+}
+.starter-card h2,
+.program-own h2 {
+  margin: 0;
+  font-size: var(--fs-20);
+  line-height: 1.2;
+}
+.program-own p {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  line-height: 1.45;
+}
+.starter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.starter-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  text-align: left;
+  min-height: 56px;
+  justify-content: center;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface-2);
+  border-radius: var(--r-lg);
+}
+.starter-item b {
+  font-size: var(--fs-16);
+}
+.starter-item small,
+.catalog-title small,
+.program-name small {
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.program-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.program-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.program-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 52px;
+  text-align: left;
+  font-weight: 700;
+  font-size: var(--fs-16);
+  min-width: 0;
+}
+.program-group.followed .program-toggle > .icon:first-child {
+  color: var(--accent-text);
+}
+.program-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  min-width: 0;
+}
+.program-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--line);
+  margin-left: var(--sp-2);
+}
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.folder-row .folder-head {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+}
+.folder-row .folder-head > span:first-of-type {
+  min-width: 0;
+  line-height: 1.3;
+  padding: var(--sp-1) 0;
+}
+.folder-count {
+  margin-right: 0;
+}
+.folder-row .chev {
+  margin-left: auto;
+}
+.folder-now {
+  font-size: var(--fs-11);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: var(--r-pill);
+  padding: 2px var(--sp-2);
+}
+.folder.current .folder-head {
+  color: var(--text);
+}
+
+.catalog-card.on {
+  border-color: var(--accent);
+}
+.catalog-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: left;
+  min-height: 44px;
+}
+.catalog-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  min-width: 0;
+}
+.catalog-title b {
+  font-size: var(--fs-17);
+}
+.tag-on {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.catalog-summary {
+  margin: 0;
+  font-family: var(--font-read);
+  font-size: var(--fs-15);
+  line-height: 1.45;
+}
+.catalog-equip,
+.catalog-note {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+  color: var(--muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+}
+.catalog-phases {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.catalog-phases > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-2);
+  border-radius: var(--r-lg);
+}
+.catalog-phases > li > span {
+  color: var(--muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+}
+.catalog-day {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sp-1-5);
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  line-height: 1.4;
+}
+.catalog-day i {
+  font-style: normal;
+  font-weight: 600;
+}
+.catalog-day span {
+  color: var(--muted);
+}
+@supports (corner-shape: squircle) {
+  .starter-card,
+  .catalog-card,
+  .program-own,
+  .starter-item,
+  .catalog-phases > li {
+    corner-shape: squircle;
+  }
+}
+
+/* ---- coach reliability ---- */
+.coach-note {
+  display: block;
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.coach-fail {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--danger-soft);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+}
+.coach-fail span {
+  flex: 1;
+}
+.coach-fail .btn {
+  flex: none;
+  min-height: var(--h-md);
+}

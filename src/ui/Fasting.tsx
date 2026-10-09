@@ -1,9 +1,10 @@
 import type { ComponentChildren } from 'preact'
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
-import { remove, saveFast, saveSettings, settings } from '../store'
+import { activeFast, fasts, remove, saveFast, saveSettings, settings } from '../store'
 import type { Fast } from '../types'
 import { cancelPush } from '../push'
-import { HOUR, PROTOCOLS, STAGES, hm, protocolLabel, saveFastEdit } from '../fasting'
+import { navigate } from '../router'
+import { HOUR, PROTOCOLS, STAGES, endFast, fastNeighbours, fastTimesError, hm, protocolLabel, saveFastEdit, stageAt } from '../fasting'
 import { fmtDay, fmtTime, startOfDay, uid } from '../util'
 import { ClockPicker } from './Clock'
 import { Icon } from './icons'
@@ -18,18 +19,25 @@ export function useNow(ms = 1000) {
   return now
 }
 
+/** Ends the fast and opens its celebration, where the times can still be corrected. */
+export async function finishFast(f: Fast, at = Date.now()) {
+  const saved = await endFast(f, at)
+  navigate(`/fast/done/${saved.id}`)
+  return saved
+}
+
 /** "Fri 9:28 PM", or just the time for today. */
 export const whenLabel = (t: number) => (fmtDay(t) === 'Today' ? fmtTime(t) : `${fmtDay(t)}, ${fmtTime(t)}`)
 
 /** Progress ring with the metabolic stages placed around it. */
-export function StageRing({ elapsed, goal, idle, children }: { elapsed: number; goal: number; idle?: boolean; children: ComponentChildren }) {
+export function StageRing({ elapsed, goal, idle, compact, children }: { elapsed: number; goal: number; idle?: boolean; compact?: boolean; children: ComponentChildren }) {
   const r = 104
   const c = 2 * Math.PI * r
   const pct = idle ? 0 : Math.min(1, elapsed / (goal * HOUR))
   const hours = elapsed / HOUR
   const marks = STAGES.filter((s) => s.at < goal)
   return (
-    <div class={'stage-ring' + (idle ? ' idle' : '')}>
+    <div class={'stage-ring' + (idle ? ' idle' : '') + (compact ? ' compact' : '')}>
       <svg viewBox="0 0 240 240" aria-hidden="true">
         <circle cx="120" cy="120" r={r} class="sr-bg" />
         {!idle && <circle cx="120" cy="120" r={r} class="sr-fg" stroke-dasharray={c} stroke-dashoffset={c * (1 - pct)} transform="rotate(-90 120 120)" />}
@@ -46,7 +54,7 @@ export function StageRing({ elapsed, goal, idle, children }: { elapsed: number; 
             }}
             title={s.name}
           >
-            <Icon name={s.icon} size={15} stroke={2.2} />
+            <Icon name={s.icon} size={compact ? 11 : 15} stroke={2.2} />
           </span>
         )
       })}
@@ -197,12 +205,20 @@ export function WhenPicker({ value, onChange, min, label }: { value: number; onC
   )
 }
 
+/** Like whenLabel, but "Tomorrow, 3:44 AM" for a time later than today. */
+function soonLabel(t: number) {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return startOfDay(new Date(t)) === startOfDay(d) ? `Tomorrow, ${fmtTime(t)}` : whenLabel(t)
+}
+
 /** Pick a moment in the past: quick offsets, or an exact day and time. */
 export function TimeSheet({
   open,
   title,
   initial,
   min,
+  max,
   confirm,
   onPick,
   onClose,
@@ -211,6 +227,8 @@ export function TimeSheet({
   title: string
   initial: number
   min?: number
+  /** Has to be before this (another fast starts then). */
+  max?: number
   confirm: string
   onPick: (t: number) => void
   onClose: () => void
@@ -219,7 +237,7 @@ export function TimeSheet({
   useEffect(() => {
     if (open) setT(initial)
   }, [open])
-  const valid = Number.isFinite(t) && t <= Date.now() + 60000 && (min == null || t > min)
+  const valid = Number.isFinite(t) && t <= Date.now() + 60000 && (min == null || t > min) && (max == null || t < max)
   return (
     <Sheet
       open={open}
@@ -233,14 +251,14 @@ export function TimeSheet({
     >
       <div class="time-big">
         <b>{valid ? fmtTime(t) : '–'}</b>
-        <span>{valid ? fmtDay(t) : min != null && t <= min ? `Has to be after ${whenLabel(min)}` : 'Can’t be in the future'}</span>
+        <span>{valid ? fmtDay(t) : min != null && t <= min ? `Has to be after ${whenLabel(min)}` : max != null && t >= max ? `Has to be before ${whenLabel(max)}` : 'Can’t be in the future'}</span>
       </div>
       <div class="chips-wrap" data-goo>
         {OFFSETS.map((o) => {
           const at = Date.now() - o.min * 60000
           const on = Math.abs(at - t) < 60000
           return (
-            <button class={'chip' + (on ? ' on' : '')} disabled={min != null && at <= min} onClick={() => setT(at)}>
+            <button class={'chip' + (on ? ' on' : '')} disabled={(min != null && at <= min) || (max != null && at >= max)} onClick={() => setT(at)}>
               {o.label}
             </button>
           )
@@ -316,8 +334,11 @@ export function FastEditor({ fast, isNew, onClose }: { fast: Fast | null; isNew?
   const running = fast.end == null
   const len = (e ?? Date.now()) - s
   const save = async () => {
-    if (!Number.isFinite(s) || (!running && (e == null || !Number.isFinite(e) || e <= s))) return toast('The end has to be after the start')
-    if (s > Date.now() || (e != null && e > Date.now() + 60000)) return toast('That’s in the future')
+    if (!running && e == null) return toast('The end has to be after the start')
+    // Overlaps are only checked when the times change, so old overlapping data can still get a note.
+    const moved = isNew || s !== fast.start || (running ? null : e) !== (fast.end ?? null)
+    const err = fastTimesError(fast, s, running ? null : e, moved ? fasts.value : [])
+    if (err) return toast(err)
     await saveFastEdit({
       ...fast,
       start: s,
@@ -441,5 +462,106 @@ export function FastRow({ f, now, onEdit }: { f: Fast; now: number; onEdit: () =
       </span>
       <b class="fr-len">{hm(len)}</b>
     </button>
+  )
+}
+
+/**
+ * The current fast, compact, for the home screen: live time, a small stage ring, when the goal
+ * lands, and End fast (same as on /fast). Renders nothing when no fast is running.
+ */
+export function FastWidget() {
+  const f = activeFast.value
+  const now = useNow(1000)
+  if (!f) return null
+  const elapsed = Math.max(0, now - f.start)
+  const goalMs = f.goal * HOUR
+  const left = goalMs - elapsed
+  const stage = stageAt(elapsed / HOUR)
+  const goalAt = f.start + goalMs
+  const end = (e: Event) => {
+    e.stopPropagation()
+    void finishFast(f)
+  }
+  return (
+    <section class="fast-widget" onClick={() => navigate('/fast')} role="link" aria-label={`Fasting for ${hm(elapsed)}. Open fasting`}>
+      <div class="fw-top">
+        <span class="eyebrow">
+          <Icon name="fast" size={14} /> Fasting · {protocolLabel(f.goal)}
+        </span>
+        <Icon name="right" size={18} />
+      </div>
+      <div class="fw-main">
+        <StageRing elapsed={elapsed} goal={f.goal} compact>
+          <b class="fw-pct">{Math.min(999, Math.floor((elapsed / goalMs) * 100))}%</b>
+        </StageRing>
+        <div class="fw-info">
+          <span class="fw-label">{left > 0 ? 'Fasting for' : 'Goal reached'}</span>
+          <b class="fw-time">
+            {hm(elapsed)}
+            <small>{String(Math.floor(elapsed / 1000) % 60).padStart(2, '0')}s</small>
+          </b>
+          <span class="fw-stage">
+            <Icon name={stage.icon} size={14} /> {stage.name}
+          </span>
+        </div>
+      </div>
+      <div class="fw-meta">
+        <span>
+          {left > 0 ? 'Goal at' : 'Reached at'} <b>{soonLabel(goalAt)}</b>
+        </span>
+        <span>{left > 0 ? `${hm(left)} to go` : `+${hm(-left)}`}</span>
+      </div>
+      <button class="btn btn-secondary btn-block" onClick={end}>
+        End fast
+      </button>
+    </section>
+  )
+}
+
+/**
+ * Started / Ended rows for a finished fast, each opening the time picker and saving at once
+ * (same rules as the editor: not in the future, end after start, no overlap with other fasts).
+ */
+export function FastTimes({ fast }: { fast: Fast }) {
+  const [edit, setEdit] = useState<'start' | 'end' | null>(null)
+  const end = fast.end!
+  const { prev, next } = fastNeighbours(fast)
+  const pick = async (t: number) => {
+    const start = edit === 'start' ? t : fast.start
+    const e = edit === 'end' ? t : end
+    if (start === fast.start && e === end) return
+    const err = fastTimesError(fast, start, e)
+    if (err) return toast(err)
+    const before = fast
+    await saveFastEdit({ ...fast, start, end: e })
+    toast(edit === 'start' ? 'Start time saved' : 'End time saved', { label: 'Undo', run: () => void saveFastEdit(before) })
+  }
+  return (
+    <section class="fast-fix" aria-label="Correct the times">
+      <div class="ff-head">
+        <span class="eyebrow">Times right?</span>
+        <span class="ff-hint">Tap to correct</span>
+      </div>
+      <button class="ff-row" onClick={() => setEdit('start')}>
+        <span>Started</span>
+        <b>{whenLabel(fast.start)}</b>
+        <Icon name="pencil" size={16} />
+      </button>
+      <button class="ff-row" onClick={() => setEdit('end')}>
+        <span>Ended</span>
+        <b>{whenLabel(end)}</b>
+        <Icon name="pencil" size={16} />
+      </button>
+      <TimeSheet
+        open={edit != null}
+        title={edit === 'end' ? 'When did you eat?' : 'When did you finish eating?'}
+        initial={edit === 'end' ? end : fast.start}
+        min={edit === 'end' ? fast.start : prev?.end ?? undefined}
+        max={edit === 'end' ? next?.start : end}
+        confirm="Save"
+        onPick={(t) => void pick(t)}
+        onClose={() => setEdit(null)}
+      />
+    </section>
   )
 }

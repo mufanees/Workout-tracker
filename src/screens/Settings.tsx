@@ -203,8 +203,18 @@ export function Settings() {
           <Toggle label="Keep screen on while training" checked={st.keepAwake} onChange={(v) => saveSettings({ keepAwake: v })} />
         </div>
         <div class="setting">
-          <span>Show Comeback plan card</span>
-          <Toggle label="Show Comeback plan card" checked={st.showPlan} onChange={(v) => saveSettings({ showPlan: v })} />
+          <span>
+            Show program card on Train
+            <small>More in Train → Customize home</small>
+          </span>
+          <Toggle
+            label="Show program card on Train"
+            checked={st.showPlan && !st.home?.hidden?.includes('program')}
+            onChange={(v) => {
+              const hidden = (st.home?.hidden || []).filter((x) => x !== 'program')
+              void saveSettings({ showPlan: v, home: { ...st.home, hidden: v ? hidden : [...hidden, 'program'] } })
+            }}
+          />
         </div>
         <div class="setting">
           <span>

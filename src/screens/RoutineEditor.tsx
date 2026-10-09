@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { routines, saveRoutine, remove } from '../store'
-import { back } from '../router'
+import { back, route } from '../router'
 import { startRoutine } from '../workout'
 import { WorkoutEditor } from '../ui/WorkoutEditor'
 import { Icon } from '../ui/icons'
@@ -17,7 +17,7 @@ export function RoutineEditor({ id }: { id: string }) {
     original
       ? clone(original)
       : isNew
-        ? { id: uid('r'), name: '', folder: '', notes: '', order: Math.max(0, ...routines.value.map((r) => r.order)) + 1, exercises: [], updatedAt: 0 }
+        ? { id: uid('r'), name: '', program: route.value.query.get('program') || undefined, folder: route.value.query.get('folder') || '', notes: '', order: Math.max(0, ...routines.value.map((r) => r.order)) + 1, exercises: [], updatedAt: 0 }
         : null,
   )
   const [error, setError] = useState('')
@@ -26,7 +26,8 @@ export function RoutineEditor({ id }: { id: string }) {
   }, [])
   if (!draft) return null
 
-  const folders = [...new Set(routines.value.map((r) => r.folder).filter(Boolean))]
+  const folders = [...new Set(routines.value.filter((r) => (r.program || '') === (draft.program || '')).map((r) => r.folder).filter(Boolean))]
+  const programs = [...new Set(routines.value.map((r) => r.program || '').filter(Boolean))]
   const dirty = isNew ? draft.name.trim() !== '' || draft.exercises.length > 0 : JSON.stringify(draft) !== JSON.stringify(original)
 
   const save = async (andStart = false) => {
@@ -36,7 +37,7 @@ export function RoutineEditor({ id }: { id: string }) {
       return
     }
     const clean = (l?: string[]) => (l || []).map((x) => x.trim()).filter(Boolean)
-    const saved = await saveRoutine({ ...draft, name: draft.name.trim(), folder: draft.folder.trim(), warmup: clean(draft.warmup), cooldown: clean(draft.cooldown) })
+    const saved = await saveRoutine({ ...draft, name: draft.name.trim(), program: draft.program?.trim() || undefined, folder: draft.folder.trim(), warmup: clean(draft.warmup), cooldown: clean(draft.cooldown) })
     if (andStart) return startRoutine(saved)
     toast(isNew ? 'Routine created' : 'Routine saved')
     back('/train')
@@ -68,6 +69,16 @@ export function RoutineEditor({ id }: { id: string }) {
           onInput={(e) => (setDraft({ ...draft, name: e.currentTarget.value }), setError(''))}
         />
         {error && <span class="field-error">{error}</span>}
+      </label>
+      <label class="field">
+        <span>Program</span>
+        <input type="text" value={draft.program || ''} placeholder="None" list="programs" onInput={(e) => setDraft({ ...draft, program: e.currentTarget.value })} />
+        <datalist id="programs">
+          {programs.map((f) => (
+            <option value={f} />
+          ))}
+        </datalist>
+        <span class="field-hint">Optional. A program holds folders, like phases or weeks.</span>
       </label>
       <label class="field">
         <span>Folder</span>

@@ -1,5 +1,9 @@
 // All icons come from Lucide (lucide.dev). Names here are the short aliases used across the app.
 import {
+  Layers,
+  LibraryBig,
+  Eye,
+  EyeOff,
   LogOut,
   PersonStanding,
   Star,
@@ -65,6 +69,8 @@ import {
   Unlink2,
   Upload,
   X,
+  Pause,
+  ArrowRightLeft,
   type LucideIcon,
 } from 'lucide-preact'
 
@@ -135,6 +141,12 @@ const ICONS = {
   calendarDays: CalendarDays,
   layoutList: LayoutList,
   sticky: StickyNote,
+  program: Layers,
+  library: LibraryBig,
+  eye: Eye,
+  eyeOff: EyeOff,
+  pause: Pause,
+  switchSides: ArrowRightLeft,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

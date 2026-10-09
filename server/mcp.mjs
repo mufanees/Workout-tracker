@@ -100,7 +100,7 @@ export function createMcpHandler({ db, q, rootDir }) {
         }
         const renamed = result.matches.filter((m) => !m.created && m.from.toLowerCase() !== m.to.toLowerCase())
         return [
-          `Imported ${result.routines.length} routine(s)${result.folder ? ` into the "${result.folder}" folder` : ''}: ${result.routines.map((r) => r.name).join(', ')}.`,
+          `Imported ${result.routines.length} routine(s)${result.program ? ` into the "${result.program}" program` : result.folder ? ` into the "${result.folder}" folder` : ''}: ${result.routines.map((r) => r.name).join(', ')}.`,
           result.newExercises.length ? `New exercises: ${result.newExercises.map((e) => e.name).join(', ')}.` : '',
           renamed.length ? `Matched names: ${renamed.map((m) => `"${m.from}" → ${m.to}`).join('; ')}.` : '',
           'They will show up in the app the next time it syncs (on open, or within a minute).',
@@ -115,9 +115,9 @@ export function createMcpHandler({ db, q, rootDir }) {
       inputSchema: { type: 'object', properties: {} },
       run: () => {
         const name = exName()
-        const list = rows('routines').sort((a, b) => (a.folder || '').localeCompare(b.folder || '') || a.order - b.order)
+        const list = rows('routines').sort((a, b) => (a.program || '').localeCompare(b.program || '') || (a.folder || '').localeCompare(b.folder || '') || a.order - b.order)
         return list.length
-          ? list.map((r) => `${r.folder ? r.folder + ' / ' : ''}${r.name}: ${r.exercises.map((e) => `${name(e.exerciseId)} ${e.sets.length}×${e.target || ''}`).join(', ')}`).join('\n')
+          ? list.map((r) => `${r.program ? r.program + ' / ' : ''}${r.folder ? r.folder + ' / ' : ''}${r.name}: ${r.exercises.map((e) => `${name(e.exerciseId)} ${e.sets.length}×${e.target || ''}`).join(', ')}`).join('\n')
           : 'No routines synced to the server yet (the built-in Comeback plan lives in the app until edited).'
       },
     },

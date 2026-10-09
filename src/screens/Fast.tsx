@@ -2,8 +2,8 @@ import { useState } from 'preact/hooks'
 import { activeFast, fasts, saveSettings, settings } from '../store'
 import { back, navigate } from '../router'
 import type { Fast as FastT } from '../types'
-import { DAY, HOUR, STAGES, dayKey, endFast, fastStats, fastsByDay, hShort, hm, nextStage, protocolLabel, saveFastEdit, stageAt, startFast } from '../fasting'
-import { FastEditor, FastRow, ProtocolSheet, StageRing, TimeSheet, draftPastFast, useNow, whenLabel } from '../ui/Fasting'
+import { DAY, HOUR, STAGES, dayKey, fastStats, fastsByDay, hShort, hm, nextStage, protocolLabel, saveFastEdit, stageAt, startFast } from '../fasting'
+import { FastEditor, FastRow, finishFast, ProtocolSheet, StageRing, TimeSheet, draftPastFast, useNow, whenLabel } from '../ui/Fasting'
 import { Icon } from '../ui/icons'
 import { Toggle } from '../ui/inputs'
 import { startOfDay } from '../util'
@@ -34,9 +34,7 @@ export function Fast() {
     if (f) await saveFastEdit({ ...f, goal: g })
   }
   const finish = async (at = Date.now()) => {
-    if (!f) return
-    const saved = await endFast(f, at)
-    navigate(`/fast/done/${saved.id}`)
+    if (f) await finishFast(f, at)
   }
 
   // eating window (idle)

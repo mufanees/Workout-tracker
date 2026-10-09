@@ -2,7 +2,7 @@
 import { fasts, saveFast, settings } from './store'
 import { cancelPush, schedulePush } from './push'
 import type { Fast } from './types'
-import { startOfDay, uid } from './util'
+import { fmtDay, fmtTime, startOfDay, uid } from './util'
 
 export const HOUR = 3600000
 export const DAY = 86400000
@@ -124,7 +124,34 @@ export async function endFast(f: Fast, end = Date.now()) {
 export async function saveFastEdit(f: Fast) {
   const saved = await saveFast(f)
   if (saved.end == null) pushDone(saved)
+  else if (!fasts.value.some((x) => x.end == null) && latestDone()?.id === saved.id) pushWindow(saved.end, saved.goal) // its end moved
   return saved
+}
+
+const latestDone = () => fasts.value.reduce<Fast | null>((a, x) => (x.end != null && (!a || x.end > a.end!) ? x : a), null)
+
+/**
+ * Why a fast can't have these times, or null when they're fine: a real start, the end after
+ * the start, nothing in the future, and no overlap with another fast.
+ */
+export function fastTimesError(f: Fast, start: number, end: number | null, list: Fast[] = fasts.value, now = Date.now()): string | null {
+  if (!Number.isFinite(start) || (end != null && (!Number.isFinite(end) || end <= start))) return 'The end has to be after the start'
+  if (start > now || (end != null && end > now + 60000)) return 'That’s in the future'
+  const e = end ?? now
+  const clash = list.find((x) => x.id !== f.id && x.start < e && (x.end ?? now) > start)
+  if (clash) {
+    const t = clash.end ?? clash.start
+    return `That overlaps your fast ${clash.end ? 'ending' : 'from'} ${fmtDay(t).replace(/^(Today|Yesterday)$/, (m) => m.toLowerCase())}, ${fmtTime(t)}`
+  }
+  return null
+}
+
+/** The nearest other fasts before and after `f`, which its times can't cross. */
+export function fastNeighbours(f: Fast, list: Fast[] = fasts.value) {
+  const others = list.filter((x) => x.id !== f.id)
+  const prev = others.filter((x) => x.end != null && x.end <= f.start).reduce<Fast | null>((a, x) => (!a || x.end! > a.end! ? x : a), null)
+  const next = others.filter((x) => f.end != null && x.start >= f.end).reduce<Fast | null>((a, x) => (!a || x.start < a.start ? x : a), null)
+  return { prev, next }
 }
 
 // ---- stats ------------------------------------------------------------------------

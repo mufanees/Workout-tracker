@@ -1,6 +1,9 @@
 // Guards against malformed records (bad imports, old clients) crashing the app.
 import type { StoreName } from './types'
 
+/** Folder names of the Comeback plan's phases (kept here so validation needs no imports from the seed). */
+export const COMEBACK_PHASE_FOLDERS = ['Phase 1 · Rebuild', 'Phase 2 · Build', 'Phase 3 · Strength', 'Phase 4 · Peak']
+
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
@@ -39,12 +42,21 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr, warmup: strs(rec.warmup), cooldown: strs(rec.cooldown), shoulder: num(rec.shoulder) }
   }
   if (store === 'routines') {
-    return { ...rec, updatedAt, name: String(rec.name ?? 'Routine'), folder: String(rec.folder ?? ''), notes: String(rec.notes ?? ''), order: num(rec.order) ?? 0, exercises: cleanExercises(rec.exercises), warmup: strs(rec.warmup), cooldown: strs(rec.cooldown) }
+    let program = typeof rec.program === 'string' ? rec.program : ''
+    let folder = String(rec.folder ?? '')
+    // The built-in Comeback plan used to be one flat folder; it now reads as a program with a folder per phase.
+    const cb = /^r-comeback-(\d)[ab]$/.exec(rec.id)
+    if (cb && !program && folder === 'Dumbbell Comeback') {
+      program = folder
+      folder = COMEBACK_PHASE_FOLDERS[Number(cb[1]) - 1] || folder
+    }
+    return { ...rec, updatedAt, name: String(rec.name ?? 'Routine'), program: program || undefined, folder, notes: String(rec.notes ?? ''), order: num(rec.order) ?? 0, exercises: cleanExercises(rec.exercises), warmup: strs(rec.warmup), cooldown: strs(rec.cooldown) }
   }
   if (store === 'exercises') {
     if (typeof rec.name !== 'string' || !rec.name) return null
     const type = ['weight_reps', 'reps', 'duration'].includes(rec.type as string) ? rec.type : 'weight_reps'
-    return { ...rec, updatedAt, muscle: String(rec.muscle ?? 'Other'), equipment: String(rec.equipment ?? 'Other'), type }
+    const load = ['each', 'one', 'total'].includes(rec.load as string) ? rec.load : undefined
+    return { ...rec, updatedAt, muscle: String(rec.muscle ?? 'Other'), equipment: String(rec.equipment ?? 'Other'), type, load }
   }
   if (store === 'settings') return { ...rec, updatedAt }
   if (store === 'body') {

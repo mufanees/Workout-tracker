@@ -5,7 +5,7 @@ import { HOUR, fastStats, hShort, hm, protocolLabel, stageAt } from '../fasting'
 import { milestonesFor } from '../milestones'
 import { ringsFor } from '../rings'
 import { CelebrationHero, Confetti, MilestoneList } from '../ui/Rings'
-import { FastEditor } from '../ui/Fasting'
+import { FastEditor, FastTimes } from '../ui/Fasting'
 import { QuoteCard } from '../ui/Quote'
 import { Icon } from '../ui/icons'
 import { startOfDay } from '../util'
@@ -67,6 +67,8 @@ export function FastDone({ id }: { id: string }) {
           )}
         </div>
       </div>
+
+      <FastTimes fast={f} />
 
       <MilestoneList list={milestonesFor(f.id)} />
 

@@ -46,7 +46,7 @@ export const activeFast = computed(() => fasts.value.find((f) => f.end == null) 
 export const exMap = computed(() => new Map(exercises.value.map((e) => [e.id, e])))
 export const unit = computed(() => settings.value.unit)
 
-const SEED_VERSION = 4 // 4: rehab and mobility exercises
+const SEED_VERSION = 5 // 4: rehab and mobility exercises; 5: Buff Dudes program exercises, Comeback as a program
 let lastStamp = 0
 /** A timestamp newer than the clock, our last write, and the record being replaced (guards against clock skew). */
 export function stamp(after = 0) {
@@ -102,7 +102,10 @@ export async function init() {
     ])
     const items: { store: db.Store; key: string; value: unknown }[] = []
     for (const e of seedExercises()) if (!existing.has('exercises:' + e.id)) items.push({ store: 'exercises', key: e.id, value: e })
-    for (const r of seedRoutines()) {
+    // A fresh install starts with no routines: each person picks a program (Train → Programs) or builds their own.
+    // Devices that already had the Comeback plan keep getting its updates while it's unedited.
+    const hadPlan = seeded > 0 && [...existing].some((k) => k.startsWith('routines:r-comeback-'))
+    for (const r of hadPlan ? seedRoutines() : []) {
       // New seed content replaces built-in routines you haven't edited (updatedAt stays at the seed's 1).
       const cur = existing.has('routines:' + r.id) ? await db.get<Routine>('routines', r.id) : undefined
       if (!cur || (!cur.deleted && cur.updatedAt <= 1)) items.push({ store: 'routines', key: r.id, value: r })

@@ -168,7 +168,7 @@ export function routinesText() {
       })
       const extra = [r.warmup?.length ? `\n    warm-up: ${r.warmup.join('; ')}` : '', r.cooldown?.length ? `\n    cool-down: ${r.cooldown.join('; ')}` : ''].join('')
       const tp = planFor(r)
-      return `${r.folder ? r.folder + ' / ' : ''}${r.name} (~${tp.budget} min${tp.fixed ? ' budget' : ' estimated'}): ${ex.join(', ')}${extra}`
+      return `${r.program ? r.program + ' / ' : ''}${r.folder ? r.folder + ' / ' : ''}${r.name} (~${tp.budget} min${tp.fixed ? ' budget' : ' estimated'}): ${ex.join(', ')}${extra}`
     })
     .join('\n')
 }

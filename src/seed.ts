@@ -3,12 +3,13 @@ import type { Exercise, ExType, Routine, WExercise, WSet } from './types'
 import EXTRA from './data/library.json'
 import CURATED from './data/curated.json'
 import { rehabLibraryRows } from '../shared/rehabKnowledge.mjs'
+import { COMEBACK_PHASE_FOLDERS } from './validate'
 
 // Seed records use a fixed, tiny updatedAt so anything you edit (or anything
 // already on the server) always wins over the built-in defaults.
 const SEED_TIME = 1
 
-type Def = [name: string, muscle: string, equipment: string, type?: ExType, video?: string]
+type Def = [name: string, muscle: string, equipment: string, type?: ExType, video?: string, load?: Exercise['load']]
 
 // Hand-picked exercises (the Comeback plan's, with form-video searches) plus common lifts.
 const LIBRARY = CURATED as Def[]
@@ -23,11 +24,11 @@ export function seedExercises(): Exercise[] {
   const out: Exercise[] = []
   const seen = new Set<string>()
   // The hand-picked list wins on duplicates (it has plan names, form-video searches and dumbbell defaults).
-  for (const [name, muscle, equipment, type = 'weight_reps', video] of [...LIBRARY, ...(rehabLibraryRows() as Def[]), ...(EXTRA as Def[])]) {
+  for (const [name, muscle, equipment, type = 'weight_reps', video, load] of [...LIBRARY, ...(rehabLibraryRows() as Def[]), ...(EXTRA as Def[])]) {
     const id = slug(name)
     if (seen.has(id)) continue
     seen.add(id)
-    out.push({ id, name, muscle, equipment, type, video, updatedAt: SEED_TIME })
+    out.push({ id, name, muscle, equipment, type, video, ...(load ? { load } : {}), updatedAt: SEED_TIME })
   }
   return out
 }
@@ -162,7 +163,8 @@ export function seedRoutines(): Routine[] {
       out.push({
         id: rid,
         name: `Phase ${phase.n} · Workout ${day}`,
-        folder: PLAN_FOLDER,
+        program: PLAN_FOLDER,
+        folder: COMEBACK_PHASE_FOLDERS[phase.n - 1],
         notes: PLAN_NOTE,
         warmup: PLAN_WARMUP,
         cooldown: PLAN_COOLDOWN,

@@ -5,16 +5,18 @@
  * @typedef {{ name: string, sets?: number, reps?: string|number, weight?: number|null, seconds?: number|null,
  *   rest?: number, superset?: string|number|null, notes?: string,
  *   type?: 'weight_reps'|'reps'|'duration', muscle?: string, equipment?: string }} PlanExercise
- * @typedef {{ name: string, notes?: string, exercises: PlanExercise[] }} PlanRoutine
- * @typedef {{ folder?: string, routines: PlanRoutine[] }} Plan
+ * @typedef {{ name: string, folder?: string, notes?: string, exercises: PlanExercise[] }} PlanRoutine
+ * @typedef {{ program?: string, folder?: string, routines: PlanRoutine[] }} Plan
  * @typedef {{ id: string, name: string, muscle: string, equipment: string, type: string }} LibExercise
  */
 
 export const PLAN_FORMAT = `{
-  "folder": "Plan name (routines are grouped under it)",
+  "program": "Program name (optional: a multi-phase plan; its folders sit inside it)",
+  "folder": "Folder name (routines are grouped under it)",
   "routines": [
     {
-      "name": "Phase 1 · Workout A",
+      "name": "Workout A",
+      "folder": "Phase 1 (optional: overrides the folder above, e.g. one folder per phase)",
       "notes": "Schedule or cues for the whole session (optional)",
       "warmup": ["Cat-cow x 8", "Scap push-ups x 10"],     // checklist ticked off at the start (optional)
       "cooldown": ["Hamstring stretch 30 s / side"],       // checklist at the end (optional)
@@ -45,7 +47,7 @@ Format (the // comments are explanations, leave them out of your answer):
 ${PLAN_FORMAT}
 
 Rules:
-- One routine per distinct workout day. If the plan has phases, make one routine per phase and day, named like "Phase 1 · Workout A".
+- One routine per distinct workout day. If the plan has phases, set "program" to the plan's name, give each routine the "folder" of its phase (e.g. "Phase 1 · Full Body (weeks 1–3)") and name routines by day ("Day 1 · Full Body").
 - Pairs like 1a/1b are supersets: give both the same "superset" value. Put the rest after the pair on the last exercise of the pair.
 - Use the closest name from the exercise list below. Put variations ("1 s pause", "neutral grip", "heavy") in "notes" rather than in the name, so progress carries across phases.
 - Always include "equipment" (what the plan uses: a dumbbell plan means Dumbbell, even when the plan just says "row"). It picks the right variant.
@@ -123,6 +125,7 @@ const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v =
 export function resolvePlan(plan, library, makeId, now = Date.now()) {
   if (!plan || !Array.isArray(plan.routines) || !plan.routines.length) throw new Error('The plan has no routines.')
   const folder = String(plan.folder || '').trim()
+  const program = String(plan.program || '').trim()
   const lib = [...library]
   const newExercises = []
   const matches = []
@@ -187,7 +190,8 @@ export function resolvePlan(plan, library, makeId, now = Date.now()) {
     return {
       id: makeId(),
       name: String(r.name || `Workout ${ri + 1}`).trim(),
-      folder,
+      ...(program ? { program } : {}),
+      folder: r.folder != null && String(r.folder).trim() ? String(r.folder).trim() : folder,
       notes: String(r.notes || ''),
       warmup: Array.isArray(r.warmup) ? r.warmup.map(String).filter((x) => x.trim()) : [],
       cooldown: Array.isArray(r.cooldown) ? r.cooldown.map(String).filter((x) => x.trim()) : [],
@@ -195,5 +199,5 @@ export function resolvePlan(plan, library, makeId, now = Date.now()) {
       exercises,
     }
   })
-  return { folder, routines, newExercises, matches }
+  return { program, folder, routines, newExercises, matches }
 }

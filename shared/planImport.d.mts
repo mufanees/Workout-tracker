@@ -10,6 +10,7 @@ export interface LibExercise {
 export interface ResolvedRoutine {
   id: string
   name: string
+  program?: string
   folder: string
   notes: string
   warmup: string[]
@@ -35,4 +36,4 @@ export function resolvePlan(
   library: LibExercise[],
   makeId: () => string,
   now?: number,
-): { folder: string; routines: ResolvedRoutine[]; newExercises: LibExercise[]; matches: { from: string; to: string; created: boolean }[] }
+): { program: string; folder: string; routines: ResolvedRoutine[]; newExercises: LibExercise[]; matches: { from: string; to: string; created: boolean }[] }
