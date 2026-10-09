@@ -1,15 +1,17 @@
 import type { ComponentChildren } from 'preact'
 import { useRef, useState } from 'preact/hooks'
 import { signal } from '@preact/signals'
-import { exMap, settings, unit } from '../store'
+import { exMap, saveExercise, settings, unit } from '../store'
 import { matchPrevious, previousSets, stalledAt } from '../stats'
 import { navigate } from '../router'
 import type { Exercise, SetKind, WExercise, WSet } from '../types'
-import { clone, fmtNum, fmtRest, fromDisplay, haptic, newSet, newWExercise, supersetColor, targetTop, toDisplay, uid } from '../util'
+import { clone, fmtNum, fmtRest, fmtTarget, fromDisplay, haptic, newSet, newWExercise, perSide, supersetColor, targetSeconds, targetTop, toDisplay, uid } from '../util'
+import { twoDumbbells } from '../goals'
+import { finishSetTimer, pauseSetTimer, resumeSetTimer, setTimer, startSetTimer } from '../workout'
 import { gooSplash } from './Goo'
 import { Icon } from './icons'
 import { NumInput } from './inputs'
-import { actionSheet, AutoText, toast } from './overlay'
+import { actionSheet, AutoText, Sheet, toast } from './overlay'
 import { ExercisePicker } from './ExercisePicker'
 import { openVideoSheet } from './VideoSheet'
 import { hasOwnVideo, videoFor } from '../videos'
@@ -23,6 +25,25 @@ export const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300]
 
 const KIND_LABEL: Record<SetKind, string> = { normal: 'Normal set', warmup: 'Warm-up set', failure: 'Failure set', drop: 'Drop set' }
 const KIND_SHORT: Record<SetKind, string> = { normal: '', warmup: 'W', failure: 'F', drop: 'D' }
+
+export type Load = 'each' | 'one' | 'total'
+
+/** How an exercise's weight is logged: set by hand, else guessed for dumbbell lifts (a pair → per hand). */
+export function loadOf(ex: Exercise | undefined): Load | null {
+  if (!ex || ex.type !== 'weight_reps' || ex.equipment === 'Bodyweight') return null
+  if (ex.load) return ex.load
+  if (!/dumbbell/i.test(ex.equipment)) return null
+  return twoDumbbells(ex) ? 'each' : 'one'
+}
+
+const LOADS: [Load, string, string][] = [
+  ['each', 'Each hand', 'Two dumbbells: log the weight of one of them.'],
+  ['one', 'Single weight', 'One dumbbell or weight: log that one.'],
+  ['total', 'Total', 'Everything you lift, added together.'],
+]
+/** Second line of the weight column's header, and how a weight reads aloud. */
+const LOAD_HEAD: Record<Load, string> = { each: 'each', one: 'single', total: 'total' }
+const LOAD_SAY: Record<Load, string> = { each: ' per hand', one: '', total: ' in total' }
 
 export function WorkoutEditor({
   mode,
@@ -43,6 +64,7 @@ export function WorkoutEditor({
 }) {
   const [picker, setPicker] = useState<{ open: boolean; replace?: string }>({ open: false })
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set())
+  const [loadEx, setLoadEx] = useState<string | null>(null)
 
   const mut = (fn: (list: WExercise[]) => void) =>
     onChange((current) => {
@@ -237,6 +259,7 @@ export function WorkoutEditor({
               })
             }
             onSetDone={() => onSetDone?.(we.id)}
+            onLoad={() => setLoadEx(we.exerciseId)}
           />
         )
         const lead = items[0]
@@ -279,6 +302,7 @@ export function WorkoutEditor({
         onClose={() => setPicker({ open: false })}
         onPick={(ids, ss) => (picker.replace != null ? replaceExercise(picker.replace, ids[0]) : addExercises(ids, ss))}
       />
+      <LoadSheet exerciseId={loadEx} onClose={() => setLoadEx(null)} />
     </div>
   )
 }
@@ -305,6 +329,7 @@ function ExerciseCard({
   onRest,
   mut,
   onSetDone,
+  onLoad,
 }: {
   we: WExercise
   all: WExercise[]
@@ -316,6 +341,7 @@ function ExerciseCard({
   onRest: () => void
   mut: (fn: (we: WExercise) => void) => void
   onSetDone: () => void
+  onLoad: () => void
 }) {
   const ex: Exercise = exMap.value.get(we.exerciseId) || { id: we.exerciseId, name: 'Unknown exercise', muscle: '', equipment: '', type: 'weight_reps', updatedAt: 0 }
   const u = unit.value
@@ -331,6 +357,12 @@ function ExerciseCard({
   const showRest = mode !== 'edit' && !we.superset
   const restValue = we.superset ? Math.max(...group.map((e) => e.rest)) : we.rest
   const bodyweight = ex.equipment === 'Bodyweight'
+  const load = loadOf(ex)
+  const loadSay = load ? LOAD_SAY[load] : ''
+  // Timed sets get a start button in the live workout.
+  const timed = mode === 'live' && ex.type === 'duration'
+  const timer = setTimer.value
+  const sides: 1 | 2 = perSide(we.target) ? 2 : 1
 
   // Progression nudge: last time every working set reached the top of the target range.
   const top = targetTop(we.target)
@@ -393,6 +425,9 @@ function ExerciseCard({
   const toggleDone = (i: number) => {
     const s = we.sets[i]
     if (s.done) return mutSet(s.id, (t) => void (t.done = false))
+    // its timer is running: stop it and log the time held, as its Done button would
+    const tm = setTimer.value
+    if (tm?.target.kind === 'set' && tm.target.setId === s.id) return finishSetTimer()
     const { set: next, missing: field } = completeSet(s, placeholder(i), ex)
     if (!next) {
       const input = cardRef.current?.querySelectorAll<HTMLInputElement>(`input[data-f="${field}"]`)[i]
@@ -482,7 +517,7 @@ function ExerciseCard({
             {color && <span class="tag ss-tag">{ssLabel}</span>}
             {mode === 'routine' ? null : we.target ? (
               <span class="tag" title="Target">
-                <Icon name="target" size={13} /> {we.target}
+                <Icon name="target" size={13} /> {fmtTarget(we.target, ex.type)}
               </span>
             ) : null}
             {stall != null && !deloaded && (
@@ -532,7 +567,7 @@ function ExerciseCard({
         </div>
       )}
 
-      <div class={`sets cols-${cols} mode-${mode}`} role="table" aria-label={`${ex.name} sets`}>
+      <div class={`sets cols-${cols} mode-${mode}` + (timed ? ' timed' : '')} role="table" aria-label={`${ex.name} sets`}>
         <div class="set-row head" role="row">
           <span role="columnheader" class="num-head">
             SET
@@ -540,13 +575,20 @@ function ExerciseCard({
           {mode !== 'routine' && <span role="columnheader">PREVIOUS</span>}
           {ex.type === 'weight_reps' && (
             <span role="columnheader" class="num-head">
-              {bodyweight ? '+' : ''}
-              {u.toUpperCase()}
+              {bodyweight ? (
+                '+' + u.toUpperCase()
+              ) : (
+                <button class={'load-head' + (load ? ' two' : '')} onClick={onLoad} aria-label={`Weight in ${u}${loadSay}. Change how the weight is logged`}>
+                  <span>{u.toUpperCase()}</span>
+                  {load && <small>{LOAD_HEAD[load]}</small>}
+                </button>
+              )}
             </span>
           )}
           <span role="columnheader" class="num-head">
             {valueHeader}
           </span>
+          {timed && <span role="columnheader" aria-label="Timer" />}
           {mode !== 'routine' && (
             <span role="columnheader" class="center">
               <Icon name="check" size={16} stroke={2.5} />
@@ -572,7 +614,7 @@ function ExerciseCard({
                 <button
                   class="prev"
                   disabled={!p}
-                  aria-label={p ? `Previous: ${prevText}. Copy` : 'No previous set'}
+                  aria-label={p ? `Previous: ${prevText.replace(' × ', ` ${u}${loadSay} × `)}${ex.type === 'weight_reps' && p.weight != null ? ' reps' : ''}. Copy` : 'No previous set'}
                   onClick={() =>
                     p &&
                     mutSet(s.id, (t) => {
@@ -589,7 +631,7 @@ function ExerciseCard({
                 <NumInput
                   field="weight"
                   decimal
-                  label={`Set ${labels[i]} weight in ${u}`}
+                  label={`Set ${labels[i]} weight in ${u}${loadSay}`}
                   value={s.weight == null ? null : toDisplay(s.weight, u)}
                   placeholder={ph.weight != null ? fmtNum(toDisplay(ph.weight, u)) : bodyweight && mode !== 'routine' ? 'BW' : '–'}
                   onChange={(v) => setField(s.id, 'weight', v == null ? null : fromDisplay(v, u))}
@@ -613,6 +655,30 @@ function ExerciseCard({
                   onChange={(v) => setField(s.id, 'seconds', v)}
                 />
               )}
+              {timed &&
+                (s.done ? (
+                  <span aria-hidden="true" />
+                ) : (
+                  (() => {
+                    const mine = timer?.target.kind === 'set' && timer.target.setId === s.id ? timer : null
+                    const running = !!mine && mine.left == null
+                    return (
+                      <button
+                        class={'set-timer-btn' + (mine ? ' on' : '')}
+                        aria-label={running ? `Pause the timer for set ${labels[i]}` : mine ? `Resume the timer for set ${labels[i]}` : `Start a timer for set ${labels[i]}`}
+                        onClick={() => {
+                          haptic(12)
+                          if (running) return pauseSetTimer()
+                          if (mine) return resumeSetTimer()
+                          const secs = s.seconds ?? ph.seconds ?? targetSeconds(we.target) ?? 30
+                          startSetTimer({ label: `${ex.name} · set ${labels[i]}`, target: { kind: 'set', weId: we.id, setId: s.id }, secs, sides })
+                        }}
+                      >
+                        <Icon name={running ? 'pause' : 'play'} size={18} />
+                      </button>
+                    )
+                  })()
+                ))}
               {mode !== 'routine' && (
                 <button class={'check' + (s.done ? ' on' : '')} aria-pressed={s.done} aria-label={s.done ? `Set ${labels[i]} done. Undo` : `Complete set ${labels[i]}`} onClick={() => toggleDone(i)}>
                   <Icon name="check" size={18} stroke={3} />
@@ -645,20 +711,21 @@ function ExerciseCard({
   )
 }
 
-const EFFORT: [number, string, string][] = [
-  [3, 'Easy', '3+ left'],
-  [1.5, 'Good', '1–2 left'],
-  [0, 'Max', 'none left'],
+// Reps in reserve (stored on the last working set): the answer first, in plain words, then how hard that is.
+const EFFORT: [number, string, string, string][] = [
+  [3, '3 or more', 'Easy', '3 or more reps left: easy'],
+  [1.5, '1 or 2', 'Hard', '1 or 2 reps left: hard'],
+  [0, 'None', 'All-out', 'No reps left, couldn’t do another: all-out'],
 ]
 
 /** After the last set: how many more reps could you have done? Tells the coach how hard it really was. */
 function EffortRow({ value, onPick }: { value?: number | null; onPick: (v: number) => void }) {
   return (
-    <div class="effort-row" role="radiogroup" aria-label="How hard was the last set?">
-      <span class="effort-q">How hard was the last set?</span>
+    <div class="effort-row" role="radiogroup" aria-label="Last set: how many more reps could you do?">
+      <span class="effort-q">Last set: how many more reps could you do?</span>
       <div class="effort-opts" data-goo>
-        {EFFORT.map(([v, label, sub]) => (
-          <button role="radio" aria-checked={value === v} class={'effort-opt' + (value === v ? ' on' : '') + (v === 0 ? ' max' : '')} onClick={() => onPick(v)}>
+        {EFFORT.map(([v, label, sub, say]) => (
+          <button role="radio" aria-checked={value === v} aria-label={say} class={'effort-opt' + (value === v ? ' on' : '')} onClick={() => onPick(v)}>
             <b>{label}</b>
             <small>{sub}</small>
           </button>
@@ -668,7 +735,50 @@ function EffortRow({ value, onPick }: { value?: number | null; onPick: (v: numbe
   )
 }
 
-/** The grey value shown in an empty input: last session's set, else the routine's plan, else the set above. */
+/** "How is the weight logged?": per hand, a single weight or the total. Saved on the exercise (it syncs). */
+function LoadSheet({ exerciseId, onClose }: { exerciseId: string | null; onClose: () => void }) {
+  // keep the last exercise while the sheet slides away
+  const last = useRef<Exercise | null>(null)
+  const ex = exerciseId ? exMap.value.get(exerciseId) || null : null
+  if (ex) last.current = ex
+  const shown = ex || last.current
+  const current = loadOf(shown || undefined)
+  return (
+    <Sheet open={!!ex} onClose={onClose} label="How is the weight logged?">
+      {shown && (
+        <>
+          <div class="action-head">
+            <div class="action-title">How is the weight logged?</div>
+            <div class="action-msg">{shown.name}{shown.load ? '' : ' · guessed from the name'}</div>
+          </div>
+          <div class="action-list load-list" role="radiogroup" aria-label="How is the weight logged?">
+            {LOADS.map(([v, label, line]) => (
+              <button
+                role="radio"
+                aria-checked={current === v}
+                class={'action load-opt' + (current === v ? ' selected' : '')}
+                onClick={() => {
+                  onClose()
+                  if (shown.load !== v) void saveExercise({ ...shown, load: v })
+                }}
+              >
+                <span class="action-label">
+                  <b>{label}</b>
+                  <small>{line}</small>
+                </span>
+                {current === v && <Icon name="check" class="action-check" />}
+              </button>
+            ))}
+          </div>
+          <button class="btn btn-quiet btn-block" onClick={onClose}>
+            Cancel
+          </button>
+        </>
+      )}
+    </Sheet>
+  )
+}
+
 /** Open a link in a new tab with a real anchor (works inside embedded frames where window.open is blocked). */
 function openLink(href: string) {
   const a = document.createElement('a')
@@ -680,6 +790,7 @@ function openLink(href: string) {
   a.remove()
 }
 
+/** The grey value shown in an empty input: last session's set, else the routine's plan, else the set above. */
 export function placeholderFor(sets: WSet[], i: number, matched: (WSet | undefined)[]) {
   const s = sets[i]
   const p = matched[i]

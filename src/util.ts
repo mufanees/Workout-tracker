@@ -156,6 +156,53 @@ export function targetTop(target: string): number | null {
   return null
 }
 
+/** "8 / side", "30 s each side", "10 per leg", "8 each": done once for each side. */
+export function perSide(text: string): boolean {
+  return /\/\s*(side|leg|arm)|\b(each|per)\s+(side|leg|arm|way)\b|\beach\b/i.test(text)
+}
+
+const TIME = String.raw`(\d+(?:\.\d+)?)(?:\s*[–-]\s*(\d+(?:\.\d+)?))?\s*(s|secs?|seconds?|m|mins?|minutes?)\b`
+
+/**
+ * A time written in a dose: "30 s / side" → 30 s per side, "5 min" → 300 s, "10–15 min" → 900 s
+ * (ranges use the top). Null when there's no time unit ("× 8").
+ */
+export function timeDose(text: string): { secs: number; sides: 1 | 2 } | null {
+  const m = text.match(new RegExp(TIME, 'i'))
+  if (!m) return null
+  const unit = m[3].toLowerCase()
+  // a bare "m" is metres unless it's clearly minutes ("5m" walk is ambiguous; treat as minutes only with "min")
+  if (unit === 'm') return null
+  const n = Number(m[2] ?? m[1])
+  const secs = Math.round(unit.startsWith('m') ? n * 60 : n)
+  if (!secs) return null
+  return { secs, sides: perSide(text) ? 2 : 1 }
+}
+
+/** Seconds a duration set aims for, from its target: "20–30 s / side" → 30, "45 s" → 45, "1 min" → 60. */
+export function targetSeconds(target: string): number | null {
+  const t = timeDose(target)
+  if (t) return t.secs
+  const m = target.match(/(\d+)(?:\s*[–-]\s*(\d+))?/)
+  return m ? Number(m[2] ?? m[1]) : null
+}
+
+/**
+ * The target tag, spelled out: "8 / side" → "8 reps each side", "20–30 s / side" → "20–30 s each side",
+ * "10–12" → "10–12 reps". Anything it doesn't understand is returned as written.
+ */
+export function fmtTarget(target: string, type: ExType = 'weight_reps'): string {
+  const m = target
+    .trim()
+    .match(/^(\d+(?:\s*[–-]\s*\d+)?)\s*(reps?|s|secs?|seconds?|mins?|minutes?)?\s*(?:(\/\s*|per\s+|each\s+)(side|leg|arm)s?|(each))?$/i)
+  if (!m) return target
+  const num = m[1].replace(/\s*[–-]\s*/, '–')
+  const u = (m[2] || '').toLowerCase()
+  const unit = u.startsWith('r') ? 'reps' : u.startsWith('mi') ? 'min' : u ? 's' : type === 'duration' ? 's' : 'reps'
+  const side = m[4] ? 'each ' + m[4].toLowerCase() : m[5] ? 'each side' : ''
+  return [num, unit === 'reps' && num === '1' ? 'rep' : unit, side].filter(Boolean).join(' ')
+}
+
 export const SUPERSET_COLORS = ['#7c5cff', '#ff8a3d', '#1fb8a6', '#e8467c', '#3d9bff', '#c9a227']
 
 export function supersetColor(group: string | null, all: WExercise[]): string | null {

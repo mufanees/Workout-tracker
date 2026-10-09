@@ -17,7 +17,7 @@ export interface Move {
   combo: boolean // "Glute bridge + bodyweight squat × 10 each"
 }
 
-const DOSE = String.raw`(?:\d+\s*[×x*]\s*)?\d+(?:[–-]\d+)?\s*(?:s|sec|secs|seconds?|min|mins|minutes?|reps?|breaths?|m)?\b(?:\s*(?:\/\s*side|each side|per side|each|\/\s*leg|\/\s*arm|each way))?`
+const DOSE = String.raw`(?:\d+\s*[×x*]\s*)?\d+(?:\s*[–-]\s*\d+)?\s*(?:s|sec|secs|seconds?|min|mins|minutes?|reps?|breaths?|m)?\b(?:\s*(?:\/\s*side|each side|per side|each|\/\s*leg|\/\s*arm|each way))?`
 
 /** Read one line. Tolerant: separators ×, x, ·, :, – and a trailing dose all work. */
 export function parseMove(line: string): Move {
@@ -44,6 +44,7 @@ export function parseMove(line: string): Move {
   dose = dose
     .replace(/(\d)\s*[x*×]\s*(\d)/gi, '$1 × $2')
     .replace(/(\d)(s|sec|min)\b/gi, '$1 $2')
+    .replace(/(\d)\s+[–-]\s+(\d)/g, '$1–$2') // "10 - 15 min" → "10–15 min"
     .trim()
   name = name.trim().replace(/[\s,–-]+$/, '')
   return { raw, name: name || raw, dose, note, url, ramp: /^ramp-?up/i.test(raw), combo: /\s\+\s/.test(name) }

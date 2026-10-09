@@ -54,6 +54,7 @@ function fromTemplate(exercises: WExercise[]): WExercise[] {
 export async function startRoutine(r: Routine) {
   if (!(await okToReplace())) return
   restTimer.value = null
+  cancelSetTimer()
   // the coach's mobility add-ons for today join this session only; the routine stays as it is
   const day = mobilityDay()
   const warmup = mergeLines(r.warmup, day?.warmup)
@@ -85,6 +86,7 @@ function planSets(r: Routine, exercises: WExercise[]): WExercise[] {
 export async function startCardio(targetZone = 2) {
   if (!(await okToReplace())) return
   restTimer.value = null
+  cancelSetTimer()
   setActive({ id: uid('w'), name: `Zone ${targetZone} Cardio`, routineId: null, start: Date.now(), end: null, notes: '', exercises: [], targetZone, updatedAt: 0 })
   navigate('/live')
 }
@@ -93,6 +95,7 @@ export async function startCardio(targetZone = 2) {
 export async function startMobility(day: MobilityDay) {
   if (!day.session || !(await okToReplace())) return
   restTimer.value = null
+  cancelSetTimer()
   const lib = exercises.value as LibExercise[]
   const list: WExercise[] = []
   for (const m of day.session.moves) {
@@ -116,6 +119,7 @@ export async function startMobility(day: MobilityDay) {
 export async function startEmpty() {
   if (!(await okToReplace())) return
   restTimer.value = null
+  cancelSetTimer()
   setActive({ id: uid('w'), name: `${partOfDay()} Workout`, routineId: null, start: Date.now(), end: null, notes: '', exercises: [], updatedAt: 0 })
   navigate('/live')
 }
@@ -124,6 +128,7 @@ export async function startEmpty() {
 export async function repeatWorkout(w: Workout) {
   if (!(await okToReplace())) return
   restTimer.value = null
+  cancelSetTimer()
   setActive({
     id: uid('w'),
     name: w.name,
@@ -142,6 +147,7 @@ export async function repeatWorkout(w: Workout) {
 export async function discardActive() {
   setActive(null)
   restTimer.value = null
+  cancelSetTimer()
   await flushActive()
 }
 
@@ -156,6 +162,7 @@ export async function finishActive(name: string, notes: string, extra: Partial<W
   const saved = await saveWorkout({ ...rest, ...extra, name: name.trim() || w.name, notes, end: Date.now(), exercises })
   setActive(null)
   stopRest()
+  cancelSetTimer()
   await flushActive()
   scheduleTrainingReminder()
   return saved
@@ -242,11 +249,11 @@ export function unlockAudio() {
   }
 }
 
-function beep() {
+function beep(notes = [880, 880, 1320]) {
   if (!audio || !settings.value.sound) return
   if (audio.state !== 'running') void audio.resume()
   const t = audio.currentTime
-  for (const [i, f] of [880, 880, 1320].entries()) {
+  for (const [i, f] of notes.entries()) {
     const o = audio.createOscillator()
     const g = audio.createGain()
     o.type = 'sine'
@@ -262,7 +269,8 @@ function beep() {
 }
 
 export function startRest(seconds: number, label: string) {
-  if (!seconds) return
+  // a timed set is running: its own end starts the rest, and the two bars never show together
+  if (!seconds || setTimer.value) return
   restTimer.value = { end: Date.now() + seconds * 1000, total: seconds, label }
   armRest()
   pushRest()
@@ -311,6 +319,167 @@ export function armRest() {
 
 // A rest timer restored after a reload still needs to fire, whichever screen opens first.
 if (restTimer.value) armRest()
+
+// ---- Set timer: timed sets (planks, hangs) and timed warm-up / cool-down lines ------------
+
+/** What a set timer is timing: a duration set of the live workout, or a checklist line ("w2", "c0"). */
+export type TimerTarget = { kind: 'set'; weId: string; setId: string } | { kind: 'line'; key: string }
+
+export interface SetTimer {
+  label: string // "Side Plank · set 2"
+  target: TimerTarget
+  secs: number // per side
+  sides: 1 | 2
+  side: 1 | 2
+  phase: 'work' | 'switch' // 'switch': the short break to change sides
+  end: number // when the current phase ends (while running)
+  left: number | null // ms left in the current phase while paused
+  total: number // seconds in the current phase
+}
+
+/** Seconds to change sides between side 1 and side 2. */
+export const SWITCH_SECS = 5
+
+function loadSetTimer(): SetTimer | null {
+  try {
+    const t = JSON.parse(localStorage.getItem('reps-set-timer') || 'null') as SetTimer | null
+    return t && t.target && t.secs > 0 ? t : null
+  } catch {
+    return null
+  }
+}
+export const setTimer = signal<SetTimer | null>(loadSetTimer())
+setTimer.subscribe((t) => {
+  try {
+    if (t) localStorage.setItem('reps-set-timer', JSON.stringify(t))
+    else localStorage.removeItem('reps-set-timer')
+  } catch {
+    /* storage blocked */
+  }
+})
+
+let timerTick: ReturnType<typeof setTimeout> | null = null
+let timerDone: ((t: SetTimer, held: number) => void) | null = null
+
+/** The live screen says what finishing means (fill the set and tick it, or tick the line). */
+export function onSetTimerDone(fn: (t: SetTimer, held: number) => void) {
+  timerDone = fn
+}
+
+const vibrate = (p: number | number[]) => {
+  try {
+    navigator.vibrate?.(p)
+  } catch {
+    /* no vibration */
+  }
+}
+
+/** Start timing a set or a line. Stops the rest timer and any other set timer. Call from a tap (audio). */
+export function startSetTimer(o: { label: string; target: TimerTarget; secs: number; sides: 1 | 2 }) {
+  unlockAudio()
+  stopRest()
+  const secs = Math.max(1, Math.round(o.secs))
+  setTimer.value = { ...o, secs, side: 1, phase: 'work', end: Date.now() + secs * 1000, left: null, total: secs }
+  armSetTimer()
+  pushSetTimer()
+}
+
+export function pauseSetTimer() {
+  const t = setTimer.value
+  if (!t || t.left != null) return
+  setTimer.value = { ...t, left: Math.max(0, t.end - Date.now()) }
+  armSetTimer()
+  pushSetTimer()
+}
+
+export function resumeSetTimer() {
+  const t = setTimer.value
+  if (!t || t.left == null) return
+  unlockAudio()
+  setTimer.value = { ...t, end: Date.now() + t.left, left: null }
+  armSetTimer()
+  pushSetTimer()
+}
+
+/** Throw the timer away without logging anything. */
+export function cancelSetTimer() {
+  if (timerTick) clearTimeout(timerTick)
+  timerTick = null
+  if (setTimer.value) {
+    setTimer.value = null
+    cancelPush('rest')
+  }
+}
+
+/** Seconds held so far: the full time once side 1 is done, else what's been held on this side. */
+export function heldSeconds(t: SetTimer, now = Date.now()): number {
+  if (t.phase === 'switch') return t.secs
+  const left = t.left ?? Math.max(0, t.end - now)
+  return Math.max(0, Math.min(t.secs, Math.round(t.total - left / 1000)))
+}
+
+/** Stop now and log the time actually held (marks the set or line done). */
+export function finishSetTimer() {
+  const t = setTimer.value
+  if (!t) return
+  const held = heldSeconds(t)
+  cancelSetTimer()
+  if (held >= 1) timerDone?.(t, held)
+}
+
+// One push for the very end (the server sends it only if the app didn't beep on screen).
+function pushSetTimer() {
+  const t = setTimer.value
+  if (!t || t.left != null) return cancelPush('rest')
+  const rest = t.phase === 'work' && t.side === 1 && t.sides === 2 ? (SWITCH_SECS + t.secs) * 1000 : t.phase === 'switch' ? t.secs * 1000 : 0
+  schedulePush('rest', t.end + rest + 2500, 'Time’s up', t.label)
+}
+
+/** Move through side 1 → switch → side 2 → done as the clock passes each end. */
+function advanceSetTimer() {
+  let t = setTimer.value
+  if (!t || t.left != null) return
+  const now = Date.now()
+  let cue: number[] | null = null
+  while (now >= t.end) {
+    const late = now - t.end > 1500 // restored after a reload: don't play every cue we missed
+    if (t.phase === 'work' && t.side === 1 && t.sides === 2) {
+      t = { ...t, phase: 'switch', end: t.end + SWITCH_SECS * 1000, total: SWITCH_SECS }
+      cue = late ? null : [988]
+    } else if (t.phase === 'switch') {
+      t = { ...t, phase: 'work', side: 2, end: t.end + t.secs * 1000, total: t.secs }
+      cue = late ? null : [880, 1320]
+    } else {
+      timerTick = null
+      setTimer.value = null
+      if (!late) {
+        beep()
+        vibrate([200, 100, 200])
+      }
+      // on screen and beeped, so the server's notification isn't needed
+      if (document.visibilityState === 'visible') cancelPush('rest')
+      timerDone?.(t, t.secs)
+      return
+    }
+  }
+  if (cue) {
+    beep(cue)
+    vibrate(cue.length > 1 ? [120, 80, 120] : 200)
+  }
+  setTimer.value = t
+  armSetTimer()
+}
+
+export function armSetTimer() {
+  if (timerTick) clearTimeout(timerTick)
+  timerTick = null
+  const t = setTimer.value
+  if (!t || t.left != null) return
+  timerTick = setTimeout(advanceSetTimer, Math.max(0, t.end - Date.now()))
+}
+
+// A set timer restored after a reload keeps going (or finishes) whichever screen opens first.
+if (setTimer.value) armSetTimer()
 
 // ---- training-day reminder ---------------------------------------------------------
 

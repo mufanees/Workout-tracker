@@ -2,7 +2,7 @@ import { pace } from '../timeplan'
 import { useEffect, useState } from 'preact/hooks'
 import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate, navPending } from '../router'
-import { adjustRest, armRest, discardActive, finishActive, restTimer, startRest, stopRest, unlockAudio } from '../workout'
+import { adjustRest, armRest, armSetTimer, cancelSetTimer, discardActive, finishActive, finishSetTimer, onSetTimerDone, pauseSetTimer, restTimer, resumeSetTimer, setTimer, startRest, startSetTimer, stopRest, unlockAudio, type SetTimer } from '../workout'
 import { HRPanel } from '../ui/HR'
 import { checkCoach, coachOn, quick } from '../coach'
 import { summarizeHR } from '../hr'
@@ -10,7 +10,8 @@ import { WorkoutEditor, completeSet, placeholderFor, nextUp } from '../ui/Workou
 import type { WExercise, WSet } from '../types'
 import { Icon } from '../ui/icons'
 import { AutoText, confirmDialog, Sheet, toast } from '../ui/overlay'
-import { doneSets, fmtClock, fmtNum, fmtVolume, toDisplay, workoutVolume, haptic } from '../util'
+import { doneSets, fmtClock, fmtNum, fmtVolume, toDisplay, workoutVolume, haptic, timeDose } from '../util'
+import { gooSplash } from '../ui/Goo'
 import { moveExercise, moveVideo, parseMove } from '../moves'
 import { MoveText } from '../ui/MoveList'
 import { hasOwnVideo } from '../videos'
@@ -76,6 +77,7 @@ export function Live() {
   useWakeLock(!!w && settings.value.keepAwake)
   useEffect(() => {
     if (restTimer.value) armRest()
+    if (setTimer.value) armSetTimer()
     // Resuming mid-workout: bring the next set to do into view.
     const list = active.value?.exercises || []
     if (list.some((e) => e.sets.some((s) => s.done))) {
@@ -104,29 +106,7 @@ export function Live() {
 
   const onSetDone = (weId: string) => {
     unlockAudio()
-    const list = active.value!.exercises
-    const we = list.find((e) => e.id === weId)
-    if (!we) return
-    const next = nextSet(list, we)
-    nextUp.value = next?.set.id || null
-    if (next) scrollToSet(next.set.id)
-    if (!next) {
-      stopRest()
-      toast('All sets done. Tap Finish when you’re ready.')
-      return
-    }
-    let rest = we.rest
-    if (we.superset) {
-      const group = list.filter((e) => e.superset === we.superset)
-      if (group.indexOf(we) < group.length - 1 && next.we.superset === we.superset) {
-        // Mid-superset: go straight to the next exercise.
-        stopRest()
-        return
-      }
-      rest = Math.max(...group.map((e) => e.rest))
-    }
-    const name = exMap.value.get(next.we.exerciseId)?.name || 'next set'
-    if (rest) startRest(rest, `${name}, set ${next.label}`)
+    afterSetDone(weId)
   }
 
   const finish = async () => {
@@ -177,6 +157,7 @@ export function Live() {
           }}
         />
         <RestPill />
+        <TimerPill />
         <button class="btn btn-primary btn-sm" onClick={finish}>
           Finish
         </button>
@@ -250,10 +231,67 @@ export function Live() {
       </main>
 
       <RestBar />
+      <SetTimerBar />
       <FinishSheet open={finishing} onClose={() => setFinishing(false)} />
     </div>
   )
 }
+
+/** After a set is ticked (by hand or by its timer): point at the next set and start the rest. */
+function afterSetDone(weId: string) {
+  const list = active.value?.exercises
+  const we = list?.find((e) => e.id === weId)
+  if (!list || !we) return
+  const next = nextSet(list, we)
+  nextUp.value = next?.set.id || null
+  if (next) scrollToSet(next.set.id)
+  if (!next) {
+    stopRest()
+    toast('All sets done. Tap Finish when you’re ready.')
+    return
+  }
+  let rest = we.rest
+  if (we.superset) {
+    const group = list.filter((e) => e.superset === we.superset)
+    if (group.indexOf(we) < group.length - 1 && next.we.superset === we.superset) {
+      // Mid-superset: go straight to the next exercise.
+      stopRest()
+      return
+    }
+    rest = Math.max(...group.map((e) => e.rest))
+  }
+  const name = exMap.value.get(next.we.exerciseId)?.name || 'next set'
+  if (rest) startRest(rest, `${name}, set ${next.label}`)
+}
+
+// A set timer that runs out (here, on another screen, or while the app was closed) logs the time
+// held and ticks the set, exactly like tapping its check; a timed warm-up line gets ticked off.
+onSetTimerDone((t, held) => {
+  const apply = (tries: number) => {
+    const w = active.value
+    // after a reload the workout is still loading from IndexedDB
+    if (!w) return void (tries < 40 && setTimeout(() => apply(tries + 1), 250))
+    const target = t.target
+    if (target.kind === 'line') {
+      if (w.checks?.[target.key]) return
+      updateActive((x) => {
+        x.checks = { ...(x.checks || {}), [target.key]: true }
+        x.checkAt = { ...(x.checkAt || {}), [target.key]: Date.now() }
+      })
+      return
+    }
+    const s = w.exercises.find((e) => e.id === target.weId)?.sets.find((x) => x.id === target.setId)
+    if (!s || s.done) return
+    const check = document.querySelector(`[data-set="${target.setId}"] button.check`)
+    gooSplash(check, check?.closest<HTMLElement>('.ex-card'))
+    updateActive((x) => {
+      const st = x.exercises.find((e) => e.id === target.weId)?.sets.find((y) => y.id === target.setId)
+      if (st) Object.assign(st, { seconds: held, done: true })
+    })
+    afterSetDone(target.weId)
+  }
+  apply(0)
+})
 
 function RoutineNotes() {
   const [open, setOpen] = useState(false)
@@ -380,6 +418,9 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
             const m = parseMove(it)
             const ex = moveExercise(m)
             const video = moveVideo(m, ex)
+            const dose = timeDose(m.dose)
+            const mine = setTimer.value?.target.kind === 'line' && setTimer.value.target.key === kind + i ? setTimer.value : null
+            const running = !!mine && mine.left == null
             return (
               <li>
                 <button
@@ -396,6 +437,20 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
                   <span class="cl-box">{on && <Icon name="check" size={14} stroke={3} />}</span>
                   <MoveText m={m} />
                 </button>
+                {dose && !on && (
+                  <button
+                    class={'icon-btn sm cl-timer' + (mine ? ' on' : '')}
+                    aria-label={running ? `Pause the timer: ${m.name}` : mine ? `Resume the timer: ${m.name}` : `Start a ${m.dose} timer: ${m.name}`}
+                    onClick={() => {
+                      haptic(12)
+                      if (running) return pauseSetTimer()
+                      if (mine) return resumeSetTimer()
+                      startSetTimer({ label: m.name, target: { kind: 'line', key: kind + i }, secs: dose.secs, sides: dose.sides })
+                    }}
+                  >
+                    <Icon name={running ? 'pause' : mine ? 'play' : 'timer'} size={18} />
+                  </button>
+                )}
                 {video && (
                   <a class={'icon-btn sm cl-video' + (m.url || hasOwnVideo(ex) ? ' own-video' : '')} href={video} target="_blank" rel="noopener" aria-label={`${m.url || hasOwnVideo(ex) ? 'Your video' : 'How-to video'}: ${m.name}`}>
                     <Icon name="video" size={18} />
@@ -413,7 +468,7 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
 function RestBar() {
   const r = restTimer.value
   const now = useNow(250)
-  if (!r) return null
+  if (!r || setTimer.value) return null
   const left = Math.max(0, Math.ceil((r.end - now) / 1000))
   const pct = Math.min(100, Math.max(0, ((r.end - now) / 1000 / r.total) * 100))
   return (
@@ -600,11 +655,68 @@ function scrollToSet(setId: string, behavior: ScrollBehavior = 'smooth') {
 function RestPill() {
   const r = restTimer.value
   const now = useNow(500)
-  if (!r) return null
+  if (!r || setTimer.value) return null
   const left = Math.max(0, Math.ceil((r.end - now) / 1000))
   return (
     <button class="rest-pill" onClick={stopRest} aria-label={`Rest ${fmtClock(left)}. Skip`}>
       <Icon name="timer" size={14} /> {fmtClock(left)}
+    </button>
+  )
+}
+
+/** "Left side · Side Plank · set 2": the side first, so it survives a long name being cut. */
+function timerLabel(t: SetTimer) {
+  if (t.phase === 'switch') return 'Switch sides'
+  return (t.sides === 2 ? (t.side === 1 ? 'Left side · ' : 'Right side · ') : '') + t.label
+}
+
+const timerLeft = (t: SetTimer, now: number) => Math.max(0, Math.ceil((t.left ?? t.end - now) / 1000))
+
+/** The rest bar's twin for a running timed set or warm-up line: counts down, pause, cancel, done. */
+function SetTimerBar() {
+  const t = setTimer.value
+  const now = useNow(250)
+  if (!t) return null
+  const left = timerLeft(t, now)
+  const ms = t.left ?? t.end - now
+  const pct = Math.min(100, Math.max(0, (ms / 1000 / t.total) * 100))
+  const paused = t.left != null
+  return (
+    <div class={'rest-bar set-timer' + (t.phase === 'switch' ? ' switch' : '') + (paused ? ' paused' : '')} role="timer" aria-live="off" aria-label={`${timerLabel(t)}: ${fmtClock(left)} left${paused ? ', paused' : ''}`}>
+      <div class="rest-fill" style={{ width: pct + '%' }} />
+      <div class="rest-inner">
+        <button class="rest-btn" onClick={() => (haptic(), cancelSetTimer())} aria-label="Cancel the timer without logging">
+          <Icon name="x" size={20} />
+        </button>
+        <div class="rest-center">
+          <span class="rest-time">{fmtClock(left)}</span>
+          <span class="rest-label">
+            {t.phase === 'switch' && <Icon name="switchSides" size={12} />}
+            {paused ? 'Paused · ' : ''}
+            {timerLabel(t)}
+          </span>
+        </div>
+        <button class="rest-btn" onClick={() => (haptic(), paused ? resumeSetTimer() : pauseSetTimer())} aria-label={paused ? 'Resume' : 'Pause'}>
+          <Icon name={paused ? 'play' : 'pause'} size={20} />
+        </button>
+        <button class="rest-btn skip" onClick={() => (haptic(12), finishSetTimer())} aria-label="Done: log the time held">
+          Done
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** While typing the bar steps aside; this keeps counting in the header. Tap to pause or resume. */
+function TimerPill() {
+  const t = setTimer.value
+  const now = useNow(500)
+  if (!t) return null
+  const paused = t.left != null
+  const left = timerLeft(t, now)
+  return (
+    <button class="rest-pill timer-pill" onClick={() => (paused ? resumeSetTimer() : pauseSetTimer())} aria-label={`${timerLabel(t)}: ${fmtClock(left)}. ${paused ? 'Resume' : 'Pause'}`}>
+      <Icon name={paused ? 'play' : 'timer'} size={14} /> {fmtClock(left)}
     </button>
   )
 }
