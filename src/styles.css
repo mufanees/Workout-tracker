@@ -418,9 +418,25 @@ textarea {
   position: absolute;
   left: 0;
   top: 0;
+  /* drawn with transforms only (base sizes CI and SQ in Goo.tsx), so moves run on the compositor */
+  width: 50px;
+  height: 50px;
+  transform-origin: 0 0;
   border-radius: 50%;
   background: var(--goo-c, var(--accent));
-  will-change: transform;
+}
+.goo-track > .gt-sq,
+.goo-track > .gt-head {
+  width: 100px;
+  height: 100px;
+  border-radius: 0;
+}
+.goo-track > .gt-head {
+  background: none;
+}
+/* the tab pill's filter region hugs the tab bar (#goo-tab) */
+.tab-goo.goo-track {
+  filter: url(#goo-tab);
 }
 /* Goo groups ([data-goo]): the selection is a GooTrack that travels between the options.
    Option backgrounds move to a ::before under the goo; their text stays above it. */
@@ -7610,6 +7626,8 @@ html[data-nav='back']::view-transition-old(screen) {
   pointer-events: none;
   background: var(--bg);
   overflow: hidden;
+  /* sized by router.ts; nothing inside it affects the page's layout */
+  contain: strict;
 }
 
 /* ---------- Accounts ---------- */

@@ -35,7 +35,7 @@ export function setGoo(t: Partial<GooTweaks> | null | undefined) {
   root.classList.toggle('no-motes', !goo.motes)
   root.classList.toggle('no-lava', !goo.lava)
   // filter strength: every goo filter's blur scales with intensity
-  const blur: Record<string, number> = { goo: 7, 'goo-sm': 3.2, 'goo-merge': 8, 'goo-merge-sm': 3, 'goo-merge-lg': 10, 'goo-soft': 14 }
+  const blur: Record<string, number> = { goo: 7, 'goo-sm': 3.2, 'goo-merge': 8, 'goo-merge-sm': 3, 'goo-merge-lg': 10, 'goo-tab': 10, 'goo-soft': 14 }
   for (const [id, base] of Object.entries(blur)) document.querySelector(`#${id} feGaussianBlur`)?.setAttribute('stdDeviation', String(base * goo.intensity))
 }
 
