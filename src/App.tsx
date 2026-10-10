@@ -33,6 +33,25 @@ const TABS = [
   { path: '/coach', label: 'Coach', icon: 'coach' },
 ]
 
+/** The phone's status bar takes the page background (whatever the theme resolved to), not a fixed colour. */
+function syncStatusBar() {
+  const bg = getComputedStyle(document.body).backgroundColor || getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
+  if (!bg) return
+  // One tag without a media query wins over the static light/dark pair in index.html.
+  for (const m of document.querySelectorAll('meta[name="theme-color"][media]')) m.remove()
+  let meta = document.querySelector('meta[name="theme-color"]')
+  if (!meta) {
+    meta = document.createElement('meta')
+    meta.setAttribute('name', 'theme-color')
+    document.head.appendChild(meta)
+  }
+  meta.setAttribute('content', bg)
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark' || (document.documentElement.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+  document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', dark ? 'dark' : 'light')
+}
+// Coming back to the app (the system theme may have flipped while it was away).
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncStatusBar())
+
 export function App() {
   const theme = settings.value.theme
   const accent = settings.value.accent ?? null
@@ -47,12 +66,12 @@ export function App() {
     if (theme === 'system') root.removeAttribute('data-theme')
     else root.setAttribute('data-theme', theme)
     const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b0c0f' : '#f6f6f3')
     applyAccent(accent, dark)
+    syncStatusBar()
     requestAnimationFrame(repaintGoo)
     // follow the system between light and dark when on Auto
     const mq = matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => theme === 'system' && (applyAccent(accent, mq.matches), requestAnimationFrame(repaintGoo))
+    const onChange = () => theme === 'system' && (applyAccent(accent, mq.matches), syncStatusBar(), requestAnimationFrame(repaintGoo))
     mq.addEventListener?.('change', onChange)
     return () => mq.removeEventListener?.('change', onChange)
   }, [theme, accent])
