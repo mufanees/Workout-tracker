@@ -13,8 +13,11 @@ const DUMBBELL = [
   'm9.6 14.4 4.8-4.8',
 ]
 
-/** The icon at 512 × 512. `bg`: draw the dark square (app icons) or leave it clear (favicon). `k`: blob scale. */
-function icon({ bg = true, k = 1 } = {}) {
+/**
+ * The icon at 512 × 512. `bg`: draw the dark square (app icons) or leave it clear (favicon). `k`: blob scale.
+ * `mono`: Android's themed-icon layer: a white blob with the dumbbell cut out (the launcher tints it).
+ */
+function icon({ bg = true, k = 1, mono = false } = {}) {
   const c = (x, y, r) => `<circle cx="${256 + (x - 256) * k}" cy="${256 + (y - 256) * k}" r="${r * k}"/>`
   const lumps = [
     c(248, 258, 146), // body, a little off-centre
@@ -30,6 +33,19 @@ function icon({ bg = true, k = 1 } = {}) {
   ].join('')
   const s = 8.6 * k // dumbbell: 24-unit Lucide icon at about 206 px
   const d = DUMBBELL.map((p) => `<path d="${p}"/>`).join('')
+  const bell = `transform="translate(${250 - 12 * s} ${262 - 12 * s}) scale(${s})" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"`
+  if (mono)
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <filter id="goo" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="${12 * k}"/>
+      <feColorMatrix mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10"/>
+    </filter>
+    <mask id="cut"><rect width="512" height="512" fill="#fff"/><g ${bell} stroke="#000">${d}</g></mask>
+  </defs>
+  <g mask="url(#cut)"><g fill="#fff" filter="url(#goo)">${lumps}</g></g>
+</svg>
+`
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <filter id="goo" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
@@ -47,4 +63,8 @@ function icon({ bg = true, k = 1 } = {}) {
 writeFileSync('design-system/icon/gloop-icon.svg', icon())
 writeFileSync('design-system/icon/gloop-icon-maskable.svg', icon({ k: 0.86 }))
 writeFileSync('public/favicon.svg', icon({ bg: false }))
+// Android adaptive icon layers (108dp canvas; the blob is shrunk into the 66dp safe circle) for
+// android/app/src/main/res/mipmap-*/ic_launcher_{foreground,monochrome}.png (scripts/icon-png.cjs).
+writeFileSync('design-system/icon/gloop-android-foreground.svg', icon({ bg: false, k: 0.68 }))
+writeFileSync('design-system/icon/gloop-android-monochrome.svg', icon({ bg: false, k: 0.68, mono: true }))
 console.log('wrote design-system/icon/*.svg and public/favicon.svg')

@@ -65,6 +65,25 @@ export function fastLiveText(f, now = Date.now()) {
   }
 }
 
+/**
+ * The fasting notification in the Android app, where the elapsed time ticks natively (a
+ * chronometer) and the hours in the status bar are redrawn by the app: so no running clock in the
+ * text, and the "after the goal" wording up front for the app to switch to on its own.
+ * @param {{start: number, goal: number, label?: string, tz?: string, locale?: string}} f
+ */
+export function fastNativeText(f, now = Date.now()) {
+  const goalAt = f.start + f.goal * LIVE_H
+  const label = f.label || `${f.goal} h`
+  const at = liveClock(goalAt, now, f.tz, f.locale)
+  return {
+    title: `Fasting · ${label}`,
+    text: `Goal at ${at}`,
+    doneTitle: `Fasting · ${label} · goal reached`,
+    doneText: `Goal reached at ${at}`,
+    goalAt,
+  }
+}
+
 function liveCanvas(w, h) {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h)
   if (typeof document !== 'undefined') {

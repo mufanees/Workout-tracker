@@ -23,6 +23,7 @@ import { BlockScreen, GoalDetail, GoalsScreen } from './screens/Goal'
 import { DayView } from './screens/Calendar'
 import { Icon } from './ui/icons'
 import { OverlayHost } from './ui/overlay'
+import { nativeBars } from './native'
 import { VideoSheetHost } from './ui/VideoSheet'
 
 const TABS = [
@@ -48,6 +49,7 @@ function syncStatusBar() {
   meta.setAttribute('content', bg)
   const dark = document.documentElement.getAttribute('data-theme') === 'dark' || (document.documentElement.getAttribute('data-theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
   document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', dark ? 'dark' : 'light')
+  nativeBars(dark) // the Android app's bars don't read theme-color
 }
 // Coming back to the app (the system theme may have flipped while it was away).
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && syncStatusBar())

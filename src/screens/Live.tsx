@@ -20,6 +20,7 @@ import { MoveText } from '../ui/MoveList'
 import { hasOwnVideo } from '../videos'
 import { matchPrevious, previousSets } from '../stats'
 import { fmtSecs } from '../timing'
+import { isNative, keepAwake } from '../native'
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now())
@@ -32,6 +33,11 @@ function useNow(ms = 1000) {
 
 function useWakeLock(on: boolean) {
   useEffect(() => {
+    // the Android app keeps the window awake natively (FLAG_KEEP_SCREEN_ON)
+    if (on && isNative) {
+      void keepAwake(true)
+      return () => void keepAwake(false)
+    }
     if (!on || !('wakeLock' in navigator)) return
     let lock: WakeLockSentinel | null = null
     let dead = false

@@ -16,6 +16,8 @@ import { scheduleTrainingReminder } from '../workout'
 import { notifyAllowed, resetLiveDismissed } from '../liveNotify'
 import { connectHR, disconnectHR, hrName, hrStatus, hrSupported, ZONE_COLORS, ZONE_NAMES, zoneRange } from '../hr'
 import type { StoreName } from '../types'
+import { isNative } from '../native'
+import { NativeLiveSettings, PhoneSettings } from './PhoneSettings'
 import { sanitize } from '../validate'
 import { googleClientId } from '../account'
 import { AccountSection, ConnectorLink, PeopleSection } from './Account'
@@ -309,6 +311,8 @@ export function Settings() {
               </>
             )}
           </>
+        ) : isNative ? (
+          <NativeLiveSettings />
         ) : (
           <p class="setting-note">Notifications work in the installed app from your server (Chrome on Android, or Safari on iPhone after Add to Home Screen).</p>
         )}
@@ -316,6 +320,13 @@ export function Settings() {
 
       <h2 class="section-title">Heart rate</h2>
       <HRSettings />
+
+      {isNative && (
+        <>
+          <h2 class="section-title">Phone</h2>
+          <PhoneSettings />
+        </>
+      )}
 
       <h2 class="section-title">Appearance</h2>
       <div class="settings-group">

@@ -8,6 +8,7 @@ import { signal } from '@preact/signals'
 import * as LC from '../shared/liveCoach.mjs'
 import type { LCExercise, LCState, SetPlan } from '../shared/liveCoach.mjs'
 import { QUICK } from '../shared/coachSpec.mjs'
+import { aiPrompt, isNative } from './native'
 import { kindOf } from '../shared/budget.mjs'
 import { active, exMap, routines, settings, updateActive, workouts } from './store'
 import { sessionsByExercise, matchPrevious, previousSets } from './stats'
@@ -516,15 +517,50 @@ interface LMApi {
 
 const withTimeout = <T,>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))])
 
+const ON_DEVICE_SYSTEM = 'You are a strength coach talking to someone mid-workout. Short, specific, plain words, no emojis. Reply with JSON only.'
+
+/** JSON out of a small model's reply (it may wrap it in a code fence or add words around it). */
+function looseJson(raw: string): unknown {
+  const t = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  try {
+    return JSON.parse(t)
+  } catch {
+    const m = t.match(/\{[\s\S]*\}/)
+    if (m)
+      try {
+        return JSON.parse(m[0])
+      } catch {
+        /* fall through */
+      }
+    return { line: t }
+  }
+}
+
+/** The Android app's Gemini Nano (ML Kit), only when already downloaded; null otherwise. */
+async function onDeviceNative(state: Record<string, unknown>): Promise<{ line: string; adjust?: { exercise: string; weight_kg?: number; reps?: number } } | null> {
+  if (!isNative) return null
+  const raw = await aiPrompt({
+    system: ON_DEVICE_SYSTEM,
+    text: `${QUICK.live.prompt(state)}\n\nAnswer with one JSON object matching this schema, nothing else:\n${JSON.stringify(QUICK.live.schema)}`,
+    maxTokens: 160,
+    timeoutMs: 6000,
+  })
+  if (!raw) return null
+  const clean = QUICK.live.clean(looseJson(raw))
+  return clean.line ? clean : null
+}
+
 /** A line from the on-device model, only when it's already downloaded (never starts a download mid-workout). */
 async function onDevice(state: Record<string, unknown>): Promise<{ line: string; adjust?: { exercise: string; weight_kg?: number; reps?: number } } | null> {
+  const native = await onDeviceNative(state).catch(() => null)
+  if (native) return native
   const api = (globalThis as unknown as { LanguageModel?: LMApi }).LanguageModel
   if (!api || typeof api.availability !== 'function') return null
   let session: LMSession | null = null
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
   try {
     if ((await withTimeout(api.availability(), 1500)) !== 'available') return null
-    session = await withTimeout(api.create({ initialPrompts: [{ role: 'system', content: 'You are a strength coach talking to someone mid-workout. Short, specific, plain words, no emojis. Reply with JSON only.' }], signal: ctrl?.signal }), 3000)
+    session = await withTimeout(api.create({ initialPrompts: [{ role: 'system', content: ON_DEVICE_SYSTEM }], signal: ctrl?.signal }), 3000)
     const raw = await withTimeout(session.prompt(QUICK.live.prompt(state), { responseConstraint: QUICK.live.schema, signal: ctrl?.signal }), 5000)
     let out: unknown
     try {

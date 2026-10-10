@@ -15,6 +15,7 @@ import { parseMove } from '../moves'
 import { fmtClock, haptic, timeDose } from '../util'
 import type { Workout } from '../types'
 import '../cardio.css'
+import { isNative, keepAwake } from '../native'
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now())
@@ -28,6 +29,11 @@ function useNow(ms = 1000) {
 // Same as the workout screen's: Bluetooth stops when the screen turns off.
 function useWakeLock(on: boolean) {
   useEffect(() => {
+    // the Android app keeps the window awake natively (FLAG_KEEP_SCREEN_ON)
+    if (on && isNative) {
+      void keepAwake(true)
+      return () => void keepAwake(false)
+    }
     if (!on || !('wakeLock' in navigator)) return
     let lock: WakeLockSentinel | null = null
     let dead = false

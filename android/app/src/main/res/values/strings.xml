@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gloop</string>
+    <string name="title_activity_main">Gloop</string>
+    <string name="package_name">my.novas.gloop</string>
+    <string name="custom_url_scheme">my.novas.gloop</string>
+</resources>

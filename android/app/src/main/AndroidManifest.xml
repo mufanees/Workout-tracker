@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- Holds the heart-rate strap's Bluetooth connection with the screen off. -->
+        <service
+            android:name=".HrService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|health" />
+
+        <!-- Timer alarms and the fasting notification's hourly redraw (explicit intents only). -->
+        <receiver
+            android:name=".LiveReceiver"
+            android:exported="false" />
+
+        <!-- Puts the running fast back in the shade after a reboot or an app update. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Heart-rate strap (Bluetooth LE). Android 12+: "Nearby devices"; 11 and older: location to scan. -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Foreground service for heart rate (Android 14+ needs the typed permissions). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+
+    <!-- Live notifications, timer and zone alerts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Rest and set timers that fire on time with the screen locked. 13+: granted at install
+         (Gloop is a timer app); 12: the user allows "Alarms & reminders". -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+
+    <!-- Lets Settings → Phone ask to run unrestricted, so long heart-rate sessions aren't cut off. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+</manifest>

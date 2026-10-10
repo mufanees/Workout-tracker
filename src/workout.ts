@@ -9,6 +9,7 @@ import { navigate } from './router'
 import { confirmDialog } from './ui/overlay'
 import { planStatus } from './plan'
 import { cancelPush, schedulePush } from './push'
+import { nativeTimer } from './native'
 import { quoteOfTheDay } from './ui/Quote'
 import { mergeLines, mobilityDay, moveDose } from './mobility'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
@@ -338,10 +339,20 @@ export function logLine(key: string, on: boolean, at = Date.now()) {
 }
 
 // The server sends "rest is over" a moment after the end, so it only shows if the app didn't beep itself.
+// In the Android app an exact alarm does the same job (it stays quiet while Gloop is on screen),
+// with a countdown in the notification shade while the rest runs.
 function pushRest() {
   const r = restTimer.value
-  if (r) schedulePush('rest', r.end + 2500, 'Rest is over', `Next: ${r.label}`)
-  else cancelPush('rest')
+  if (r) {
+    schedulePush('rest', r.end + 2500, 'Rest is over', `Next: ${r.label}`)
+    nativeTimer('rest', r.end, 'Rest is over', `Next: ${r.label}`, { title: 'Resting', text: `Next: ${r.label}` })
+  } else cancelRestAlarm()
+}
+
+/** Call off the end-of-rest / set-timer alert (server push and the app's alarm + countdown). */
+function cancelRestAlarm() {
+  cancelPush('rest')
+  nativeTimer('rest', null)
 }
 
 export function adjustRest(delta: number) {
@@ -356,7 +367,7 @@ export function adjustRest(delta: number) {
 }
 
 export function stopRest() {
-  if (restTimer.value) cancelPush('rest')
+  if (restTimer.value) cancelRestAlarm()
   restTimer.value = null
   endRestRun(Date.now())
   if (restTick) clearTimeout(restTick)
@@ -378,7 +389,7 @@ export function armRest() {
       /* no vibration */
     }
     // We're on screen and already beeped, so the server's notification isn't needed.
-    if (document.visibilityState === 'visible') cancelPush('rest')
+    if (document.visibilityState === 'visible') cancelRestAlarm()
   }, Math.max(0, r.end - Date.now()))
 }
 
@@ -474,7 +485,7 @@ export function cancelSetTimer() {
   timerTick = null
   if (setTimer.value) {
     setTimer.value = null
-    cancelPush('rest')
+    cancelRestAlarm()
   }
 }
 
@@ -497,9 +508,10 @@ export function finishSetTimer() {
 // One push for the very end (the server sends it only if the app didn't beep on screen).
 function pushSetTimer() {
   const t = setTimer.value
-  if (!t || t.left != null) return cancelPush('rest')
+  if (!t || t.left != null) return cancelRestAlarm()
   const rest = t.phase === 'work' && t.side === 1 && t.sides === 2 ? (SWITCH_SECS + t.secs) * 1000 : t.phase === 'switch' ? t.secs * 1000 : 0
   schedulePush('rest', t.end + rest + 2500, 'Time’s up', t.label)
+  nativeTimer('rest', t.end + rest, 'Time’s up', t.label, { title: t.label, text: t.sides === 2 ? 'Both sides' : 'Set timer' })
 }
 
 /** Move through side 1 → switch → side 2 → done as the clock passes each end. */
@@ -524,7 +536,7 @@ function advanceSetTimer() {
         vibrate([200, 100, 200])
       }
       // on screen and beeped, so the server's notification isn't needed
-      if (document.visibilityState === 'visible') cancelPush('rest')
+      if (document.visibilityState === 'visible') cancelRestAlarm()
       // it ran out at its scheduled end, even if the page was frozen then
       timerDone?.(t, t.secs, t.end)
       return

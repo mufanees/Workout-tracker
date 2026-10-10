@@ -9,13 +9,18 @@
 // every 15 minutes (server/push.mjs, job key `fast-live`), whose text the service worker refreshes.
 // Without a service worker or notification permission (the Claude app's web view) everything here
 // quietly does nothing.
+//
+// In the Android app (src/native.ts) the same calls go to the native LiveNotification plugin:
+// truly ongoing notifications, the elapsed time ticking natively (also with Gloop closed), the
+// number drawn into the status-bar icon, and no server pushes needed.
 import { effect } from '@preact/signals'
 import { activeFast, settings } from './store'
 import { protocolLabel } from './fasting'
 import { cancelPush, pushOn, schedulePush } from './push'
 import { ZONE_COLORS } from './hr'
 import { navigate } from './router'
-import { fastLiveText, liveBadgeCanvas, liveIconCanvas, liveDataUrl, LIVE_FAST_COLOR } from '../shared/live.mjs'
+import { fastLiveText, fastNativeText, liveBadgeCanvas, liveIconCanvas, liveDataUrl, LIVE_FAST_COLOR } from '../shared/live.mjs'
+import { isNative, liveAlert, liveClear, liveShow, onNotificationOpen } from './native'
 
 const TAG_FAST = 'gloop-fast'
 const TAG_HR = 'gloop-live-hr'
@@ -138,7 +143,38 @@ function fastOn() {
   return settings.value.liveFast !== false
 }
 
+let nativeFastSig = ''
+/** The app's fasting notification: posted once per fast/goal change; the app keeps its clock and hours current. */
+function renderFastNative() {
+  const f = activeFast.value
+  if (!f || !fastOn()) {
+    if (nativeFastSig !== 'off') void liveClear('fast')
+    nativeFastSig = 'off'
+    return
+  }
+  const t = fastNativeText({ start: f.start, goal: f.goal, label: protocolLabel(f.goal), locale: navigator.language })
+  const sig = `${f.id}|${f.start}|${f.goal}|${t.text}`
+  if (sig === nativeFastSig) return
+  nativeFastSig = sig
+  const now = fastLiveText({ start: f.start, goal: f.goal })
+  void liveShow({
+    kind: 'fast',
+    title: t.title,
+    text: t.text,
+    doneTitle: t.doneTitle,
+    doneText: t.doneText,
+    goalAt: t.goalAt,
+    chronometerBase: f.start,
+    hourly: true,
+    number: String(now.hours),
+    progress: now.progress,
+    color: LIVE_FAST_COLOR,
+    path: '/fast',
+  })
+}
+
 async function renderFast() {
+  if (isNative) return renderFastNative()
   const f = activeFast.value
   if (!f || !fastOn() || !notifyAllowed()) return closeTag(TAG_FAST)
   const d = await readFastDismissed()
@@ -176,6 +212,7 @@ function armFastTimer() {
 
 /** Server pushes that refresh the notification while the app isn't running. */
 async function syncFastPush() {
+  if (isNative) return // the app's notification updates itself; no pushes reach the app anyway
   const f = activeFast.value
   const on = !!f && fastOn() && pushOn.value
   const d = f ? await readFastDismissed() : null
@@ -260,6 +297,36 @@ export function hrText(s: LiveHRState) {
   return { title, body }
 }
 
+/** The app's heart-rate notification (also what its foreground service shows): every update, no swipe-away. */
+function renderHRNative() {
+  const s = hrState
+  if (!s || settings.value.liveHR === false) {
+    if (hrShowing) void liveClear('hr')
+    hrShowing = false
+    return
+  }
+  hrShowing = true
+  hrShownAt = Date.now()
+  hrShownZone = s.zone
+  const { title } = hrText(s)
+  // the clock is the notification's own (it keeps ticking while the page is frozen)
+  let text = s.phase || 'Recording'
+  if (s.target && s.zone && s.bpm != null) {
+    if (s.inZone || s.zone === s.target) text = ['In zone', s.phase].filter(Boolean).join(' · ')
+    else if (s.zone < s.target) text = `Below zone ${s.target} · pick it up`
+    else text = `Above zone ${s.target} · ease off`
+  }
+  void liveShow({
+    kind: 'hr',
+    title,
+    text,
+    chronometerBase: Date.now() - s.elapsedSec * 1000,
+    ...(s.bpm != null ? { number: String(s.bpm) } : {}),
+    color: s.zone ? ZONE_COLORS[s.zone - 1] : '#7f8ba3',
+    path: '/live',
+  })
+}
+
 function hrWanted() {
   return !!hrState && settings.value.liveHR !== false && notifyAllowed() && !hrDismissed && (hidden() || settings.value.liveHRVisible === true)
 }
@@ -267,6 +334,7 @@ function hrWanted() {
 async function renderHR() {
   if (hrTimer) clearTimeout(hrTimer)
   hrTimer = null
+  if (isNative) return renderHRNative()
   const s = hrState
   if (!s || !hrWanted()) {
     if (hrShowing) {
@@ -305,12 +373,20 @@ export function liveHR(state: LiveHRState | null) {
     hrShownZone = null
     if (hrTimer) clearTimeout(hrTimer)
     hrTimer = null
+    if (isNative && hrShowing) void liveClear('hr')
     hrShowing = false
     void closeTag(TAG_HR)
     void closeTag(TAG_ALERT)
     return
   }
   hrState = state
+  if (isNative) {
+    // the status-bar number follows the strap closely; the native side copes with the rate
+    const since = Date.now() - hrShownAt
+    if (!hrShowing || state.zone !== hrShownZone || since >= 2000) void renderHR()
+    else if (!hrTimer) hrTimer = setTimeout(() => void renderHR(), 2000 - since)
+    return
+  }
   if (!hrWanted()) {
     if (hrShowing) void renderHR()
     return
@@ -323,6 +399,15 @@ export function liveHR(state: LiveHRState | null) {
 let alertAt = 0
 /** An alerting notification (vibrates) while Gloop is in the background, at most once a minute. */
 export function zoneAlert(text: string) {
+  if (isNative) {
+    if (!hidden()) return
+    const now = Date.now()
+    if (now - alertAt < 60000) return
+    alertAt = now
+    const s = hrState
+    void liveAlert(text, s?.bpm != null ? `${s.bpm} bpm now${s.target ? ` · aim for zone ${s.target}` : ''}` : 'Open Gloop to see your heart rate', s?.bpm != null ? String(s.bpm) : undefined)
+    return
+  }
   if (!hidden() || !notifyAllowed()) return
   const now = Date.now()
   if (now - alertAt < 60000) return
@@ -351,6 +436,7 @@ let started = false
 export function startLiveNotifications() {
   if (started) return
   started = true
+  if (isNative) void onNotificationOpen(navigate)
   // fast started, ended or edited (here or synced from another device), switch flipped, push on/off
   effect(() => {
     void activeFast.value

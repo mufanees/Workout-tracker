@@ -4,6 +4,10 @@ export function fastLiveText(
   f: { start: number; goal: number; label?: string; tz?: string; locale?: string },
   now?: number,
 ): { title: string; body: string; hours: number; progress: number; done: boolean }
+export function fastNativeText(
+  f: { start: number; goal: number; label?: string; tz?: string; locale?: string },
+  now?: number,
+): { title: string; text: string; doneTitle: string; doneText: string; goalAt: number }
 export function liveBadgeCanvas(text: string | number): AnyCanvas | null
 export function liveIconCanvas(text: string | number, label: string, color: string, progress?: number): AnyCanvas | null
 export function liveDataUrl(c: AnyCanvas | null): Promise<string | null>

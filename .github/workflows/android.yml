@@ -1,0 +1,105 @@
+# Builds the Gloop Android app (Capacitor wrapper around https://gloop.novas.my plus native
+# plugins) into an installable APK, uploaded as the `gloop-android` artifact.
+# Debug builds are signed with the committed android/app/debug.keystore so each one installs over
+# the last. A release APK is built too when the signing secrets exist:
+# ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+name: Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'src/native.ts'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Android SDK packages
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install
+        run: npm ci
+
+      # webDir (dist) is only the fallback the app ships; the app itself loads the live site.
+      - name: Build the web app
+        run: npm run build
+
+      - name: Capacitor sync
+        run: npx cap sync android
+
+      # ML Kit GenAI Prompt is a beta artifact: if it can't be resolved or its API moved, build
+      # again without on-device AI (the plugin then reports 'unavailable') rather than fail.
+      - name: Debug APK
+        id: debug
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if ./gradlew assembleDebug --stacktrace; then
+            echo "genai=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Build with ML Kit GenAI failed; building without on-device AI (-Pgloop.genai=false)"
+            ./gradlew assembleDebug -Pgloop.genai=false --stacktrace
+            echo "genai=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Release APK
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          ./gradlew assembleRelease -Pgloop.genai=${{ steps.debug.outputs.genai }} --stacktrace
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Name the APKs
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/gloop-${{ github.run_number }}-debug.apk"
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "out/gloop-${{ github.run_number }}-release.apk"
+          fi
+          echo "On-device AI in this build: ${{ steps.debug.outputs.genai }}" > out/BUILD.txt
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gloop-android
+          path: out/
+          if-no-files-found: error
+          retention-days: 30

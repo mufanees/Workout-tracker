@@ -94,7 +94,46 @@ Each person's data lives in its own SQLite file (`/data/users/<id>.db`; yours st
 
 Heart rate uses Web Bluetooth, which works in **Chrome on Android** (and desktop Chrome/Edge). iPhone browsers don't support it.
 
-Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rate), pick your strap, and it reconnects on its own after that. Readings are stored every 5 seconds with the workout. Zones are editable in Settings; the default puts zone 2 at 120–145 bpm. Keep the screen on during cardio (the app asks for this by default): Android pauses Bluetooth for web apps when the screen is off.
+Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rate), pick your strap, and it reconnects on its own after that. Readings are stored every 5 seconds with the workout. Zones are editable in Settings; the default puts zone 2 at 120–145 bpm. Keep the screen on during cardio (the app asks for this by default): Android pauses Bluetooth for web apps when the screen is off. The Android app (below) doesn't have that limit.
+
+## Android app
+
+An Android app (Capacitor 8) wraps the same site: it opens https://gloop.novas.my in a WebView, so every web deploy updates the app too, and adds native plugins for the things a web app can't do well on Android. The source is in `android/` and `capacitor.config.ts`; the bridge on the web side is `src/native.ts`. In a normal browser nothing changes.
+
+**What's native, what's web**
+
+| | In the app | In the browser / installed PWA |
+|---|---|---|
+| Heart rate strap | Android Bluetooth in a foreground service: keeps recording with the screen off or Gloop in the background, reconnects on its own, hands the page what it missed (with timestamps) when you come back, and keeps zone alerts going while the page is frozen | Web Bluetooth while the screen is on |
+| Notifications | Truly ongoing (can't be swiped away while running); the elapsed time ticks natively; **the number (bpm, or hours fasted) is drawn into the status-bar icon**; the fast stays in the shade with Gloop closed and comes back after a reboot | Web notifications, refreshed by the page and server pushes; swipeable |
+| Rest and set timers | Exact alarms: sound and vibration with the phone locked, plus a countdown in the shade | Server push a moment after the end |
+| Screen on during workouts | Window flag | Wake Lock API |
+| On-device AI line in the live coach | Gemini Nano through ML Kit's GenAI Prompt API (Pixel 10 and other supported phones), once downloaded in Settings → Phone | Chrome's built-in model, if present |
+| Everything else (logging, sync, coach, fasting, history) | The website | The website |
+
+Server pushes (training-day reminder, eating window, weekly review) don't reach the app yet: the WebView has no web push. Use the installed PWA for those, or ask for a native version.
+
+**Install it (Android)**
+
+1. GitHub → **Actions → Android** → the latest green run → **Artifacts → gloop-android** (download on the phone, or on a computer and copy it over). It's a zip with `gloop-<n>-debug.apk` (and `-release.apk` when signing secrets are set); `BUILD.txt` says whether on-device AI is in that build.
+2. Open the APK. Android asks to allow **Install unknown apps** for the app you opened it from (Files or Chrome): allow it, go back, **Install**. Play Protect may warn about an unknown developer: **More details → Install anyway**.
+3. Later builds install over the old one and keep your data, because every debug build is signed with the same key (`android/app/debug.keystore`). That key is committed on purpose: it's a debug key, public by design, and gives no access to anything. Don't use it for a store release.
+4. First run: sign in or paste the sync key as on the web (the app has its own storage, so connect it once). The Google sign-in button may not work inside the app (Google blocks sign-in in embedded web views); use the sync key there.
+
+**Permissions, first run**
+
+- **Nearby devices** (Bluetooth scan/connect): asked the first time you tap **Connect heart rate**. A native list shows the straps it finds; the one you pick is remembered and reconnected without the list next time (Disconnect in Settings forgets it).
+- **Notifications**: asked with the strap, or from **Settings → Phone**.
+- **Alarms & reminders** (exact alarms): granted at install on Android 13+; on Android 12 allow it from Settings → Phone.
+- **Run in the background** (battery optimisation exemption): **Settings → Phone → Run in the background → Allow**. Strongly recommended for heart rate with the screen off: without it Android may stop the strap service during long sessions.
+
+**Settings → Phone** (only in the app) shows each of these with a button to fix it, and the on-device AI state with a **Download** button (about a gigabyte; it never downloads mid-workout).
+
+**Builds (CI)**: `.github/workflows/android.yml` runs on pushes to `main` that touch `android/**`, `capacitor.config.ts`, `src/native.ts` or the workflow, and on **Run workflow**. JDK 21, Android SDK 36, `npm ci`, web build, `npx cap sync android`, `./gradlew assembleDebug`. ML Kit GenAI is a beta artifact: if the build with it fails, CI builds again with `-Pgloop.genai=false` (the app then says on-device AI is unavailable) instead of failing. For a release APK add the repository secrets `ANDROID_KEYSTORE_BASE64` (`base64 -w0 release.jks`), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. A release-signed APK can't install over a debug one (different key): uninstall first, once.
+
+Local build (needs JDK 21 and the Android SDK): `npm run build && npx cap sync android && cd android && ./gradlew assembleDebug` → `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+**iPhone (next phase, not built)**: Capacitor iOS around the same site, with native plugins for Bluetooth heart rate in the background, a **Live Activity** (lock screen and Dynamic Island) for the fast, rest timer and heart rate, local notifications for timers, and **Apple Foundation Models** for the on-device coach line. Testers would install through **TestFlight**, which needs an Apple Developer account (99 USD a year) and a Mac with Xcode (or a cloud Mac in CI).
 
 ## Warm-ups and videos
 
@@ -257,6 +296,9 @@ server/mcp.mjs           MCP endpoint (plan import + read tools)
 shared/planImport.mjs    plan JSON → routines, exercise name matching (used by app and server)
 src/data/                exercise library (curated + free-exercise-db, public domain)
 src/hr.ts                Bluetooth heart rate, zones, recording
+src/native.ts            the Android app's native plugins (no-op in a browser)
+android/                 Capacitor Android project; Kotlin plugins in app/src/main/java/my/novas/gloop/
+capacitor.config.ts      the app loads https://gloop.novas.my
 src/store.ts             in-memory state (signals) + IndexedDB writes
 src/sync.ts              push/pull sync with the server
 src/seed.ts              exercise library and the Comeback plan routines

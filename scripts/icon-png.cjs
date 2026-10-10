@@ -6,6 +6,11 @@ const out = [
   ['design-system/icon/gloop-icon.svg', 'public/icon-192.png', 192],
   ['design-system/icon/gloop-icon.svg', 'public/apple-touch-icon.png', 180],
   ['design-system/icon/gloop-icon-maskable.svg', 'public/icon-maskable-512.png', 512],
+  // Android adaptive icon layers: 108dp at each density
+  ...[['mdpi', 108], ['hdpi', 162], ['xhdpi', 216], ['xxhdpi', 324], ['xxxhdpi', 432]].flatMap(([d, size]) => [
+    ['design-system/icon/gloop-android-foreground.svg', `android/app/src/main/res/mipmap-${d}/ic_launcher_foreground.png`, size],
+    ['design-system/icon/gloop-android-monochrome.svg', `android/app/src/main/res/mipmap-${d}/ic_launcher_monochrome.png`, size],
+  ]),
 ]
 ;(async () => {
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' })

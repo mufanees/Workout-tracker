@@ -2,9 +2,11 @@
 // and training-day reminders. Needs the installed app with its service worker (not the Claude-hosted copy).
 import { signal } from '@preact/signals'
 import { getToken } from './sync'
+import { isNative } from './native'
 
 const FLAG = 'reps-push'
-export const pushSupported = typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+// Not in the Android app: its WebView has no web push, and the app posts its own notifications (src/native.ts).
+export const pushSupported = !isNative && typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 export const pushOn = signal(readFlag())
 
 function readFlag() {

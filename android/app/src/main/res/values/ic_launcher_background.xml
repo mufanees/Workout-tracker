@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gloop's dark background (--bg in src/styles.css) -->
+    <color name="ic_launcher_background">#0B0C0F</color>
+    <color name="gloop_bg">#0B0C0F</color>
+    <color name="gloop_lime">#C6F432</color>
+</resources>

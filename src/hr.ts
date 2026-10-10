@@ -1,11 +1,14 @@
 // Bluetooth heart rate (standard BLE Heart Rate Service 0x180D, which the Garmin HRM-Dual broadcasts).
 // Uses Web Bluetooth: Chrome on Android, desktop Chrome/Edge. Not available in iOS browsers.
+// In the Android app (src/native.ts) the strap goes through the native HeartRate plugin instead: a
+// foreground service keeps recording with the screen off and hands over what the page missed.
 import { signal, computed } from '@preact/signals'
 import { active, settings, updateActive } from './store'
 import { haptic } from './util'
 import { cardioPhase, PHASE_NAMES } from './cardio'
 import type { Workout } from './types'
 import { liveHR, zoneAlert as notifyZone, type LiveHRState } from './liveNotify'
+import { isNative, nativeHR, type NativeHRSample, type NativeHRStatus } from './native'
 
 /* Minimal Web Bluetooth typings (not in TypeScript's DOM lib). */
 interface BTChar extends EventTarget {
@@ -30,7 +33,7 @@ interface BT {
 }
 const bt = (): BT | undefined => (navigator as unknown as { bluetooth?: BT }).bluetooth
 
-export const hrSupported = typeof navigator !== 'undefined' && !!bt()
+export const hrSupported = typeof navigator !== 'undefined' && (isNative || !!bt())
 
 export type HRStatus = 'off' | 'connecting' | 'connected' | 'reconnecting'
 export const hrStatus = signal<HRStatus>('off')
@@ -85,6 +88,11 @@ function onMeasurement(e: Event) {
   const v = (e.target as BTChar).value
   if (!v) return
   const { hr, rr } = parseMeasurement(v)
+  onBeat(hr, rr)
+}
+
+/** One measurement as it arrives (Web Bluetooth or the native plugin, live). */
+function onBeat(hr: number, rr: number[]) {
   if (hr > 0 && hr < 250) {
     bpm.value = hr
     lastBeatAt = Date.now()
@@ -156,6 +164,7 @@ function scheduleRetry() {
 
 /** Ask the user to pick a strap (must be called from a tap). */
 export async function connectHR(): Promise<boolean> {
+  if (isNative) return connectNative()
   const b = bt()
   if (!b) return false
   wantConnected = true
@@ -172,6 +181,7 @@ export async function connectHR(): Promise<boolean> {
 }
 
 export function disconnectHR() {
+  if (isNative) void nativeHR().then((n) => n?.p.disconnect().catch(() => undefined))
   wantConnected = false
   if (retry) clearTimeout(retry)
   device?.gatt?.disconnect()
@@ -187,6 +197,7 @@ export function disconnectHR() {
 
 /** Reconnect to the last strap without the picker, where the browser allows it. */
 export async function reconnectSaved() {
+  if (isNative) return reconnectNative()
   const b = bt()
   let id: string | null = null
   try {
@@ -211,6 +222,204 @@ export async function reconnectSaved() {
   } catch {
     hrStatus.value = 'off'
   }
+}
+
+// ---- the Android app's native strap -------------------------------------------------
+
+let nativeSeq = 0 // the last native sample this page has taken in
+let nativeInit: Promise<boolean> | null = null
+
+const savedId = () => {
+  try {
+    return localStorage.getItem(DEVICE_KEY)
+  } catch {
+    return null
+  }
+}
+const saveId = (id: string, name: string) => {
+  try {
+    localStorage.setItem(DEVICE_KEY, id)
+    localStorage.setItem(DEVICE_KEY + '-name', name)
+  } catch {
+    /* storage blocked */
+  }
+}
+
+function onNativeStatus(s: NativeHRStatus) {
+  if (s.name) hrName.value = s.name
+  if (s.state === 'off') {
+    bpm.value = null
+    hrStatus.value = 'off'
+    return
+  }
+  hrStatus.value = s.state
+  if (s.state !== 'connected') bpm.value = null
+}
+
+function onNativeSample(s: NativeHRSample) {
+  if (s.seq <= nativeSeq) return
+  // a gap, or an old one: take it as a batch (recorded at its own time)
+  if (s.seq > nativeSeq + 1 || Date.now() - s.at > 3000) return ingestNative([s])
+  nativeSeq = s.seq
+  onBeat(s.bpm, s.rr)
+}
+
+/**
+ * Samples the page missed (frozen in the background, or reloaded): merged into the active
+ * workout at their own times, 5 s apart, never on top of samples it already has.
+ */
+export function ingestNative(list: NativeHRSample[]) {
+  const fresh = list.filter((s) => s.seq > nativeSeq).sort((a, b) => a.seq - b.seq)
+  if (!fresh.length) return
+  nativeSeq = fresh[fresh.length - 1].seq
+  const w = active.value
+  if (w) {
+    const have = (w.hr || []).map((x) => x[0])
+    const add: [number, number][] = []
+    for (const s of fresh) {
+      const sec = Math.round((s.at - w.start) / 1000)
+      if (sec < 0 || s.at > Date.now() + 1000 || s.bpm <= 0 || s.bpm >= 250) continue
+      if (have.some((t) => Math.abs(t - sec) < 5) || add.some((x) => Math.abs(x[0] - sec) < 5)) continue
+      add.push([sec, s.bpm])
+    }
+    if (add.length)
+      updateActive((x) => {
+        x.hr = [...(x.hr || []), ...add].sort((a, b) => a[0] - b[0])
+      })
+  }
+  const latest = fresh[fresh.length - 1]
+  if (Date.now() - latest.at < 6000) {
+    bpm.value = latest.bpm
+    lastBeatAt = latest.at
+  }
+}
+
+async function drainNative() {
+  const n = await nativeHR()
+  if (!n) return
+  try {
+    ingestNative((await n.p.drain({ after: nativeSeq })).samples)
+  } catch {
+    /* plugin missing */
+  }
+}
+
+/** Listen to the plugin once; true when it's there. */
+function initNative(): Promise<boolean> {
+  nativeInit ||= (async () => {
+    const n = await nativeHR()
+    if (!n) return false
+    try {
+      await n.p.addListener('hr', onNativeSample)
+      await n.p.addListener('hrBatch', (b) => ingestNative(b.samples || []))
+      await n.p.addListener('status', onNativeStatus)
+    } catch {
+      return false
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && hrStatus.value !== 'off') void drainNative()
+    })
+    return true
+  })()
+  return nativeInit
+}
+
+/** Wait (up to `ms`) for the strap to connect. */
+function connectedWithin(ms: number) {
+  return new Promise<boolean>((resolve) => {
+    if (hrStatus.value === 'connected') return resolve(true)
+    const stop = hrStatus.subscribe((s) => {
+      if (s !== 'connected') return
+      clearTimeout(t)
+      queueMicrotask(() => stop())
+      resolve(true)
+    })
+    const t = setTimeout(() => {
+      stop()
+      resolve(false)
+    }, ms)
+  })
+}
+
+/** Connect in the app: the remembered strap straight away, else (or if it doesn't show up) the native picker. */
+async function connectNative(): Promise<boolean> {
+  if (!(await initNative())) return false
+  const n = (await nativeHR())!
+  wantConnected = true
+  hrStatus.value = 'connecting'
+  const id = savedId()
+  try {
+    if (id) {
+      hrName.value = (() => {
+        try {
+          return localStorage.getItem(DEVICE_KEY + '-name') || 'Heart rate monitor'
+        } catch {
+          return 'Heart rate monitor'
+        }
+      })()
+      await n.p.connect({ deviceId: id, name: hrName.value })
+      if (await connectedWithin(15000)) return true
+      // not around (another strap now?): stop looking and let them choose
+      await n.p.disconnect().catch(() => undefined)
+    }
+    const d = await n.p.pick()
+    hrName.value = d.name || 'Heart rate monitor'
+    saveId(d.id, hrName.value)
+    hrStatus.value = 'connecting'
+    await n.p.connect({ deviceId: d.id, name: hrName.value })
+    return await connectedWithin(20000)
+  } catch (e) {
+    const code = (e as { code?: string })?.code
+    if (code && code !== 'cancelled') console.warn(e)
+    const st = await n.p.status().catch(() => null)
+    if (st) onNativeStatus(st)
+    else hrStatus.value = 'off'
+    return false
+  }
+}
+
+/** At start-up in the app: take over a strap the service still holds, and what it recorded meanwhile. */
+async function reconnectNative() {
+  if (!(await initNative())) return
+  const n = (await nativeHR())!
+  try {
+    const st = await n.p.status()
+    if (st.running && st.state !== 'off') {
+      wantConnected = true
+      onNativeStatus(st)
+      await drainNative()
+      return
+    }
+    // a workout was running when the app went away: reconnect its strap (no picker)
+    const id = savedId()
+    if (id && active.value) {
+      wantConnected = true
+      hrStatus.value = 'reconnecting'
+      await n.p.connect({ deviceId: id, name: localStorage.getItem(DEVICE_KEY + '-name') || undefined })
+    }
+  } catch {
+    /* plugin missing or permission gone: stays off */
+  }
+}
+
+let nativeCfg = ''
+/** Zones, target and quiet periods for the service (it alerts and updates the shade while the page is frozen). */
+function configureNative(w: Workout | null) {
+  if (!isNative) return
+  const target = w ? targetOf(w) : null
+  const pause = w ? alertPause(w) : null
+  const cfg = {
+    zones: [...settings.value.hrZones],
+    target,
+    startedAt: w?.start ?? null,
+    quietUntil: pause?.reason === 'warmup' ? pause.until : null,
+    quietFrom: w?.cardio?.cooldownStart ?? null,
+    alerts: !!target,
+  }
+  const sig = JSON.stringify(cfg)
+  if (sig === nativeCfg) return
+  nativeCfg = sig
+  void nativeHR().then((n) => n?.p.configure(cfg).catch(() => undefined))
 }
 
 // ---- recording + target zone alerts -------------------------------------------
@@ -246,6 +455,7 @@ let liveSent = false
 /** Tell the live notification where heart rate is (every sample, zone change, phase change); null once it's over. */
 export function pushLiveHR() {
   const w = active.value
+  configureNative(w && hrStatus.value !== 'off' ? w : null)
   if (!w || hrStatus.value === 'off') {
     if (liveSent) liveHR(null)
     liveSent = false
