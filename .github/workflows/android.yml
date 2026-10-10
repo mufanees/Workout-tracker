@@ -42,6 +42,9 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+        with:
+          # its default list includes the retired 'tools' package, which now fails
+          packages: 'platform-tools'
 
       - name: Android SDK packages
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
