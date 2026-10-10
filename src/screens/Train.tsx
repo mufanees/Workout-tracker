@@ -14,7 +14,7 @@ import { Toggle } from '../ui/inputs'
 import { catalog, followOwnProgram, startCatalogProgram } from '../programs'
 import { PLAN_FOLDER } from '../seed'
 import { COMEBACK_PHASE_FOLDERS } from '../validate'
-import { FastWidget } from '../ui/Fasting'
+import { FastStartCard, FastWidget } from '../ui/Fasting'
 import type { Routine } from '../types'
 import { uid, startOfWeek } from '../util'
 import { SyncBadge } from './Settings'
@@ -35,6 +35,7 @@ import { Lava } from '../ui/Goo'
 export const HOME_SECTIONS: { id: string; label: string; hint?: string }[] = [
   { id: 'rings', label: 'Today’s rings' },
   { id: 'fast', label: 'Current fast', hint: 'Shows while a fast is running' },
+  { id: 'fastStart', label: 'Start a fast', hint: 'Shows when you’re not fasting' },
   { id: 'checkin', label: 'Morning check-in', hint: 'Until you’ve answered it' },
   { id: 'goal', label: 'Goals' },
   { id: 'block', label: 'Training block' },
@@ -72,6 +73,8 @@ export function Train() {
         return <TodayRings />
       case 'fast':
         return <FastWidget />
+      case 'fastStart':
+        return <FastStartCard />
       case 'checkin':
         return <CheckinCard />
       case 'goal':

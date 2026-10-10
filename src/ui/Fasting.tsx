@@ -5,7 +5,7 @@ import { activeFast, fasts, remove, saveFast, saveSettings, settings } from '../
 import type { Fast } from '../types'
 import { cancelPush } from '../push'
 import { navigate } from '../router'
-import { HOUR, PROTOCOLS, STAGES, endFast, fastNeighbours, fastTimesError, hm, protocolLabel, saveFastEdit, stageAt } from '../fasting'
+import { HOUR, PROTOCOLS, STAGES, endFast, startFast, fastNeighbours, fastTimesError, hm, protocolLabel, saveFastEdit, stageAt } from '../fasting'
 import { fmtDay, fmtTime, startOfDay, uid } from '../util'
 import { ClockPicker } from './Clock'
 import { Icon } from './icons'
@@ -515,6 +515,39 @@ export function FastWidget() {
       <button class="btn btn-secondary btn-block" onClick={end}>
         End fast
       </button>
+    </section>
+  )
+}
+
+/** Home card when no fast is running: start one in a tap, on your plan (tap the plan to change it). */
+export function FastStartCard() {
+  const [plans, setPlans] = useState(false)
+  const now = useNow(60000)
+  if (activeFast.value) return null
+  const goal = settings.value.fastGoal
+  const lastEnd = fasts.value.find((x) => x.end != null)?.end ?? null
+  const start = async () => {
+    await startFast(Date.now(), goal)
+    toast(`Fast started · goal at ${fmtTime(Date.now() + goal * HOUR)}`)
+  }
+  return (
+    <section class="fast-start">
+      <div class="fs-text">
+        <span class="eyebrow">
+          <Icon name="fast" size={14} /> Fasting
+        </span>
+        <span class="fs-line">{lastEnd ? `Eating for ${hm(Math.max(0, now - lastEnd))}` : 'Not fasting'}</span>
+      </div>
+      <button class="fs-plan" onClick={() => setPlans(true)} aria-label={`Plan ${protocolLabel(goal)}. Change`}>
+        {protocolLabel(goal)} <Icon name="down" size={14} />
+      </button>
+      <button class="btn btn-primary fs-go" onClick={start}>
+        <Icon name="play" size={16} /> Start fast
+      </button>
+      <button class="fs-earlier" onClick={() => navigate('/fast')}>
+        Started earlier?
+      </button>
+      <ProtocolSheet open={plans} value={goal} onPick={(g) => void saveSettings({ fastGoal: g })} onClose={() => setPlans(false)} />
     </section>
   )
 }
