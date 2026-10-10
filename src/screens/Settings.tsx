@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
+import { Collapse } from '../ui/Collapse'
 import { settings, saveSettings, reloadFromDb, workouts, routines, exercises } from '../store'
 import { back } from '../router'
 import { syncState, syncNow, getToken, setToken } from '../sync'
@@ -566,7 +567,7 @@ function QuoteSettings() {
           {quotes.length} <Icon name="down" size={16} class={'chev' + (open ? ' open' : '')} />
         </span>
       </button>
-      {open && (
+      <Collapse open={open}>
         <div class="setting column">
           <p class="field-hint">Write a word in CAPITALS to make it stand out.</p>
           <ul class="quote-list">
@@ -609,7 +610,7 @@ function QuoteSettings() {
             </button>
           )}
         </div>
-      )}
+      </Collapse>
     </div>
   )
 }
@@ -737,7 +738,9 @@ function AnimationSettings() {
         </span>
         <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
       </button>
-      {open && <GooSettings />}
+      <Collapse open={open}>
+        <GooSettings />
+      </Collapse>
     </section>
   )
 }

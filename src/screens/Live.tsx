@@ -1,4 +1,5 @@
 import { pace } from '../timeplan'
+import { Collapse } from '../ui/Collapse'
 import { useEffect, useState } from 'preact/hooks'
 import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate, navPending } from '../router'
@@ -345,7 +346,7 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
         </span>
         <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
       </button>
-      {open && (
+      <Collapse open={open}>
         <ul>
           {items.map((it, i) => {
             const on = !!checks[kind + i]
@@ -391,7 +392,7 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
             )
           })}
         </ul>
-      )}
+      </Collapse>
     </section>
   )
 }
@@ -432,7 +433,7 @@ function CoachStrip() {
   const undo = w.coachLive?.undo && last?.kind === 'applied' && !/^Undone/.test(last.text) ? w.coachLive.undo : null
   return (
     <section class={'coach-strip' + (open ? ' open' : '') + (t.state === 'over' || t.state === 'out' ? ' behind' : '')} aria-label="Coach">
-      {open && lines.length > 1 && (
+      <Collapse open={open && lines.length > 1}>
         <ol class="cs-history" aria-label="Earlier from the coach">
           {lines
             .slice(0, -1)
@@ -444,7 +445,7 @@ function CoachStrip() {
               </li>
             ))}
         </ol>
-      )}
+      </Collapse>
       <button class="cs-line" onClick={() => lines.length > 1 && setOpen(!open)} aria-expanded={lines.length > 1 ? open : undefined} data-src={last?.src || 'engine'} data-kind={last?.kind || 'idle'} aria-live="polite">
         <Icon name={last ? LINE_ICON[last.kind] : 'coach'} size={16} />
         <span class="cs-text" key={last?.id}>

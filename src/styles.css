@@ -9568,3 +9568,44 @@ html:has(.live-dock) {
   scroll-padding-top: 150px;
   scroll-padding-bottom: calc(var(--safe-bottom) + 260px);
 }
+
+/* ---- accordions: Collapse (src/ui/Collapse.tsx) ---- */
+.collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease-out, margin-top 200ms ease-out;
+}
+.collapse.in-gap:not(.open) {
+  /* gives back the parent's flex gap while closed */
+  margin-top: calc(-1 * var(--collapse-gap, var(--sp-3)));
+}
+.collapse.open {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 340ms var(--ease), margin-top 340ms var(--ease);
+}
+.collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  filter: blur(3px);
+  transition: opacity 150ms ease-out, transform 200ms ease-out, filter 150ms ease-out;
+}
+.collapse.open .collapse-inner {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition: opacity 300ms var(--ease) 40ms, transform 340ms var(--ease), filter 300ms var(--ease) 40ms;
+}
+/* once open, shadows, goo and focus rings may spill out again */
+.collapse.settled .collapse-inner {
+  overflow: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .collapse,
+  .collapse.open,
+  .collapse-inner,
+  .collapse.open .collapse-inner {
+    transition: none;
+  }
+}

@@ -1,4 +1,5 @@
 import { Fragment } from 'preact'
+import { Collapse } from '../ui/Collapse'
 import { useEffect, useState } from 'preact/hooks'
 import { active, routines, saveRoutine, remove, saveSettings, exMap, settings } from '../store'
 import { navigate } from '../router'
@@ -352,13 +353,13 @@ function ProgramGroup({ name, list, ask }: { name: string; list: Routine[]; ask:
           <Icon name="more" />
         </button>
       </div>
-      {open && (
+      <Collapse open={open} gap>
         <div class="program-body">
           {[...folders.keys()].map((f) => (
             <Folder key={f} name={f} list={folders.get(f)!} program={name} current={f === cur} ask={ask} />
           ))}
         </div>
-      )}
+      </Collapse>
     </section>
   )
 }
@@ -396,13 +397,13 @@ function Folder({ name, list, program, current, ask }: { name: string; list: Rou
           <Icon name="more" size={18} />
         </button>
       </div>
-      {open && (
+      <Collapse open={open} gap>
         <div class="routine-list">
           {list.map((r) => (
             <RoutineCard r={r} />
           ))}
         </div>
-      )}
+      </Collapse>
     </section>
   )
 }

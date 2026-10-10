@@ -1,6 +1,7 @@
 // Train: the coach's mobility plan. Today's add-ons (they join whatever workout you start), today's
 // standalone session with a Start button, and the week at a glance.
 import { useState } from 'preact/hooks'
+import { Collapse } from '../ui/Collapse'
 import { activeMobility, moveDose, sessionDone } from '../mobility'
 import { dayKey } from '../fasting'
 import { navigate } from '../router'
@@ -97,7 +98,7 @@ export function MobilityCard() {
           <button class="btn-text small mob-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
             {open ? 'Hide the week' : 'See the week'} <Icon name={open ? 'up' : 'down'} size={14} />
           </button>
-          {open && (
+          <Collapse open={open} gap>
             <ul class="mob-week">
               {days.map((x) => (
                 <li class={x.date === today ? 'now' : ''}>
@@ -109,7 +110,7 @@ export function MobilityCard() {
                 </li>
               ))}
             </ul>
-          )}
+          </Collapse>
         </>
       )}
     </div>

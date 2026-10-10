@@ -1,5 +1,6 @@
 // The program library: ready-made programs anyone can start, with what's inside each.
 import { useState } from 'preact/hooks'
+import { Collapse } from '../ui/Collapse'
 import { back, navigate, route } from '../router'
 import { routines, settings } from '../store'
 import { Icon } from '../ui/icons'
@@ -100,7 +101,7 @@ function ProgramEntry({ p, open, onToggle, following }: { p: CatalogProgram; ope
           <Icon name="timer" size={14} /> {fit.text} · {fit.fits ? `fits your ${fit.budget} min` : `over your ${fit.budget} min budget`}
         </p>
       )}
-      {open && (
+      <Collapse open={open} gap>
         <ol class="catalog-phases">
           {p.phases.map((ph) => (
             <li key={ph.folder}>
@@ -117,7 +118,7 @@ function ProgramEntry({ p, open, onToggle, following }: { p: CatalogProgram; ope
             </li>
           ))}
         </ol>
-      )}
+      </Collapse>
       <div class="row gap">
         {on ? (
           <button class="btn btn-secondary grow" onClick={() => navigate('/train')}>

@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact'
+import { Collapse } from '../ui/Collapse'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { openGoals } from '../goals'
 import { GooDots } from '../ui/Goo'
@@ -602,11 +603,11 @@ function WeeklyCard({ text, date }: { text: string; date: number }) {
         </span>
         <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
       </button>
-      {open && (
+      <Collapse open={open}>
         <div class="weekly-body">
           <Markdown text={text} />
         </div>
-      )}
+      </Collapse>
     </section>
   )
 }

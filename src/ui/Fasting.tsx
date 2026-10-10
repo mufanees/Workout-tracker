@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact'
+import { Collapse } from './Collapse'
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { activeFast, fasts, remove, saveFast, saveSettings, settings } from '../store'
 import type { Fast } from '../types'
@@ -428,7 +429,7 @@ function WhenRow({ label, value, open, bad, onToggle, children }: { label: strin
         <b>{whenLabel(value)}</b>
         <Icon name="down" size={18} />
       </button>
-      {open && children}
+      <Collapse open={open}>{children}</Collapse>
       {bad && <p class="when-err">Has to be after the start</p>}
     </div>
   )
