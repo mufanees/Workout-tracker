@@ -10,7 +10,8 @@ import type { LCExercise, LCState, SetPlan } from '../shared/liveCoach.mjs'
 import { QUICK } from '../shared/coachSpec.mjs'
 import { aiPrompt, isNative } from './native'
 import { kindOf } from '../shared/budget.mjs'
-import { active, exMap, routines, settings, updateActive, workouts } from './store'
+import { active, dayNotes, exMap, routines, settings, updateActive, workouts } from './store'
+import { dayKey } from './fasting'
 import { sessionsByExercise, matchPrevious, previousSets } from './stats'
 import { pace6w } from './timing'
 import { bpm } from './hr'
@@ -54,8 +55,8 @@ function exerciseState(we: WExercise, excludeId?: string): LCExercise {
   const ex = exMap.value.get(we.exerciseId)
   const hist = (sessionsByExercise.value.get(we.exerciseId) || [])
     .filter((s) => s.workout.id !== excludeId)
-    .slice(0, 3)
-    .map((s) => ({ start: s.workout.start, sets: s.sets.map((x) => ({ kind: x.kind, weight: x.weight, reps: x.reps, rir: x.rir ?? null })) }))
+    .slice(0, 5)
+    .map((s) => ({ start: s.workout.start, rough: !!s.workout.rough, sets: s.sets.map((x) => ({ kind: x.kind, weight: x.weight, reps: x.reps, rir: x.rir ?? null })) }))
   const p = pace6w.value.byEx.get(we.exerciseId)
   const k = kindOf({ name: ex?.name || '', muscle: ex?.muscle || '' })
   return {
@@ -94,6 +95,19 @@ function budgetOfWorkout(w: Workout) {
   return budgetFor({ budget: r?.budget ?? null })
 }
 
+/** The morning check-in of a day read as a rough day (null when unanswered or fine). */
+function roughOn(t: number) {
+  return LC.roughDay(dayNotes.value.get(dayKey(t)))
+}
+
+/** A workout tagged rough at the start: how the day reads, with what was changed then. */
+function roughOf(w: Workout): LCState['rough'] {
+  if (!w.rough) return null
+  const r = roughOn(w.start)
+  const note = w.coachLive?.seen.roughNote
+  return r ? { ...r, ...(typeof note === 'string' && note ? { note } : {}) } : null
+}
+
 /** Everything the engine needs, from the active workout and the store. */
 export function stateOf(w: Workout, now = Date.now()): LCState {
   const checks = w.checks || {}
@@ -119,6 +133,7 @@ export function stateOf(w: Workout, now = Date.now()): LCState {
     equipment: { step: 1, max: equipmentMax() },
     fmt,
     fatigue: fatigueNow(),
+    rough: roughOf(w),
   }
 }
 
@@ -127,7 +142,8 @@ function plansNow(st: LCState, w: Workout): SetPlan[] {
   const light = String(w.coachLive?.seen.lighter || '').split(',').filter(Boolean)
   return LC.plansFor(st).map((p) => {
     const ex = st.exercises.find((e) => e.id === p.weId)
-    return ex && light.includes(p.weId) && !ex.sets.some((s) => s.done) ? LC.lighter(p, ex, st)! : p
+    // a rough day's plan is already lighter: one cut, not two
+    return ex && light.includes(p.weId) && !p.rough && !ex.sets.some((s) => s.done) ? LC.lighter(p, ex, st)! : p
   })
 }
 
@@ -224,15 +240,37 @@ const nameOf = (w: Workout, weId: string) => exMap.value.get(w.exercises.find((e
 
 /** The opening line: the time plan and today's focus. */
 function onStart(w: Workout) {
+  if (w.rough && !w.coachLive?.seen.rough) w = roughStart(w)
   const st = stateOf(w)
   const brief = LC.startBrief(st)
   writePlans(plansNow(st, w))
   mark('start', true)
   say('start', brief.text, brief.action ? { action: { id: brief.action.id, label: brief.action.kind === 'fit' ? 'Fit it' : 'Apply', kind: 'time' } } : {})
-  const fa = LC.fatigueAdvice(st)
+  // a rough day's first sets are already lighter: no second "go lighter" on top
+  const fa = st.rough ? null : LC.fatigueAdvice(st)
   if (fa) say('start', fa.text, { action: { id: 'lighter', label: 'Apply', kind: 'fatigue' } })
   else if (brief.action) updateActive((x) => Object.assign(live(x).seen, { timeAt: Date.now(), timeId: brief.action!.id, timeOver: brief.result.time.over, behind: true }))
   void askModel('start')
+}
+
+/**
+ * A rough day (morning check-in): one set fewer on long accessories and 15 s more rest when it still
+ * fits the budget. The lighter first sets come from the engine's plans. Once per workout.
+ */
+function roughStart(w: Workout): Workout {
+  const adj = LC.roughAdjust(stateOf(w))
+  updateActive((x) => {
+    const c = live(x)
+    c.seen.rough = true
+    c.seen.roughNote = adj?.note || ''
+    if (!adj) return
+    for (const we of x.exercises) {
+      we.sets = we.sets.filter((s) => s.done || !adj.setIds.includes(s.id))
+      if (adj.restAdd && adj.weIds.includes(we.id)) we.rest += adj.restAdd
+    }
+  })
+  refreshNext()
+  return active.value!
 }
 
 /** A set was just ticked (by hand or by its timer). */
@@ -603,6 +641,7 @@ function modelState(w: Workout, moment: 'start' | 'exercise', weId?: string): Re
     engine_time_fix: r.best?.label,
     hr: hr.length ? { now: r.hr?.bpm ?? null, avg: Math.round(hr.reduce((a, b) => a + b, 0) / hr.length), peak: Math.max(...hr), max_hr: st.hr?.max, drop_first_60s_of_rest: r.hr?.drop60 ?? undefined } : undefined,
     heaviest_dumbbell_kg: st.equipment?.max,
+    rough_day: st.rough ? `${st.rough.why.join(', ')} (morning check-in): lighter on purpose; recovery, not weakness` : undefined,
   }
 }
 
@@ -726,6 +765,7 @@ export function routineLine(r: Routine): string {
     equipment: { step: 1, max: equipmentMax() },
     fmt,
     fatigue: fatigueNow(),
+    rough: roughOn(now),
   }
   void workouts.value // recompute when history changes
   return LC.sessionLine(st)

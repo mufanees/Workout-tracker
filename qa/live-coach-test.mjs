@@ -301,5 +301,71 @@ const doneAt = (min, o) => set({ done: true, at: T0 + min * 60000, ...o })
   check(pa[0] && /Floor Press/.test(pa[0].name), `no bench: Dumbbell Bench Press → ${pa[0]?.name} first`, pa.map((a) => a.name))
 }
 
+// ---- a rough day (morning check-in): lighter, kinder, never a stall
+{
+  const H = (o = {}) => ({ start: T0 - 2 * 86400000, sets: [8, 8, 8].map((reps) => ({ kind: 'normal', weight: 16, reps, rir: 0.5 })), ...o })
+  const squat = () => ex({ name: 'Goblet Squat', muscle: 'Quadriceps', load: 'one', target: '8', rest: 90, history: [H()] })
+  const good = squat()
+  const gp = LC.plansFor(ctx([good], { now: T0 }))[0]
+  check(gp.weight === 16 && gp.reps === 8 && !gp.rough, 'good day (no check-in): Goblet Squat 16 kg × 8, unchanged', gp)
+  check(LC.roughDay(null) === null && LC.roughDay({}) === null && LC.roughDay({ sleep: null, energy: null, stress: null }) === null, 'no check-in answered → no rough day')
+  check(LC.roughDay({ sleep: 3, energy: 3, stress: 3 }) === null && LC.roughDay({ sleep: 2, energy: 3, stress: 3 }) === null, 'a good day, or one "2", is not rough')
+  const gb = LC.startBrief(ctx([good], { now: T0, rough: LC.roughDay({ sleep: 3, energy: 2, stress: 3 }) }))
+  check(!/lighter|overnight/.test(gb.text) && /16 kg × 8/.test(gb.text), 'good check-in: start line unchanged', gb.text)
+
+  const r = LC.roughDay({ sleep: 1, energy: 2, stress: 3 })
+  check(r && r.level === 'rough' && r.why.join() === 'sleep', 'poor sleep → rough day', r)
+  const rough = squat()
+  const rc = ctx([rough], { now: T0, rough: r })
+  const rp = LC.plansFor(rc)[0]
+  check(rp.weight === 15 && rp.reps === 8 && rp.rough && rp.kind === 'down', 'rough day: 16 kg → 15 kg × 8 (about 6% lighter, same reps)', rp)
+  const rb = LC.startBrief(rc)
+  check(rb.text.startsWith("Short sleep last night: a bit lighter today. Strength doesn't vanish overnight."), 'rough day: the start line says it plainly and kindly', rb.text)
+  check(LC.roughDay({ sleep: 3, energy: 1, stress: 3 }).text.startsWith('Low energy today:') && LC.roughDay({ sleep: 3, energy: 3, stress: 1 }).text.startsWith('A stressful day:'), 'low energy / high stress get their own words')
+  check(/^Short sleep and high stress: a bit lighter today/.test(LC.roughDay({ sleep: 1, energy: 3, stress: 1 }).text), 'two at once are named together', LC.roughDay({ sleep: 1, energy: 3, stress: 1 }).text)
+  check(/^Short sleep last night: a bit lighter today\. 25 min/.test(LC.sessionLine(rc)), 'Train line on a rough day', LC.sessionLine(rc))
+
+  const mild = LC.roughDay({ sleep: 2, energy: 2, stress: 3 })
+  check(mild && mild.level === 'mild', 'two "2"s → mildly rough', mild)
+  const mp = LC.plansFor(ctx([squat()], { now: T0, rough: mild }))[0]
+  check(mp.weight === 15 && mp.reps === 8, 'mild: about 5% lighter (16 → 15 kg)', mp)
+  check(LC.roughAdjust(ctx([squat()], { now: T0, rough: mild })) === null, 'mild: no sets or rests changed')
+
+  // a step up planned on a normal day is held back, then lightened
+  const upper = ex({ name: 'Goblet Squat', load: 'one', target: '8', history: [H({ sets: [8, 8, 8].map((reps) => ({ kind: 'normal', weight: 16, reps, rir: 3 })) })] })
+  check(LC.plansFor(ctx([upper], { now: T0 }))[0].weight === 17, 'normal day after an easy session: up to 17 kg')
+  check(LC.plansFor(ctx([upper], { now: T0, rough: r }))[0].weight === 15, 'rough day: no step up, 15 kg from last time’s 16')
+
+  // accessories lose a set, rests +15 s when the budget allows
+  const sq = squat()
+  const raise = ex({ name: 'Lateral Raise', muscle: 'Shoulders', target: '12-15', rest: 60 })
+  const adj = LC.roughAdjust(ctx([sq, raise], { now: T0, rough: r }))
+  check(adj && adj.setIds.length === 1 && adj.setIds[0] === raise.sets[2].id, 'rough: one set fewer on the accessory (3 → 2), the squat keeps 3', adj)
+  check(adj.restAdd === 15 && adj.weIds.includes(sq.id) && /^Rests \+15 s, one set fewer on Lateral Raise\.$/.test(adj.note), 'rough: rests +15 s while it fits the 25 min', adj)
+  const many = Array.from({ length: 6 }, (_, i) => ex({ name: 'Press ' + i, target: '8-10', rest: 90, sets: [set(), set(), set(), set()] }))
+  const tight = ctx(many, { now: T0, rough: r })
+  const ta = LC.roughAdjust(tight)
+  check(ta && ta.restAdd === 0 && LC.timeStatus(tight).over > 0, 'already over the budget: no extra rest (never breaks the time budget)', ta)
+
+  // the finish credits it
+  const doneSq = ex({ name: 'Goblet Squat', load: 'one', target: '8', history: [H()], sets: [doneAt(6, { weight: 15, reps: 8 }), doneAt(8, { weight: 15, reps: 8 })] })
+  const v = LC.finishVerdict(ctx([doneSq], { now: T0 + 20 * 60000, rough: r }))
+  check(v.startsWith('Rough day, still showed up. That counts. 20 min') && !/Held your numbers/.test(v), 'rough-day finish: credited, no "held your numbers"', v)
+  check(!LC.finishVerdict(ctx([doneSq], { now: T0 + 20 * 60000 })).startsWith('Rough'), 'normal finish unchanged')
+
+  // the next session builds on the normal one, not the low rough day
+  const after = ex({ name: 'Goblet Squat', load: 'one', target: '8', history: [{ start: T0 - 86400000, rough: true, sets: [{ kind: 'normal', weight: 15, reps: 6 }] }, H()] })
+  const ap = LC.plansFor(ctx([after], { now: T0 }))[0]
+  check(ap.weight === 16 && ap.reps === 8, 'after a low rough day: back to 16 kg × 8 (the rough session is not the baseline)', ap)
+  const better = ex({ name: 'Goblet Squat', load: 'one', target: '8', history: [{ start: T0 - 86400000, rough: true, sets: [{ kind: 'normal', weight: 17, reps: 8, rir: 1 }] }, H()] })
+  check(LC.refSession(better).rough === true, 'a rough day that went well still counts')
+
+  // stall detection skips rough days
+  const S = (reps, rough) => ({ rough, sets: [{ kind: 'normal', weight: 16, reps, done: true }] })
+  check(LC.stalledTop([S(6, false), S(9, false), S(8, false), S(7, false)]) === 16, 'unmarked: a low newest session reads as a stall at 16 kg')
+  check(LC.stalledTop([S(6, true), S(9, false), S(8, false), S(7, false)]) === null, 'the same session marked rough is ignored: no stall (9 > 7)')
+  check(LC.stalledTop([S(8, false), S(5, true), S(8, false), S(8, false)]) === 16, 'a real stall around a rough day is still found')
+}
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed')
 process.exit(failed ? 1 : 0)

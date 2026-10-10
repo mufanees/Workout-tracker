@@ -65,6 +65,9 @@ export interface Workout extends Rec {
   targetZone?: number | null
   /** Shoulder stiffness after the session, 0 (none) to 10. */
   shoulder?: number | null
+  /** Started on a rough day by the morning check-in (poor sleep, low energy or high stress): lighter
+   * first sets, and the session never reads as a stall or lowers future targets. */
+  rough?: true
   /** Warm-up / cool-down items ticked off, keyed "w0", "c2"… */
   checks?: Record<string, boolean>
   checkAt?: Record<string, number> // when each warm-up / cool-down item was ticked

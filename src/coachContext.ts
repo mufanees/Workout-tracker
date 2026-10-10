@@ -34,6 +34,7 @@ export function workoutLine(w: Workout) {
   const bits = [`${date(w.start)} ${w.name} (${mins} min`]
   if (hr) bits.push(`, HR avg ${hr.avg} max ${hr.max}, Z2 ${Math.round(hr.zoneSeconds[1] / 60)} min`)
   if (w.shoulder != null) bits.push(`, shoulder ${w.shoulder}/10`)
+  if (w.rough) bits.push(', rough day by the check-in: not a stall')
   const prs = prIndex.value.byWorkout.get(w.id)
   if (prs) bits.push(`, ${prs} PR set${prs > 1 ? 's' : ''}`)
   bits.push(')')

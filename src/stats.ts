@@ -3,6 +3,7 @@ import { computed } from '@preact/signals'
 import { workouts, exMap, settings } from './store'
 import type { Workout, WSet, ExType } from './types'
 import { bindWeights, counts, e1rm, setVolume, viewFactor } from './util'
+import { stalledTop } from '../shared/liveCoach.mjs'
 
 // util.ts turns stored weights into what you see (totals for a pair by default); give it the store.
 bindWeights({ ex: (id) => exMap.value.get(id), view: () => settings.value.weightView ?? 'total', unit: () => settings.value.unit })
@@ -143,19 +144,8 @@ export function exerciseRecords(exerciseId: string) {
  */
 export function stalledAt(exerciseId: string, excludeWorkoutId?: string, before?: number): number | null {
   const list = (sessionsByExercise.value.get(exerciseId) || []).filter((s) => s.workout.id !== excludeWorkoutId && (before == null || s.workout.start < before))
-  const last3 = list.slice(0, 3)
-  if (last3.length < 3) return null
-  const tops = last3.map((s) => {
-    const work = s.sets.filter((x) => counts(x) && x.weight != null)
-    if (!work.length) return null
-    const w = Math.max(...work.map((x) => x.weight!))
-    const reps = Math.max(...work.filter((x) => x.weight === w).map((x) => x.reps || 0))
-    return { w, reps }
-  })
-  if (tops.some((t) => !t)) return null
-  const [newest, , oldest] = tops as { w: number; reps: number }[]
-  if (!tops.every((t) => t!.w === newest.w)) return null
-  return newest.reps <= oldest.reps ? newest.w : null
+  // rough-day sessions (morning check-in) are left out: a low day isn't a stall
+  return stalledTop(list.map((s) => ({ rough: !!s.workout.rough, sets: s.sets.filter(counts) })))
 }
 
 /**

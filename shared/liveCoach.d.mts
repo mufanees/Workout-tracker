@@ -36,7 +36,7 @@ export interface LCExercise {
   superset: string | null
   sets: LCSet[]
   /** previous sessions, newest first */
-  history?: { start: number; sets: { kind: string; weight: number | null; reps: number | null; rir?: number | null }[] }[]
+  history?: { start: number; rough?: boolean; sets: { kind: string; weight: number | null; reps: number | null; rir?: number | null }[] }[]
   /** measured seconds per set (incl. start delay), if known */
   pace?: number | null
 }
@@ -63,6 +63,14 @@ export interface LCState {
   fmt?: { w(kg: number, ex: LCExercise): string }
   /** muscle fatigue by region id, 0–1 (shared/fatigue.mjs) */
   fatigue?: Record<string, { fatigue: number; name?: string }>
+  /** today's morning check-in read as a rough day (roughDay), plus what was changed at the start */
+  rough?: (RoughDay & { note?: string }) | null
+}
+export interface RoughDay {
+  level: 'rough' | 'mild'
+  why: ('sleep' | 'energy' | 'stress')[]
+  text: string
+  short: string
 }
 export interface Effort {
   rir: number
@@ -77,6 +85,8 @@ export interface SetPlan {
   reps: number | null
   kind: 'up' | 'keep' | 'down' | 'reps'
   reason: string
+  /** set lighter for a rough day */
+  rough?: boolean
 }
 export interface TimeStatus {
   total: number
@@ -162,6 +172,11 @@ export interface FatigueAdvice {
 }
 export function fatigueAdvice(ctx: LCState, from?: number): FatigueAdvice | null
 export function lighter(plan: SetPlan | null, ex: LCExercise, ctx: LCState): SetPlan | null
+export function refSession(ex: Pick<LCExercise, 'history'>): NonNullable<LCExercise['history']>[number] | null
+export function roughDay(c: { sleep?: number | null; energy?: number | null; stress?: number | null } | null | undefined): RoughDay | null
+export function roughPlan(plan: SetPlan | null, ex: LCExercise, ctx: LCState, r?: LCState['rough']): SetPlan | null
+export function roughAdjust(ctx: LCState, r?: LCState['rough']): { setIds: string[]; names: string[]; restAdd: number; weIds: string[]; note: string } | null
+export function stalledTop(sessions: { rough?: boolean; sets: { kind: string; weight: number | null; reps: number | null; done?: boolean }[] }[]): number | null
 export function lackedTerms(text: string | null | undefined): string[]
 export interface SwapCandidate {
   id: string

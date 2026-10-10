@@ -14,6 +14,14 @@ import { quoteOfTheDay } from './ui/Quote'
 import { mergeLines, mobilityDay, moveDose } from './mobility'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
 import type { MobilityDay } from './types'
+import { dayNotes } from './store'
+import { dayKey } from './fasting'
+import { roughDay } from '../shared/liveCoach.mjs'
+
+/** Today's morning check-in reads as a rough day: the workout is tagged at the start (nothing when unanswered). */
+function roughTag(): { rough?: true } {
+  return roughDay(dayNotes.value.get(dayKey(Date.now()))) ? { rough: true } : {}
+}
 
 export function partOfDay(t = Date.now()) {
   const h = new Date(t).getHours()
@@ -73,6 +81,7 @@ export async function startRoutine(r: Routine) {
     cooldown,
     checks: {},
     timePlan: planFor({ ...r, warmup, cooldown, exercises: planSets(r, r.exercises) }),
+    ...roughTag(),
     updatedAt: 0,
   })
   navigate('/live')
@@ -122,7 +131,7 @@ export async function startEmpty() {
   if (!(await okToReplace())) return
   restTimer.value = null
   cancelSetTimer()
-  setActive({ id: uid('w'), name: `${partOfDay()} Workout`, routineId: null, start: Date.now(), end: null, notes: '', exercises: [], updatedAt: 0 })
+  setActive({ id: uid('w'), name: `${partOfDay()} Workout`, routineId: null, start: Date.now(), end: null, notes: '', exercises: [], ...roughTag(), updatedAt: 0 })
   navigate('/live')
 }
 
@@ -141,6 +150,7 @@ export async function repeatWorkout(w: Workout) {
     exercises: fromTemplate(
       w.exercises.map((e) => ({ ...e, sets: e.sets.filter((s) => s.done) })).filter((e) => e.sets.length),
     ),
+    ...roughTag(),
     updatedAt: 0,
   })
   navigate('/live')

@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gloop</title>
-<meta name="description" content="Strict 25-minute strength sessions with a coach that keeps you on the clock. Built for parents and anyone short on time.">
+<meta name="description" content="Strict 25-minute strength sessions, fasting, body tracking and a coach that keeps you on the clock. Built for parents and anyone short on time.">
 <meta name="theme-color" content="#0b0c0f" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f2f1ec" media="(prefers-color-scheme: light)">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Gloop">
 <meta property="og:title" content="Gloop: your workout fits the time you have">
-<meta property="og:description" content="Strict 25-minute strength sessions with a coach that keeps you on the clock. Built for parents and anyone short on time.">
+<meta property="og:description" content="Strict 25-minute strength sessions, fasting, body tracking and a coach that keeps you on the clock. Built for parents and anyone short on time.">
 <meta property="og:url" content="https://gloop.novas.my/welcome/">
 <meta property="og:image" content="https://gloop.novas.my/icon-512.png">
 <meta name="twitter:card" content="summary">
@@ -202,7 +202,8 @@ h3 { font-size: 20px; line-height: 1.2; letter-spacing: -0.02em; }
 /* squircle where the browser has it (Chrome/Android 139+), round elsewhere */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); }
 @supports (corner-shape: squircle) {
-  .card, .stage, .panel, .ink-card, .ss-block, .scenario { corner-shape: squircle; }
+  .card, .stage, .panel, .ink-card, .ss-block, .scenario, .where-card { corner-shape: squircle; }
+  .where-card { border-radius: 40px; }
   .card { border-radius: 46px; }
   .stage { border-radius: 72px; }
   .panel, .ink-card { border-radius: 58px; }
@@ -428,7 +429,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 /* ---------- features ---------- */
 .features { display: grid; gap: 12px; }
 @media (min-width: 640px) { .features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1040px) { .features { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1040px) { .features { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .feat { padding: 20px; display: grid; grid-template-rows: auto auto 1fr; gap: 10px; min-width: 0; }
 .feat h3 { font-size: 18px; display: flex; align-items: center; gap: 8px; }
 .feat h3 small { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent); padding: 2px 8px; border-radius: 999px; }
@@ -455,11 +456,6 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 .bpm-big { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 6px; }
 .bpm-big .ico { color: var(--danger); font-size: 18px; }
 .hr-mini { display: flex; align-items: center; gap: 18px; }
-/* fasting */
-.fast-ring { position: relative; width: 92px; height: 92px; }
-.fast-ring svg { width: 92px; height: 92px; }
-.fast-ring .lbl { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
-.fast-ring .lbl small { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 4px; }
 /* timers */
 .tmr { display: flex; align-items: center; gap: 14px; }
 .tmr-ring { width: 64px; height: 64px; position: relative; }
@@ -490,8 +486,181 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 .notif .app-dot { grid-row: span 2; width: 26px; height: 26px; }
 .notif b { font-size: 13px; }
 .notif span { font-family: var(--font-read); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-/* body map */
-.bodymap svg { width: 136px; height: 104px; }
+
+/* ---------- hero pillars ---------- */
+.pillars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 24px; max-width: 520px; }
+.pillars a {
+  display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 58px; padding: 6px 4px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--line); text-decoration: none; font-size: 14px; font-weight: 600;
+  transition: scale 150ms ease-out, border-color 200ms ease-out;
+}
+.pillars a .ico { font-size: 18px; color: var(--accent-text); }
+.pillars a[href="#fasting"] .ico { color: var(--blue); }
+.pillars a:hover { border-color: var(--faint); }
+.pillars a:active { scale: 0.96; }
+@media (min-width: 440px) { .pillars a { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 48px; } .pillars a .ico { font-size: 16px; } }
+
+/* a goo segmented control: one lime pill that oozes between options */
+.seg { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-radius: 16px; background: var(--surface-2); isolation: isolate; }
+.seg > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; pointer-events: none; z-index: 0; }
+.seg button { position: relative; z-index: 1; min-height: 48px; border-radius: 16px; font-weight: 700; font-size: 15px; color: var(--muted); transition: color 250ms var(--ease), scale 150ms ease-out; }
+.seg button:active { scale: 0.96; }
+.seg button[aria-checked="true"] { color: var(--accent-ink); }
+
+/* ---------- a bad day ---------- */
+.bad-grid { display: grid; gap: 20px; }
+@media (min-width: 900px) { .bad-grid { grid-template-columns: minmax(0, 440px) minmax(0, 1fr); grid-template-areas: "l r" "c r"; gap: 28px 56px; align-items: start; } .bad-left { grid-area: l; } .bad-right { grid-area: r; } .bad-grid > .counts { grid-area: c; } }
+.bad-left, .bad-right { min-width: 0; display: grid; gap: 12px; align-content: start; }
+.checkin { padding: 18px 16px 16px; display: grid; gap: 12px; }
+.ci-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding-inline: 4px; }
+.ci-top .eyebrow { margin: 0; color: var(--text); letter-spacing: 0.1em; }
+.ci-top .eyebrow .ico { color: var(--accent-text); }
+.ci-why { font-family: var(--font-read); font-size: 13px; color: var(--muted); }
+.ci-row { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 8px; }
+.ci-row > span { font-size: 15px; font-weight: 600; padding-left: 4px; }
+.today { padding: 18px 14px 14px; display: grid; gap: 10px; }
+.today-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-inline: 4px; }
+.today-top .eyebrow { margin: 0; }
+.day-state { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--accent-soft); color: var(--accent-text); white-space: nowrap; transition: background-color 300ms var(--ease), color 300ms var(--ease); }
+.day-state.rough { background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); }
+.today .plan-row { background: var(--surface-2); border-color: transparent; }
+.today .rx .now .kg { transition: color 300ms var(--ease); }
+.today .rx .now.bump { animation: bump-text 700ms var(--ease); }
+@keyframes bump-text { 30% { color: var(--blue); } }
+.today .more { font-family: var(--font-read); font-size: 13px; color: var(--muted); padding: 0 6px; }
+.today .coach-strip { background: var(--bg); }
+.today .cs-row { min-height: 0; padding-bottom: 8px; }
+.today .cs-note { font-family: var(--font-read); font-size: 13px; color: var(--muted); }
+.counts { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 14px; }
+.counts li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: start; }
+.counts .ico-dot { width: 36px; height: 36px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--accent-text); font-size: 18px; }
+.counts b { display: block; font-size: 16px; font-weight: 650; }
+.counts span { font-family: var(--font-read); font-size: 14px; color: var(--muted); line-height: 1.5; }
+.after { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 16px; background: var(--accent-soft); font-family: var(--font-read); font-size: 14px; }
+.after .ico { color: var(--accent-text); }
+.after small { font-family: var(--font-display); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent-text); margin-right: 2px; }
+
+/* ---------- fasting ---------- */
+.fast-grid { display: grid; gap: 28px; }
+@media (min-width: 900px) { .fast-grid { grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 56px; align-items: start; } }
+.fast-left, .fast-right { min-width: 0; display: grid; gap: 18px; align-content: start; }
+.fring { position: relative; width: 100%; max-width: 380px; margin-inline: auto; aspect-ratio: 1; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.fring > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; cursor: grab; }
+.fring.grabbing > svg { cursor: grabbing; }
+.fring .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
+.fr-label { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.fr-time { font-size: clamp(44px, 13vw, 58px); font-weight: 700; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.fr-time small { font-size: 0.42em; letter-spacing: -0.01em; color: var(--muted); margin-left: 1px; }
+.fr-stage { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; font-size: 15px; font-weight: 650; color: var(--blue); }
+.fr-of { font-family: var(--font-read); font-size: 13px; color: var(--muted); margin-top: 4px; }
+.sr-mark {
+  position: absolute; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; pointer-events: none;
+  background: var(--surface); color: var(--muted); border: 2px solid var(--surface-2); transition: background-color 300ms var(--ease), color 300ms var(--ease), border-color 300ms var(--ease);
+}
+.sr-mark.on { background: var(--blue); color: #fff; border-color: var(--bg); }
+.fast-range input[type="range"]::-webkit-slider-runnable-track { background: linear-gradient(90deg, var(--blue) 0 var(--p), var(--surface-3) var(--p) 100%); }
+.fast-range input[type="range"]::-webkit-slider-thumb { background: var(--blue); }
+.fast-range input[type="range"]::-moz-range-progress { background: var(--blue); }
+.fast-range input[type="range"]::-moz-range-thumb { background: var(--blue); }
+.stage-card { padding: 18px; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 14px; align-items: start; }
+.stage-card .st-ico { grid-row: span 3; width: 44px; height: 44px; border-radius: 14px; background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--blue); display: grid; place-items: center; font-size: 22px; }
+.stage-card h3 { font-size: 20px; }
+.stage-card p { margin: 0; font-family: var(--font-read); font-size: 15px; color: var(--muted); line-height: 1.5; }
+.stage-card .st-next { font-size: 13px; color: var(--faint); }
+.plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 560px) { .plans { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+.plans .chip { font-size: 16px; min-height: 58px; }
+.plans .chip[aria-pressed="true"] { background: var(--blue); color: #fff; }
+.plans .chip small { font-size: 11px; }
+.ftimes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ftimes > div { padding: 12px 12px 10px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); min-width: 0; }
+.ftimes span { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.ftimes b { display: block; font-size: 18px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
+.ftimes small { display: block; font-family: var(--font-read); font-size: 12px; color: var(--muted); }
+.earlier { display: grid; gap: 8px; }
+.earlier-btn { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--surface-2); font-weight: 650; font-size: 15px; transition: scale 150ms ease-out; }
+.earlier-btn:active { scale: 0.96; }
+.earlier-btn .ico { color: var(--blue); }
+.offsets { display: flex; flex-wrap: wrap; gap: 6px; }
+.offsets button { min-height: 44px; padding: 0 14px; border-radius: 14px; background: var(--surface-2); font-weight: 650; font-size: 14px; transition: scale 150ms ease-out, background-color 200ms ease-out; }
+.offsets button:active { scale: 0.96; }
+.offsets button[aria-pressed="true"] { background: var(--blue); color: #fff; }
+.fnote { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-family: var(--font-read); font-size: 14px; color: var(--muted); line-height: 1.5; }
+.fnote .ico { margin-top: 3px; color: var(--blue); }
+.fnote b { color: var(--text); font-weight: 600; }
+.where { display: grid; gap: 10px; }
+@media (min-width: 560px) { .where { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.where-card { padding: 14px; border-radius: 22px; background: var(--surface-2); display: grid; gap: 10px; align-content: start; min-width: 0; }
+.where-cap { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.fw { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px 12px; border-radius: 16px; background: var(--surface); }
+.fw > svg { width: 52px; height: 52px; display: block; }
+.fw b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.fw span { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--blue); font-weight: 600; }
+.fw small { display: block; font-family: var(--font-read); font-size: 12px; color: var(--muted); }
+.where .sbar { width: 100%; }
+.sbar-top .hrs { display: inline-grid; place-items: center; min-width: 26px; height: 18px; padding: 0 3px; border-radius: 4px; background: var(--text); color: var(--bg); font-size: 11px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* ---------- body ---------- */
+.body-grid { display: grid; gap: 12px; }
+@media (min-width: 900px) { .body-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+.bcard { padding: 20px 18px 18px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.bcard-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bcard-top h3 { display: flex; align-items: center; gap: 8px; }
+.bcard-top h3 .ico { color: var(--accent-text); }
+.example { padding: 3px 9px; border-radius: 999px; border: 1px dashed var(--faint); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.cells > div { padding: 10px 12px; border-radius: 14px; background: var(--surface-2); min-width: 0; }
+.cells span { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cells b { display: block; font-size: 20px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cells b small { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0; margin-left: 2px; }
+.wchart { position: relative; }
+.wchart svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; cursor: crosshair; }
+.wc-dot { fill: var(--muted); opacity: 0.5; }
+.wc-trend { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.wc-cone { fill: var(--accent); opacity: 0.14; }
+.wc-fc { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-dasharray: 5 5; opacity: 0.9; }
+.wc-target { stroke: var(--muted); stroke-dasharray: 3 4; opacity: 0.7; }
+.wc-today { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 2 3; }
+.wc-lbl { font: 600 11px var(--font-display); letter-spacing: 0.06em; fill: var(--muted); }
+.wc-guide { stroke: var(--text); stroke-width: 1; opacity: 0; }
+.wc-guide.on { opacity: 0.35; }
+.wc-sel { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+.wc-read { font-family: var(--font-read); font-size: 14px; color: var(--muted); margin: 0; min-height: 3em; line-height: 1.5; }
+.wc-read b { color: var(--text); font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.wc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.wc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.wc-legend i { display: inline-block; }
+.target-line { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-family: var(--font-read); font-size: 15px; line-height: 1.5; }
+.target-line .ico { color: var(--accent-text); margin-top: 3px; }
+.bmap { display: grid; grid-template-columns: minmax(0, 1fr); }
+.bmap-fig { width: 100%; max-width: 380px; margin-inline: auto; }
+.bmap-fig svg { width: 100%; height: auto; display: block; overflow: visible; }
+.bmap-fig .region { cursor: pointer; outline: none; }
+.bmap-fig .region:focus-visible .hit { stroke: var(--accent-text); stroke-width: 1.2; }
+.bmap-fig .hit { fill: transparent; }
+.bmap-fig .fig-lbl { font: 600 6px var(--font-display); letter-spacing: 0.14em; fill: var(--muted); }
+.bm-read { padding: 12px 14px; border-radius: 16px; background: var(--surface-2); display: grid; gap: 2px; min-height: 74px; align-content: center; }
+.bm-read b { font-size: 17px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bm-read .lvl { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--surface-3); color: var(--muted); }
+.bm-read .lvl.hot { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.bm-read .lvl.warm { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+.bm-read span { font-family: var(--font-read); font-size: 14px; color: var(--muted); }
+.bm-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.bm-list button { min-height: 44px; padding: 0 12px; border-radius: 14px; background: var(--surface-2); font-weight: 650; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; transition: scale 150ms ease-out, background-color 200ms ease-out; }
+.bm-list button:active { scale: 0.96; }
+.bm-list button i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.bm-list button[aria-pressed="true"] { background: var(--surface-3); box-shadow: inset 0 0 0 2px var(--accent-text); }
+.bm-legend { display: flex; justify-content: center; gap: 4px 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.bm-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.bm-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.body-row { display: grid; gap: 12px; margin-top: 12px; }
+@media (min-width: 760px) { .body-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mini-card { padding: 18px; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 14px; align-items: start; }
+.mini-card .ic { grid-row: span 2; width: 44px; height: 44px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; font-size: 20px; color: var(--accent-text); }
+.mini-card .ic.hr { color: var(--danger); }
+.mini-card h3 { font-size: 18px; }
+.mini-card p { margin: 0; font-family: var(--font-read); font-size: 15px; color: var(--muted); line-height: 1.5; }
+.mini-card a { color: var(--accent-text); font-weight: 600; text-underline-offset: 3px; }
 
 /* ---------- closing ---------- */
 .ink-card {
@@ -575,6 +744,12 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
         <a class="btn btn-quiet" href="https://github.com/mufanees/Workout-tracker/actions/workflows/android.yml" target="_blank" rel="noopener">Get the Android app <small>Beta</small></a>
         <p class="cta-note"><i class="ico" data-i="smartphone"></i>iPhone app coming. Gloop also runs in any phone browser.</p>
       </div>
+      <nav class="pillars" aria-label="What Gloop does">
+        <a href="#time"><i class="ico" data-i="dumbbell"></i>Workouts</a>
+        <a href="#fasting"><i class="ico" data-i="hourglass"></i>Fasting</a>
+        <a href="#body"><i class="ico" data-i="activity"></i>Body</a>
+        <a href="#coach"><i class="ico" data-i="message-circle"></i>Coach</a>
+      </nav>
     </div>
     <div class="stage" id="stage">
       <svg id="clock" viewBox="0 0 400 400" role="img" aria-label="A 25-minute clock made of lime goo: 5 minutes warm-up, 15 minutes lifting, 5 minutes cool-down. Drag the goo to play with it.">
@@ -729,7 +904,162 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
     </div>
   </section>
 
-  <!-- 4. parents -->
+  <!-- 4. a bad day -->
+  <section class="section" id="badday" aria-labelledby="badday-title">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow"><i class="ico" data-i="sun"></i>Rough mornings</p>
+        <h2 id="badday-title">A bad day isn't a weak day</h2>
+        <p class="lede">Feeling flat usually comes from short sleep, stress or low energy. Your strength is still there. <b>It doesn't vanish overnight.</b></p>
+      </div>
+      <div class="bad-grid">
+        <div class="bad-left">
+          <p class="try" id="ci-try" aria-live="polite"><i class="ico" data-i="hand"></i><span id="ci-try-text">Answer like a rough morning. Tap Poor sleep.</span></p>
+          <section class="card checkin" aria-labelledby="ci-title">
+            <div class="ci-top">
+              <span class="eyebrow" id="ci-title"><i class="ico" data-i="sun"></i>How are you today?</span>
+              <span class="ci-why">Helps your coach set today's targets</span>
+            </div>
+            <div class="ci-row"><span id="ci-l-sleep">Sleep</span><div class="seg" role="radiogroup" aria-labelledby="ci-l-sleep" data-f="sleep"><button type="button" role="radio" data-v="1">Poor</button><button type="button" role="radio" data-v="2">OK</button><button type="button" role="radio" data-v="3">Good</button></div></div>
+            <div class="ci-row"><span id="ci-l-energy">Energy</span><div class="seg" role="radiogroup" aria-labelledby="ci-l-energy" data-f="energy"><button type="button" role="radio" data-v="1">Low</button><button type="button" role="radio" data-v="2">OK</button><button type="button" role="radio" data-v="3">High</button></div></div>
+            <div class="ci-row"><span id="ci-l-stress">Stress</span><div class="seg" role="radiogroup" aria-labelledby="ci-l-stress" data-f="stress"><button type="button" role="radio" data-v="1">High</button><button type="button" role="radio" data-v="2">Some</button><button type="button" role="radio" data-v="3">Low</button></div></div>
+          </section>
+        </div>
+        <div class="bad-right">
+          <section class="card today" id="today" aria-labelledby="today-title">
+            <div class="today-top">
+              <span class="eyebrow" id="today-title"><i class="ico" data-i="dumbbell"></i>Today's plan</span>
+              <span class="day-state" id="day-state">Good day · as planned</span>
+            </div>
+            <div class="plan-row" id="t-sq"><span class="nm">Goblet Squat</span><span class="rx"><span class="now" id="t-sq-now"></span><span class="was" id="t-sq-was"></span></span><span class="sub" id="t-sq-sub"></span></div>
+            <div class="plan-row" id="t-lr"><span class="nm">Lateral Raise</span><span class="rx"><span class="now" id="t-lr-now"></span><span class="was" id="t-lr-was"></span></span><span class="sub" id="t-lr-sub"></span></div>
+            <p class="more">Then Bent-Over Row and Floor Press, same idea.</p>
+            <section class="coach-strip" aria-label="Coach">
+              <div class="cs-line"><i class="ico" id="t-ico" data-i="message-circle"></i><span class="cs-text" id="t-line" aria-live="polite"></span></div>
+              <div class="cs-row"><span class="cs-note" id="t-note"></span></div>
+            </section>
+            <div class="after" id="t-after" hidden><i class="ico" data-i="check"></i><span><small>After</small> Rough day, still showed up. That counts.</span></div>
+          </section>
+        </div>
+        <ul class="counts">
+          <li><span class="ico-dot"><i class="ico" data-i="check"></i></span><div><b>The session still counts</b><span>It gives the day its showed-up mark, like any other session.</span></div></li>
+          <li><span class="ico-dot"><i class="ico" data-i="trending-up"></i></span><div><b>It won't be read as a stall</b><span>Lower numbers on a rough day don't lower your next targets. Gloop builds on your normal days.</span></div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. fasting -->
+  <section class="section" id="fasting" aria-labelledby="fasting-title">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow"><i class="ico" data-i="hourglass"></i>Fasting</p>
+        <h2 id="fasting-title">Fasting, built in</h2>
+        <p class="lede">Most workout apps don't track fasting. Gloop does, next to your training and your weight. <b>Start a fast in one tap and watch it move through the stages.</b></p>
+      </div>
+      <div class="fast-grid">
+        <div class="fast-left">
+          <div class="fring" id="fring">
+            <svg viewBox="0 0 300 300" aria-hidden="true">
+              <circle cx="150" cy="150" r="118" fill="none" stroke="var(--surface-2)" stroke-width="26"/>
+              <g id="fr-goo" fill="var(--blue)" filter="url(#g-dial)"></g>
+            </svg>
+            <div id="fr-marks"></div>
+            <div class="center" aria-hidden="true">
+              <span class="fr-label" id="fr-label">Fasting for</span>
+              <span class="fr-time" id="fr-time">14<small>h</small> 15<small>m</small></span>
+              <span class="fr-stage" id="fr-stage"><i class="ico" data-i="flame"></i><span>Fat burning</span></span>
+              <span class="fr-of" id="fr-of">of 16:8</span>
+            </div>
+          </div>
+          <div class="control fast-range">
+            <div class="control-top">
+              <label for="fhours">Hours since your last meal</label>
+              <output id="fhours-out" for="fhours" class="num">14.25<small>h</small></output>
+            </div>
+            <input type="range" id="fhours" min="0" max="24" step="0.25" value="14.25" aria-describedby="fr-summary">
+            <div class="ticks" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span id="fr-max">24</span></div>
+            <p class="sr" id="fr-summary" aria-live="polite"></p>
+          </div>
+        </div>
+        <div class="fast-right">
+          <div class="card stage-card" id="stage-card" aria-live="polite">
+            <span class="st-ico"><i class="ico" id="st-ico" data-i="flame"></i></span>
+            <h3 id="st-name">Fat burning</h3>
+            <p id="st-text">Glycogen runs low and fat becomes a bigger share of your fuel.</p>
+            <p class="st-next" id="st-next"></p>
+          </div>
+          <div class="plans" role="group" aria-label="Fasting plans" id="plans"></div>
+          <div class="ftimes">
+            <div><span>Started</span><b id="ft-start">8:00 pm</b><small id="ft-start-d">last night</small></div>
+            <div><span id="ft-goal-l">Goal at</span><b id="ft-goal">12:00 pm</b><small id="ft-goal-d">today</small></div>
+            <div><span>Eating</span><b id="ft-eat">8 h</b><small id="ft-eat-d">window</small></div>
+          </div>
+          <div class="earlier">
+            <button class="earlier-btn" type="button" id="earlier" aria-expanded="false" aria-controls="offsets"><i class="ico" data-i="calendar-clock"></i>Started earlier? Set the time</button>
+            <div class="offsets" id="offsets" role="group" aria-label="When it started" hidden></div>
+          </div>
+          <p class="fnote"><i class="ico" data-i="bell"></i><span id="eat-note"><b>Eating window reminder:</b> a nudge 30 minutes before your 8-hour window closes.</span></p>
+          <div class="where">
+            <div class="where-card">
+              <span class="where-cap"><i class="ico" data-i="house"></i>On your home screen</span>
+              <div class="fw">
+                <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="21" fill="none" stroke="var(--surface-3)" stroke-width="6"/><circle id="fw-arc" cx="26" cy="26" r="21" fill="none" stroke="var(--blue)" stroke-width="6" stroke-linecap="round" stroke-dasharray="131.95" stroke-dashoffset="20" transform="rotate(-90 26 26)"/></svg>
+                <div><b id="fw-time">14h 15m</b><span id="fw-stage"><i class="ico" data-i="flame"></i>Fat burning</span><small id="fw-goal">Goal at 12:00 pm</small></div>
+              </div>
+            </div>
+            <div class="where-card">
+              <span class="where-cap"><i class="ico" data-i="smartphone"></i>Android notification</span>
+              <div class="sbar"><div class="sbar-top"><span id="sb-clock">10:15</span><span class="hrs" id="sb-hrs" aria-label="Hours fasted, in the status bar">14h</span></div><div class="notif"><svg class="app-dot" viewBox="0 0 512 512" aria-hidden="true"><g fill="#c6f432" filter="url(#g-icon)"><circle cx="248" cy="258" r="146"/><circle cx="166" cy="200" r="72"/><circle cx="352" cy="236" r="74"/><circle cx="184" cy="348" r="68"/></g></svg><b>Gloop · Fasting</b><span id="sb-fast">14h 15m · Fat burning</span></div></div>
+            </div>
+          </div>
+          <p class="fnote" style="font-size:13px"><i class="ico" data-i="info"></i><span>The stages are a rough guide. Timing varies with what you ate, how active you are and your metabolism.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. body -->
+  <section class="section" id="body" aria-labelledby="body-title">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow"><i class="ico" data-i="activity"></i>Body</p>
+        <h2 id="body-title">Your trend, not one weigh-in</h2>
+        <p class="lede">The scale jumps with water, salt and sleep. Gloop draws a trend through your daily weigh-ins, shows how fast it is moving and when you'll likely reach your target.</p>
+      </div>
+      <div class="body-grid">
+        <article class="card bcard wchart" id="wchart">
+          <div class="bcard-top"><h3><i class="ico" data-i="scale"></i>Body weight</h3><span class="example">Example data</span></div>
+          <div class="cells">
+            <div><span>Trend</span><b id="wc-trend">0<small>kg</small></b></div>
+            <div><span>Rate</span><b id="wc-rate">0<small>kg/wk</small></b></div>
+            <div><span>4 weeks</span><b id="wc-4w">0<small>kg</small></b></div>
+          </div>
+          <svg id="wc-svg" viewBox="0 0 340 190" role="img" aria-label="Example chart: daily weigh-ins scattered around a smooth downward trend line, with a forecast cone reaching the 78 kg target."></svg>
+          <p class="wc-read" id="wc-read" aria-live="polite">Tap the chart to read any day.</p>
+          <div class="wc-legend" aria-hidden="true">
+            <span><i style="width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.6"></i>Weigh-ins</span>
+            <span><i style="width:16px;height:3px;border-radius:2px;background:var(--accent)"></i>Trend</span>
+            <span><i style="width:16px;height:10px;border-radius:3px;background:var(--accent);opacity:.2"></i>Forecast, 80% range</span>
+          </div>
+          <p class="target-line"><i class="ico" data-i="target"></i><span id="wc-target"></span></p>
+        </article>
+        <article class="card bcard bmap" id="bmap">
+          <div class="bcard-top"><h3><i class="ico" data-i="person-standing"></i>Muscle recovery</h3><span class="example">Example</span></div>
+          <div class="bmap-fig"><svg id="bmap-svg" viewBox="0 0 136 108" aria-label="Body map, front and back. Tap a muscle."></svg></div>
+          <div class="bm-read" id="bm-read" aria-live="polite"></div>
+          <div class="bm-list" id="bm-list" role="group" aria-label="Most tired muscles"></div>
+          <div class="bm-legend" aria-hidden="true"><span><i style="background:var(--surface-3)"></i>Fresh</span><span><i style="background:var(--warn)"></i>Recovering</span><span><i style="background:var(--danger)"></i>Fatigued</span></div>
+        </article>
+      </div>
+      <div class="body-row">
+        <div class="card mini-card"><span class="ic"><i class="ico" data-i="sun"></i></span><h3>Morning check-in</h3><p>Sleep, energy and stress in three taps. It sets the day's targets. <a href="#badday">See a rough day</a>.</p></div>
+        <div class="card mini-card"><span class="ic hr"><i class="ico" data-i="heart-pulse"></i></span><h3>Morning heart check</h3><p>Wear your chest strap for 60 seconds after waking. Resting heart rate and HRV are compared with your 30-day normal.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. parents -->
   <section class="section" id="parents" aria-labelledby="parents-title">
     <div class="wrap">
       <div class="section-head">
@@ -770,7 +1100,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
     </div>
   </section>
 
-  <!-- 5. features -->
+  <!-- 8. features -->
   <section class="section" id="features" aria-labelledby="features-title">
     <div class="wrap">
       <div class="section-head">
@@ -787,16 +1117,6 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
           <div class="mini"><div class="hr-mini"><div><div class="zones" id="zones"><i style="height:22%"></i><i style="height:40%"></i><i style="height:58%"></i><i style="height:78%"></i><i style="height:100%"></i></div><div class="zones-lbl"><span>Z1</span><span>Z2</span><span>Z3</span><span>Z4</span><span>Z5</span></div></div><div class="bpm-big"><i class="ico" data-i="heart"></i><span id="z-bpm">142</span></div></div></div>
           <h3>Heart-rate zones, live</h3>
           <p>Pair a Bluetooth chest strap and see all five zones as you lift. Cardio mode runs warm-up, activity and cool-down on one clock, with a landscape view for the machine.</p>
-        </article>
-        <article class="card feat">
-          <div class="mini bodymap"><svg viewBox="0 0 130 106" aria-hidden="true" id="body"></svg></div>
-          <h3>Muscle recovery map</h3>
-          <p>Every set feeds a body map of 16 regions. See what is still recovering, and when it will be fresh.</p>
-        </article>
-        <article class="card feat">
-          <div class="mini"><div class="fast-ring"><svg viewBox="0 0 92 92" aria-hidden="true"><circle cx="46" cy="46" r="38" fill="none" stroke="var(--surface-3)" stroke-width="10"/><circle id="fast-arc" cx="46" cy="46" r="38" fill="none" stroke="var(--blue)" stroke-width="10" stroke-linecap="round" stroke-dasharray="238.8" stroke-dashoffset="24" transform="rotate(-90 46 46)"/></svg><div class="lbl"><span id="fast-t">14:22</span><small>of 16:8</small></div></div></div>
-          <h3>Fasting timer</h3>
-          <p>16:8, 18:6, one meal a day or your own plan. A stage ring, back-dated starts and a nudge before your eating window closes.</p>
         </article>
         <article class="card feat">
           <div class="mini"><div class="tmr"><div class="tmr-ring"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="27" fill="none" stroke="var(--surface-3)" stroke-width="7"/><circle id="tmr-arc" cx="32" cy="32" r="27" fill="none" stroke="var(--accent)" stroke-width="7" stroke-linecap="round" stroke-dasharray="169.6" stroke-dashoffset="0"/></svg><span id="tmr-n">30</span></div><div class="tmr-txt">Hamstring Stretch<small id="tmr-side">Left side · then right</small></div></div></div>
@@ -822,7 +1142,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
     </div>
   </section>
 
-  <!-- 6. closing -->
+  <!-- 9. closing -->
   <section class="wrap" style="padding-block: 24px 16px" aria-labelledby="end-title">
     <div class="ink-card">
       <div class="blob-wrap" id="blob" aria-hidden="true">
@@ -888,6 +1208,22 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
     'message-circle': '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
     zap: '<path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"/>',
     play: '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    hourglass: '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>',
+    activity: '<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>',
+    utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+    'trending-down': '<path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/>',
+    droplet: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>',
+    flame: '<path d="M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4"/>',
+    recycle: '<path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/><path d="m14 16-3 3 3 3"/><path d="M8.293 13.596 7.196 9.5 3.1 10.598"/><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/><path d="m13.378 9.633 4.096 1.098 1.097-4.096"/>',
+    bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+    'calendar-clock': '<path d="M16 14v2.2l1.6 1"/><path d="M16 2v3"/><path d="M21 7.338V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h2.338"/><path d="M3 9h5.859"/><path d="M8 2v3"/><circle cx="16" cy="16" r="6"/>',
+    house: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    'heart-pulse': '<path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/><path d="M3.22 13H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
+    scale: '<path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+    'person-standing': '<circle cx="12" cy="5" r="1"/><path d="m9 20 3-6 3 6"/><path d="m6 8 6 2 6-2"/><path d="M12 10v4"/>',
   }
   const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`
   const paintIcons = (root = document) => {
@@ -1695,7 +2031,491 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
   })()
 
   // ======================================================================
-  // 4 and 5. Small, quiet illustrations
+  // A goo segmented control: one lime pill oozes to the picked option, two drops trail it
+  // ======================================================================
+  function gooSeg(seg, onPick) {
+    const btns = $$('button', seg)
+    const s = svgEl('svg', { 'aria-hidden': 'true', focusable: 'false' })
+    seg.prepend(s)
+    const g = svgEl('g', { fill: 'var(--accent)', filter: 'url(#g-merge)' }, s)
+    const pill = svgEl('rect', { x: 0, y: 0, width: 0, height: 0, rx: 16 }, g)
+    const drops = [0.11, 0.07].map((k) => ({ k, x: 0, el: svgEl('circle', { cx: 0, cy: 0, r: 0 }, g) }))
+    const cur = { x: 0, w: 0, o: 0 }
+    let tgt = null
+    const measure = () => {
+      const b = btns.find((x) => x.getAttribute('aria-checked') === 'true')
+      tgt = b ? { x: b.offsetLeft, w: b.offsetWidth, h: seg.clientHeight } : null
+    }
+    const paint = (snap) => {
+      if (!tgt) { pill.setAttribute('width', 0); drops.forEach((d) => d.el.setAttribute('r', 0)); return false }
+      const e = snap ? 1 : 0.2
+      if (!cur.w) { cur.x = tgt.x; cur.w = tgt.w; drops.forEach((d) => (d.x = tgt.x + tgt.w / 2)) }
+      cur.x += (tgt.x - cur.x) * e; cur.w += (tgt.w - cur.w) * e
+      const mid = cur.x + cur.w / 2
+      let moving = Math.abs(tgt.x - cur.x) > 0.3
+      pill.setAttribute('x', cur.x.toFixed(1)); pill.setAttribute('width', cur.w.toFixed(1)); pill.setAttribute('height', tgt.h)
+      pill.setAttribute('rx', Math.min(16, tgt.h / 2))
+      for (const d of drops) {
+        d.x += (mid - d.x) * (snap ? 1 : d.k)
+        const lag = Math.abs(mid - d.x)
+        if (lag > 0.5) moving = true
+        d.el.setAttribute('cx', d.x.toFixed(1)); d.el.setAttribute('cy', (tgt.h / 2).toFixed(1))
+        d.el.setAttribute('r', lag > 0.5 ? Math.min(tgt.h * 0.36, 6 + lag * 0.25).toFixed(1) : 0)
+      }
+      return moving
+    }
+    const L = loop(seg, () => paint(false))
+    const pick = (b, user) => {
+      for (const x of btns) x.setAttribute('aria-checked', String(x === b))
+      measure()
+      if (reduced() || !user) paint(true); else L.wake()
+      if (user) onPick(Number(b.dataset.v))
+    }
+    btns.forEach((b, i) => {
+      b.addEventListener('click', () => pick(b, true))
+      b.addEventListener('keydown', (e) => {
+        const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+        if (!d) return
+        e.preventDefault()
+        const n = btns[(i + d + btns.length) % btns.length]
+        n.focus(); pick(n, true)
+      })
+    })
+    new ResizeObserver(() => { measure(); paint(true) }).observe(seg)
+    return { set: (v) => { const b = btns.find((x) => Number(x.dataset.v) === v); if (b) pick(b, false) } }
+  }
+
+  // ======================================================================
+  // 4. A bad day isn't a weak day: the morning check-in feeds today's plan.
+  //    Same rules as shared/liveCoach.mjs (roughDay, roughPlan, roughAdjust).
+  // ======================================================================
+  const Rough = (() => {
+    const LEAD = { sleep: 'Short sleep last night', energy: 'Low energy today', stress: 'A stressful day' }
+    const WORDS = { sleep: 'short sleep', energy: 'low energy', stress: 'high stress' }
+    const NOT_WEAK = "Strength doesn't vanish overnight."
+    const and = (l) => (l.length <= 2 ? l.join(' and ') : `${l.slice(0, -1).join(', ')} and ${l[l.length - 1]}`)
+    function roughDay(c) {
+      const f = ['sleep', 'energy', 'stress'].filter((k) => typeof c[k] === 'number')
+      const ones = f.filter((k) => c[k] === 1), twos = f.filter((k) => c[k] === 2)
+      if (ones.length) {
+        const lead = ones.length === 1 ? LEAD[ones[0]] : and(ones.map((k) => WORDS[k])).replace(/^./, (m) => m.toUpperCase())
+        return { level: 'rough', why: ones, text: `${lead}: a bit lighter today. ${NOT_WEAK}` }
+      }
+      if (twos.length >= 2) return { level: 'mild', why: twos, text: `Not your sharpest morning: a touch lighter today. ${NOT_WEAK}` }
+      return null
+    }
+    const roundTo = (w, step = 1) => Math.round(w / step) * step
+    function loadDown(w, step = 1) { // about -5 to 10%, at least one step
+      let r = roundTo(w * 0.925, step)
+      if (r >= w) r = w - step
+      if (r < w * 0.9 && r < w - step) r = w - step
+      return Math.max(step, r)
+    }
+    const lighter = (w, r) => (!r ? w : Math.max(1, Math.min(w, r.level === 'rough' ? loadDown(w) : roundTo(w * 0.95))))
+    return { roughDay, lighter }
+  })()
+  window.GloopRough = Rough // for checking against the app's engine
+
+  ;(() => {
+    const c = { sleep: 3, energy: 3, stress: 2 } // a fine morning: one "Some" changes nothing
+    // stored like the app: the squat's one dumbbell, the raise per dumbbell (a pair shows as the total)
+    const SQ = { kg: 16, sets: 3, reps: 8, rest: 90, sub: 'One dumbbell at the chest' }
+    const LR = { kg: 5, sets: 3, reps: 12, rest: 60, pair: true, sub: 'Two light dumbbells' }
+    const segs = {}
+    const tryText = $('#ci-try-text')
+    let last = { sq: null, lr: null }
+    function row(id, ex, r) {
+      const kg = Rough.lighter(ex.kg, r) * (ex.pair ? 2 : 1)
+      const sets = r && r.level === 'rough' && ex.pair && ex.sets >= 3 ? ex.sets - 1 : ex.sets // accessories: one set fewer
+      const add = r && r.level === 'rough' ? 15 : 0 // fits: this session has minutes to spare
+      const base = ex.kg * (ex.pair ? 2 : 1)
+      const now = $(`#t-${id}-now`)
+      now.innerHTML = `${sets} × ${ex.reps} · <span class="kg">${kg} kg</span>`
+      $(`#t-${id}-was`).textContent = kg !== base || sets !== ex.sets ? `${ex.sets} × ${ex.reps} · ${base} kg` : ''
+      $(`#t-${id}-sub`).textContent = add ? `${ex.sub}. Rest +15\u00a0s: ${ex.rest + add}\u00a0s between sets.` : `${ex.sub}. ${ex.rest}\u00a0s between sets.`
+      const key = `${sets}/${kg}/${add}`
+      if (last[id] != null && last[id] !== key && !reduced()) { now.classList.remove('bump'); void now.offsetWidth; now.classList.add('bump') }
+      last[id] = key
+      return { kg, sets, add }
+    }
+    function update(user) {
+      const r = Rough.roughDay(c)
+      const sq = row('sq', SQ, r)
+      row('lr', LR, r)
+      const st = $('#day-state')
+      st.textContent = !r ? 'Good day · as planned' : r.level === 'rough' ? 'Rough day · a bit lighter' : 'Mild day · a touch lighter'
+      st.classList.toggle('rough', !!r)
+      const line = $('#t-line')
+      line.textContent = r ? r.text : `Goblet Squat first: ${sq.kg} kg × ${SQ.reps}.`
+      if (user && !reduced()) { line.classList.remove('in'); void line.offsetWidth; line.classList.add('in') }
+      setIcon($('#t-ico'), r ? 'sun' : 'message-circle')
+      $('#t-note').textContent = !r ? 'Nothing in the check-in to change.' : r.level === 'rough' ? 'Rests +15 s, one set fewer on Lateral Raise.' : 'Same sets, same rests.'
+      $('#t-after').hidden = !r
+      if (user) tryText.textContent = !r ? 'A good morning: the plan you had.' : r.level === 'rough' ? 'Now try OK sleep and OK energy. Two OKs read as a mild day.' : 'Set it back to a good morning to see the full plan.'
+    }
+    for (const seg of $$('#badday .seg')) {
+      const f = seg.dataset.f
+      segs[f] = gooSeg(seg, (v) => { c[f] = v; update(true) })
+      segs[f].set(c[f])
+    }
+    update(false)
+  })()
+
+  // ======================================================================
+  // 5. Fasting: the stage ring with a time you can scrub (stages and plans from src/fasting.ts)
+  // ======================================================================
+  ;(() => {
+    const STAGES = [
+      { at: 0, icon: 'utensils', name: 'Digesting', text: 'Blood sugar rises while your last meal is absorbed.' },
+      { at: 4, icon: 'trending-down', name: 'Blood sugar falling', text: 'Insulin heads back toward baseline.' },
+      { at: 8, icon: 'droplet', name: 'Blood sugar steady', text: 'Your body draws on stored glycogen for fuel.' },
+      { at: 12, icon: 'flame', name: 'Fat burning', text: 'Glycogen runs low and fat becomes a bigger share of your fuel.' },
+      { at: 18, icon: 'zap', name: 'Ketosis', text: 'Ketones climb. Many people feel clear-headed here. Drink water.' },
+      { at: 24, icon: 'recycle', name: 'Deep fast', text: 'Past a day, cell clean-up (autophagy) is thought to ramp up. Keep electrolytes up.' },
+    ]
+    const PROTOCOLS = [
+      { goal: 13, label: '13:11', name: 'Circadian' }, { goal: 14, label: '14:10', name: 'Gentle start' }, { goal: 16, label: '16:8', name: 'The classic' },
+      { goal: 18, label: '18:6', name: 'Steady' }, { goal: 20, label: '20:4', name: 'Warrior' }, { goal: 23, label: 'OMAD', name: 'One meal a day' }, { goal: 36, label: '36 h', name: 'Skip a day' },
+    ]
+    const OFFSETS = [['Now', 0], ['15 min ago', 15], ['30 min ago', 30], ['1 h ago', 60], ['2 h ago', 120], ['3 h ago', 180]]
+    const stageAt = (h) => [...STAGES].reverse().find((s) => h >= s.at) || STAGES[0]
+    const nextStage = (h) => STAGES.find((s) => s.at > h) || null
+    const hm = (h) => { const m = Math.max(0, Math.round(h * 60)); return [Math.floor(m / 60), m % 60] }
+    const hmText = (h) => { const [a, b] = hm(h); return `${a}h ${String(b).padStart(2, '0')}m` }
+    const clockText = (min) => { const m = ((Math.round(min) % 1440) + 1440) % 1440; const h = Math.floor(m / 60); return `${h % 12 || 12}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}` }
+    const BASE_START = 20 * 60 // 8:00 pm, day 0
+    let goal = 16, hours = 14.25, offset = 0
+    const label = () => PROTOCOLS.find((p) => p.goal === goal).label
+
+    const ring = $('#fring'), svg = ring.querySelector('svg'), goo = $('#fr-goo'), marks = $('#fr-marks'), range = $('#fhours')
+    const C = 150, R = 118
+    const arc = svgEl('path', { fill: 'none', stroke: 'var(--blue)', 'stroke-width': 26, 'stroke-linecap': 'round' }, goo)
+    const full = svgEl('circle', { cx: C, cy: C, r: R, fill: 'none', stroke: 'var(--blue)', 'stroke-width': 26, opacity: 0 }, goo)
+    const knob = [{ r: 19, k: 1 }, { r: 12, k: 0.09 }, { r: 8, k: 0.055 }].map((o) => ({ ...o, f: 0, el: svgEl('circle', { cx: C, cy: C - R, r: 0 }, goo) }))
+    const at = (f, rr = R) => { const a = -Math.PI / 2 + f * Math.PI * 2; return [C + rr * Math.cos(a), C + rr * Math.sin(a)] }
+    let shown = hours / goal
+    function arcD(f) {
+      if (f <= 0.001) return ''
+      const [x0, y0] = at(0), [x1, y1] = at(Math.min(f, 0.9999))
+      return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${f > 0.5 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`
+    }
+    function paint(snap) {
+      const target = Math.min(1, hours / goal)
+      shown += (target - shown) * (snap ? 1 : 0.2)
+      const f = shown
+      arc.setAttribute('d', f >= 0.995 ? '' : arcD(f))
+      full.setAttribute('opacity', f >= 0.995 ? 1 : 0)
+      let moving = Math.abs(target - shown) > 0.0008
+      knob.forEach((k, i) => {
+        k.f += (f - k.f) * (snap || i === 0 ? 1 : k.k)
+        if (Math.abs(f - k.f) > 0.001) moving = true
+        const [x, y] = at(k.f, R + (i === 0 ? 3 : 0))
+        k.el.setAttribute('cx', x.toFixed(1)); k.el.setAttribute('cy', y.toFixed(1))
+        k.el.setAttribute('r', i === 0 ? k.r : Math.abs(f - k.f) > 0.002 ? k.r : 0)
+      })
+      return moving
+    }
+    const L = loop(ring, () => paint(false))
+
+    function drawMarks() {
+      marks.replaceChildren()
+      for (const s of STAGES.filter((x) => x.at < goal)) {
+        const el = document.createElement('span')
+        el.className = 'sr-mark'
+        el.dataset.at = s.at
+        el.title = s.name
+        const a = (s.at / goal) * Math.PI * 2 - Math.PI / 2
+        el.style.left = `${50 + (R / 300) * 100 * Math.cos(a)}%`
+        el.style.top = `${50 + (R / 300) * 100 * Math.sin(a)}%`
+        el.innerHTML = `<i class="ico">${icon(s.icon)}</i>`
+        marks.appendChild(el)
+      }
+    }
+    const plansEl = $('#plans')
+    for (const p of PROTOCOLS) {
+      const b = document.createElement('button')
+      b.type = 'button'; b.className = 'chip'; b.dataset.g = p.goal
+      b.innerHTML = `${p.label}<small>${p.name}</small>`
+      b.setAttribute('aria-label', `${p.label}, ${p.name}`)
+      b.addEventListener('click', () => { goal = p.goal; setMax(); drawMarks(); update(true) })
+      plansEl.appendChild(b)
+    }
+    const offs = $('#offsets')
+    for (const [txt, m] of OFFSETS) {
+      const b = document.createElement('button')
+      b.type = 'button'; b.textContent = txt; b.dataset.m = m
+      b.addEventListener('click', () => {
+        hours = clamp(hours + (m - offset) / 60, 0, Number(range.max)); offset = m
+        range.value = hours; update(true)
+      })
+      offs.appendChild(b)
+    }
+    $('#earlier').addEventListener('click', (e) => { const open = offs.hidden; offs.hidden = !open; e.currentTarget.setAttribute('aria-expanded', String(open)) })
+    function setMax() {
+      const max = Math.max(24, goal)
+      range.max = max
+      $('#fr-max').textContent = max
+      hours = Math.min(hours, max); range.value = hours
+    }
+    const dayWord = (d) => (d === 0 ? 'today' : d === 1 ? 'tomorrow' : d === -1 ? 'yesterday' : d > 1 ? `in ${d} days` : `${-d} days ago`)
+    function update(user) {
+      const start = BASE_START - offset, now = start + hours * 60, goalAt = start + goal * 60
+      const day = (m) => Math.floor(m / 1440), today = day(now)
+      const st = stageAt(hours), nx = nextStage(hours)
+      const done = hours >= goal
+      const [h, m] = hm(hours)
+      $('#fr-label').textContent = done ? 'Goal reached' : 'Fasting for'
+      $('#fr-time').innerHTML = `${h}<small>h</small> ${String(m).padStart(2, '0')}<small>m</small>`
+      $('#fr-stage').innerHTML = `<i class="ico">${icon(st.icon)}</i><span>${st.name}</span>`
+      $('#fr-of').textContent = done ? `+${hmText(hours - goal)} past ${label()}` : `of ${label()}`
+      $('#fhours-out').innerHTML = `${hmText(hours).replace(/h /, '<small>h</small> ').replace(/m$/, '<small>m</small>')}`
+      range.style.setProperty('--p', `${(hours / Number(range.max)) * 100}%`)
+      range.setAttribute('aria-valuetext', `${h} hours ${m} minutes, ${st.name}`)
+      for (const el of $$('.sr-mark', marks)) el.classList.toggle('on', hours >= Number(el.dataset.at))
+      setIcon($('#st-ico'), st.icon)
+      $('#st-name').textContent = st.name
+      $('#st-text').textContent = st.text
+      $('#st-next').textContent = nx ? `Next: ${nx.name} in ${hmText(nx.at - hours)}` : 'The last stage on this guide.'
+      for (const b of $$('.chip', plansEl)) b.setAttribute('aria-pressed', String(Number(b.dataset.g) === goal))
+      for (const b of $$('button', offs)) b.setAttribute('aria-pressed', String(Number(b.dataset.m) === offset))
+      $('#ft-start').textContent = clockText(start)
+      $('#ft-start-d').textContent = offset ? `${dayWord(day(start) - today)}, set back ${OFFSETS.find((o) => o[1] === offset)[0].replace(' ago', '')}` : dayWord(day(start) - today)
+      $('#ft-goal-l').textContent = done ? 'Reached at' : 'Goal at'
+      $('#ft-goal').textContent = clockText(goalAt)
+      $('#ft-goal-d').textContent = dayWord(day(goalAt) - today)
+      $('#ft-eat').textContent = goal < 24 ? `${24 - goal} h` : 'None'
+      $('#ft-eat-d').textContent = goal < 24 ? 'window' : 'no daily window'
+      $('#eat-note').innerHTML = goal < 24
+        ? `<b>Eating window reminder:</b> a nudge 30 minutes before your ${24 - goal}-hour window closes.`
+        : '<b>No daily eating window</b> on a 36-hour fast. Gloop tells you when you reach the goal.'
+      const frac = Math.min(1, hours / goal)
+      $('#fw-arc').setAttribute('stroke-dashoffset', (131.95 * (1 - frac)).toFixed(1))
+      $('#fw-time').textContent = hmText(hours)
+      $('#fw-stage').innerHTML = `<i class="ico">${icon(st.icon)}</i>${st.name}`
+      $('#fw-goal').textContent = done ? `Goal reached at ${clockText(goalAt)}` : `Goal at ${clockText(goalAt)}`
+      $('#sb-clock').textContent = clockText(now).replace(/ (am|pm)$/, '')
+      $('#sb-hrs').textContent = `${h}h`
+      $('#sb-fast').textContent = `${hmText(hours)} · ${done ? 'goal reached' : st.name}`
+      $('#fr-summary').textContent = `${h} hours ${m} minutes of a ${label()} fast: ${st.name}.`
+      if (reduced() || !user) paint(true); else L.wake()
+    }
+    range.addEventListener('input', () => { hours = Number(range.value); update(true) })
+
+    // drag the ring's knob (hours follow the angle; it stops at the start and at the goal)
+    const toSvg = (e) => { const mtx = svg.getScreenCTM(); const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(mtx.inverse()); return { x: p.x, y: p.y } }
+    const onRing = (p) => { const d = Math.hypot(p.x - C, p.y - C); return d > R - 40 && d < R + 34 }
+    let drag = null
+    const setFrom = (p) => {
+      let f = (Math.atan2(p.y - C, p.x - C) + Math.PI / 2) / (Math.PI * 2)
+      if (f < 0) f += 1
+      const prev = Math.min(1, hours / goal)
+      if (prev > 0.75 && f < 0.25) f = 1
+      else if (prev < 0.25 && f > 0.75) f = 0
+      hours = Math.round(f * goal * 4) / 4
+      range.value = hours
+      update(true)
+    }
+    svg.addEventListener('touchstart', (e) => { const t = e.touches[0]; if (t && onRing(toSvg(t))) e.preventDefault() }, { passive: false })
+    svg.addEventListener('pointerdown', (e) => {
+      const p = toSvg(e)
+      if (!onRing(p)) return
+      drag = e.pointerId
+      svg.setPointerCapture(e.pointerId); ring.classList.add('grabbing')
+      setFrom(p)
+    })
+    svg.addEventListener('pointermove', (e) => { if (drag === e.pointerId) setFrom(toSvg(e)) })
+    const end = () => { drag = null; ring.classList.remove('grabbing') }
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end)
+
+    drawMarks()
+    update(false)
+  })()
+
+  // ======================================================================
+  // 6. Body: weigh-ins, the trend and a forecast cone (example data), and the recovery map
+  // ======================================================================
+  ;(() => {
+    // deterministic example: ten weeks of weigh-ins around a slow downward trend, a few days skipped,
+    // two salty-dinner mornings
+    let seed = 11
+    const rnd = () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
+    const gauss = () => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()) }
+    const DAYS = 70, TARGET = 78
+    const SPIKE = { 23: 1.1, 24: 0.5, 50: 1.3 }
+    const raw = []
+    for (let d = 0; d < DAYS; d++) {
+      if (d !== DAYS - 1 && rnd() < 0.14) continue
+      const truth = 84.4 - 0.062 * d + 0.22 * Math.sin(d / 9)
+      raw.push({ d, kg: Math.round((truth + gauss() * 0.4 + (SPIKE[d] || 0)) * 10) / 10 })
+    }
+    // trend: a local linear fit (tricube weights, 12-day half-window) at every day
+    const trend = []
+    for (let d = 0; d < DAYS; d++) {
+      let sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0
+      for (const p of raw) {
+        const u = Math.abs(p.d - d) / 12
+        if (u >= 1) continue
+        const w = (1 - u ** 3) ** 3
+        sw += w; sx += w * p.d; sy += w * p.kg; sxx += w * p.d * p.d; sxy += w * p.d * p.kg
+      }
+      const den = sw * sxx - sx * sx
+      const b = den > 1e-9 ? (sw * sxy - sx * sy) / den : 0
+      trend.push((sy - b * sx) / sw + b * d)
+    }
+    const T0 = trend[DAYS - 1]
+    const rate = (trend[DAYS - 1] - trend[DAYS - 29]) / 28 // kg per day, last four weeks
+    const half = (k) => 0.25 + 0.017 * k // the 80% range widens with time
+    const fc = []
+    for (let k = 1; k <= 84; k++) fc.push({ d: DAYS - 1 + k, kg: T0 + rate * k, lo: T0 + rate * k - half(k), hi: T0 + rate * k + half(k) })
+    const hit = (key) => { const p = fc.find((x) => x[key] <= TARGET); return p ? p.d - (DAYS - 1) : null }
+    const kMid = hit('kg'), kFast = hit('lo'), kSlow = hit('hi')
+    const END = DAYS - 1 + Math.min(84, Math.max(42, (kSlow ?? 84) + 4))
+    const fcs = fc.filter((p) => p.d <= END)
+    const wk = (k) => Math.round(k / 7)
+
+    const f1 = (n) => n.toFixed(1)
+    const sign = (n) => (n > 0 ? '+' : '−') + Math.abs(n).toFixed(1)
+    $('#wc-trend').innerHTML = `${f1(T0)}<small>kg</small>`
+    $('#wc-rate').innerHTML = `${sign(rate * 7)}<small>kg/wk</small>`
+    $('#wc-4w').innerHTML = `${sign(T0 - trend[DAYS - 29])}<small>kg</small>`
+    $('#wc-target').textContent = kMid ? `Target ${TARGET} kg: likely in about ${wk(kMid)} weeks, somewhere between ${wk(kFast)} and ${kSlow ? wk(kSlow) : 12}.` : `Target ${TARGET} kg: further out than 12 weeks at this pace.`
+
+    const svg = $('#wc-svg')
+    // drawn at its real width, so labels stay 11px on a phone and on a desktop
+    const W = Math.max(300, Math.round(svg.getBoundingClientRect().width) || 340), H = Math.round(clamp(W * 0.5, 180, 250)), pad = { l: 6, r: 34, t: 14, b: 22 }
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+    const vals = [...raw.map((p) => p.kg), ...fcs.map((p) => p.lo), ...fcs.map((p) => p.hi), TARGET]
+    const lo = Math.floor(Math.min(...vals) - 0.4), hi = Math.ceil(Math.max(...vals) + 0.3)
+    const x = (d) => pad.l + (d / END) * (W - pad.l - pad.r)
+    const y = (kg) => pad.t + (1 - (kg - lo) / (hi - lo)) * (H - pad.t - pad.b)
+    // gridlines every 2 kg, labelled on the right
+    for (let k = Math.ceil(lo / 2) * 2; k <= hi; k += 2) {
+      svgEl('line', { x1: pad.l, x2: W - pad.r, y1: y(k), y2: y(k), stroke: 'var(--line)', 'stroke-width': 1 }, svg)
+      svgEl('text', { x: W - pad.r + 6, y: y(k) + 4, class: 'wc-lbl' }, svg).textContent = k
+    }
+    svgEl('line', { x1: pad.l, x2: W - pad.r, y1: y(TARGET), y2: y(TARGET), class: 'wc-target' }, svg)
+    svgEl('text', { x: pad.l + 2, y: y(TARGET) + 14, class: 'wc-lbl' }, svg).textContent = `TARGET ${TARGET}`
+    svgEl('line', { x1: x(DAYS - 1), x2: x(DAYS - 1), y1: pad.t, y2: H - pad.b, class: 'wc-today' }, svg)
+    svgEl('text', { x: x(DAYS - 1), y: H - 6, 'text-anchor': 'middle', class: 'wc-lbl' }, svg).textContent = 'TODAY'
+    svgEl('text', { x: pad.l, y: H - 6, class: 'wc-lbl' }, svg).textContent = '10 WEEKS AGO'
+    const start = { d: DAYS - 1, kg: T0, lo: T0, hi: T0 }
+    const cone = [start, ...fcs]
+    const coneEl = svgEl('path', { class: 'wc-cone', d: `${cone.map((p, i) => `${i ? 'L' : 'M'}${f1(x(p.d))},${f1(y(p.hi))}`).join(' ')} ${[...cone].reverse().map((p) => `L${f1(x(p.d))},${f1(y(p.lo))}`).join(' ')} Z` }, svg)
+    const fcEl = svgEl('path', { class: 'wc-fc', d: cone.map((p, i) => `${i ? 'L' : 'M'}${f1(x(p.d))},${f1(y(p.kg))}`).join(' ') }, svg)
+    const dots = raw.map((p) => svgEl('circle', { class: 'wc-dot', cx: f1(x(p.d)), cy: f1(y(p.kg)), r: 2.6 }, svg))
+    const trendEl = svgEl('path', { class: 'wc-trend', pathLength: 1, 'stroke-dasharray': '1 1', d: trend.map((kg, d) => `${d ? 'L' : 'M'}${f1(x(d))},${f1(y(kg))}`).join(' ') }, svg)
+    const guide = svgEl('line', { class: 'wc-guide', y1: pad.t, y2: H - pad.b, x1: 0, x2: 0 }, svg)
+    const sel = svgEl('circle', { class: 'wc-sel', r: 0, cx: 0, cy: 0 }, svg)
+
+    const draw = (p) => {
+      dots.forEach((el, i) => el.style.opacity = clamp(p * 1.6 - (i / dots.length) * 0.9, 0, 1) * 0.55)
+      trendEl.setAttribute('stroke-dashoffset', f1(1 - clamp((p - 0.15) / 0.55, 0, 1)))
+      const q = clamp((p - 0.65) / 0.35, 0, 1)
+      coneEl.style.opacity = q * 0.16; fcEl.style.opacity = q * 0.9
+    }
+    if (reduced()) draw(1)
+    else {
+      draw(0)
+      let p = 0
+      loop(svg, (dt) => { p = Math.min(1, p + dt / 2.2); draw(p); return p < 1 })
+    }
+
+    const read = $('#wc-read')
+    const ago = (k) => (k === 0 ? 'Today' : k === 1 ? 'Yesterday' : k < 14 ? `${k} days ago` : `${Math.round(k / 7)} weeks ago`)
+    function readAt(d) {
+      d = clamp(Math.round(d), 0, END)
+      guide.setAttribute('x1', x(d)); guide.setAttribute('x2', x(d)); guide.classList.add('on')
+      if (d < DAYS) {
+        const w = raw.find((p) => p.d === d)
+        const t = trend[d]
+        sel.setAttribute('cx', x(d)); sel.setAttribute('cy', y(w ? w.kg : t)); sel.setAttribute('r', 4.5)
+        read.innerHTML = w
+          ? `<b>${ago(DAYS - 1 - d)}</b>: scale ${f1(w.kg)} kg, trend ${f1(t)} kg.${w.kg - t > 0.7 ? ' A jump like that is usually water, not fat.' : ''}`
+          : `<b>${ago(DAYS - 1 - d)}</b>: no weigh-in. Trend ${f1(t)} kg.`
+      } else {
+        const p = fcs.find((q) => q.d === d) || fcs[fcs.length - 1]
+        const k = p.d - (DAYS - 1)
+        sel.setAttribute('cx', x(p.d)); sel.setAttribute('cy', y(p.kg)); sel.setAttribute('r', 4.5)
+        read.innerHTML = `<b>In ${k < 14 ? `${k} days` : `${Math.round(k / 7)} weeks`}</b>: likely ${f1(p.kg)} kg (${f1(p.lo)} to ${f1(p.hi)}).`
+      }
+    }
+    const toX = (e) => { const m = svg.getScreenCTM(); const q = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()); return ((q.x - pad.l) / (W - pad.l - pad.r)) * END }
+    svg.addEventListener('pointerdown', (e) => readAt(toX(e)))
+    svg.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) readAt(toX(e)) })
+    svg.setAttribute('tabindex', '0')
+    let kd = DAYS - 1
+    svg.addEventListener('keydown', (e) => {
+      const s = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+      if (!s) return
+      e.preventDefault(); kd = clamp(kd + s, 0, END); readAt(kd)
+    })
+    window.GloopWeight = { readAt, END, DAYS }
+  })()
+
+  // the muscle recovery map: goo figures, regions tinted by how tired they are; tap one
+  ;(() => {
+    const s = $('#bmap-svg')
+    const FX = 34, BX = 102
+    const FIG = [[0, 9, 7], [0, 17, 4], [-11, 22, 6], [11, 22, 6], [0, 26, 10], [0, 37, 9], [0, 47, 9], [-16, 31, 5], [16, 31, 5], [-18, 41, 4.2], [18, 41, 4.2], [-19, 50, 3.4], [19, 50, 3.4],
+      [-6.5, 58, 6.5], [6.5, 58, 6.5], [-6.5, 68, 5.6], [6.5, 68, 5.6], [-6.5, 78, 4.6], [6.5, 78, 4.6], [-6.5, 88, 4], [6.5, 88, 4]]
+    const fig = (ox) => { const g = svgEl('g', { fill: 'var(--surface-3)', filter: 'url(#g-body)' }, s); for (const [x, y, r] of FIG) svgEl('circle', { cx: ox + x, cy: y, r }, g) }
+    fig(FX); fig(BX)
+    const lbl = (x, t) => { const e = svgEl('text', { x, y: 104, 'text-anchor': 'middle', class: 'fig-lbl' }, s); e.textContent = t }
+    lbl(FX, 'FRONT'); lbl(BX, 'BACK')
+    // fatigue 0-1 (fresh under 25%, fatigued from 50%), when it is fresh again, what trained it
+    const REG = [
+      { id: 'quads', name: 'Quads', f: 0.64, fresh: 'Saturday morning', last: 'Thursday: Goblet Squat, Split Squat', c: [[FX - 6.5, 58, 5.6], [FX + 6.5, 58, 5.6], [FX - 6.5, 67, 4.8], [FX + 6.5, 67, 4.8]] },
+      { id: 'glutes', name: 'Glutes', f: 0.52, fresh: 'Saturday morning', last: 'Thursday: Goblet Squat, Romanian Deadlift', c: [[BX - 6, 55, 6], [BX + 6, 55, 6]] },
+      { id: 'hams', name: 'Hamstrings', f: 0.41, fresh: 'Friday evening', last: 'Thursday: Romanian Deadlift', c: [[BX - 6.5, 66, 5], [BX + 6.5, 66, 5]] },
+      { id: 'delts', name: 'Shoulders', f: 0.33, fresh: 'Friday afternoon', last: 'Thursday: Shoulder Press', c: [[FX - 11, 22, 5.2], [FX + 11, 22, 5.2]] },
+      { id: 'chest', name: 'Chest', f: 0.28, fresh: 'Friday morning', last: 'Wednesday: Floor Press', c: [[FX - 5, 27, 5.6], [FX + 5, 27, 5.6]] },
+      { id: 'lowback', name: 'Lower back', f: 0.26, fresh: 'Friday morning', last: 'Thursday: Romanian Deadlift', c: [[BX, 44, 5.5]] },
+      { id: 'triceps', name: 'Triceps', f: 0.22, fresh: null, last: 'Wednesday: Floor Press', c: [[BX - 16, 32, 4.4], [BX + 16, 32, 4.4]] },
+      { id: 'back', name: 'Upper back and lats', f: 0.18, fresh: null, last: 'Wednesday: Bent-Over Row', c: [[BX - 7, 30, 6.2], [BX + 7, 30, 6.2]] },
+      { id: 'abs', name: 'Abs', f: 0.12, fresh: null, last: 'Monday: Dead Bug', c: [[FX, 38, 5.5], [FX, 46, 5.2]] },
+      { id: 'biceps', name: 'Biceps', f: 0.1, fresh: null, last: 'Wednesday: Bent-Over Row', c: [[FX - 16, 32, 4.4], [FX + 16, 32, 4.4]] },
+      { id: 'calves', name: 'Calves', f: 0.05, fresh: null, last: 'Last week', c: [[BX - 6.5, 79, 4.2], [BX + 6.5, 79, 4.2]] },
+    ]
+    const level = (f) => (f >= 0.5 ? 'Fatigued' : f >= 0.25 ? 'Recovering' : 'Fresh')
+    const colour = (f) => f >= 0.5 ? `color-mix(in srgb, var(--danger) ${Math.round(clamp((f - 0.5) / 0.25, 0, 1) * 100)}%, var(--warn))`
+      : `color-mix(in srgb, var(--warn) ${Math.round(clamp((f - 0.08) / 0.42, 0, 1) * 100)}%, var(--surface-3))`
+    const read = $('#bm-read'), list = $('#bm-list')
+    let selId = null
+    const els = new Map()
+    for (const r of REG) {
+      const g = svgEl('g', { class: 'region', role: 'button', tabindex: '0', 'aria-label': `${r.name}, ${Math.round(r.f * 100)}%, ${level(r.f).toLowerCase()}` }, s)
+      const fill = svgEl('g', { filter: 'url(#g-body)', style: `fill: ${colour(r.f)}; transition: opacity 300ms` }, g)
+      const blobs = r.c.map(([x, y, rr]) => svgEl('circle', { cx: x, cy: y, r: rr }, fill))
+      const hits = svgEl('g', {}, g)
+      r.c.forEach(([x, y, rr]) => svgEl('circle', { class: 'hit', cx: x, cy: y, r: rr + 2.5 }, hits))
+      g.addEventListener('click', () => pick(r.id))
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(r.id) } })
+      els.set(r.id, { g, fill, blobs, anim: [] })
+    }
+    for (const r of REG.slice(0, 4)) {
+      const b = document.createElement('button')
+      b.type = 'button'; b.dataset.id = r.id
+      b.innerHTML = `<i style="background:${colour(r.f)}"></i>${r.name} ${Math.round(r.f * 100)}%`
+      b.addEventListener('click', () => pick(r.id))
+      list.appendChild(b)
+    }
+    function pick(id) {
+      selId = id
+      const r = REG.find((x) => x.id === id)
+      const lv = level(r.f)
+      read.innerHTML = `<b>${r.name} <span class="lvl ${lv === 'Fatigued' ? 'hot' : lv === 'Recovering' ? 'warm' : ''}">${Math.round(r.f * 100)}% · ${lv.toLowerCase()}</span></b><span>${r.fresh ? `Fresh by ${r.fresh}.` : 'Ready to train.'} Last trained ${r.last}.</span>`
+      for (const b of $$('button', list)) b.setAttribute('aria-pressed', String(b.dataset.id === id))
+      for (const [k, o] of els) {
+        o.fill.style.opacity = k === id ? 1 : 0.62
+        o.anim.forEach((a) => a.cancel()); o.anim = []
+        if (k === id && !reduced()) o.anim = o.blobs.map((el) => el.animate([{ r: el.getAttribute('r') + 'px' }, { r: Number(el.getAttribute('r')) * 1.18 + 'px' }], { duration: 900, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }))
+      }
+    }
+    pick('quads')
+  })()
+
+  // ======================================================================
+  // 7 and 8. Small, quiet illustrations
   // ======================================================================
   // a week of day rings: a showed-up check on short days, a closed ring on long ones
   ;(() => {
@@ -1714,25 +2534,11 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
     const w = $('#weeks')
     for (let i = 0; i < 12; i++) { const el = document.createElement('i'); el.className = i < 4 ? 'on' : i === 4 ? 'now' : ''; w.appendChild(el) }
   })()
-  // a body map of goo blobs, front and back: recovering regions in amber
-  ;(() => {
-    const s = $('#body')
-    const FIG = [[0, 9, 7], [0, 17, 4], [-11, 22, 6], [11, 22, 6], [0, 26, 10], [0, 37, 9], [0, 47, 9], [-16, 31, 5], [16, 31, 5], [-18, 41, 4.2], [18, 41, 4.2], [-19, 50, 3.4], [19, 50, 3.4],
-      [-6.5, 58, 6.5], [6.5, 58, 6.5], [-6.5, 68, 5.6], [6.5, 68, 5.6], [-6.5, 78, 4.6], [6.5, 78, 4.6], [-6.5, 88, 4], [6.5, 88, 4]]
-    const fig = (ox) => { const g = svgEl('g', { fill: 'var(--surface-3)', filter: 'url(#g-body)' }, s); for (const [x, y, r] of FIG) svgEl('circle', { cx: ox + x, cy: y, r }, g) }
-    fig(34); fig(96)
-    const hot = svgEl('g', { fill: 'var(--warn)', filter: 'url(#g-body)' }, s)
-    const H = [[34 - 6.5, 58, 5.6], [34 + 6.5, 58, 5.6], [34 - 6.5, 67, 4.8], [34 + 6.5, 67, 4.8], [34, 26, 8], [96 - 7, 30, 6.5], [96 + 7, 30, 6.5]]
-    const els = H.map(([x, y, r]) => svgEl('circle', { cx: x, cy: y, r }, hot))
-    if (!reduced()) els.forEach((el, i) => el.animate([{ r: el.getAttribute('r') + 'px' }, { r: (Number(el.getAttribute('r')) * (i < 4 ? 0.6 : 0.75)) + 'px' }], { duration: 3200, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out', delay: i * 120 }))
-    const t1 = svgEl('text', { x: 34, y: 103, 'text-anchor': 'middle', fill: 'var(--muted)', style: 'font: 600 8px var(--font-display); letter-spacing: .12em' }, s); t1.textContent = 'FRONT'
-    const t2 = svgEl('text', { x: 96, y: 103, 'text-anchor': 'middle', fill: 'var(--muted)', style: 'font: 600 8px var(--font-display); letter-spacing: .12em' }, s); t2.textContent = 'BACK'
-  })()
-  // small live numbers: heart rate, fasting clock, a stretch timer, totals
+  // small live numbers: heart rate, a stretch timer, totals
   ;(() => {
     if (reduced()) return
     let t = 0
-    const zb = $('#z-bpm'), zs = $$('#zones i'), sb = $('#sb-bpm'), sl = $('#sb-line'), ft = $('#fast-t'), fa = $('#fast-arc'), tn = $('#tmr-n'), ta = $('#tmr-arc'), side = $('#tmr-side'), tv = $('#tot-v'), tk = $('#tot-k'), tc = $('#tot-c')
+    const zb = $('#z-bpm'), zs = $$('#zones i'), sb = $('#sb-bpm'), sl = $('#sb-line'), tn = $('#tmr-n'), ta = $('#tmr-arc'), side = $('#tmr-side'), tv = $('#tot-v'), tk = $('#tot-k'), tc = $('#tot-c')
     loop($('#features'), (dt) => {
       t += dt
       const bpm = Math.round(140 + 8 * Math.sin(t * 0.7) + 3 * Math.sin(t * 2.3))
@@ -1740,9 +2546,6 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
       const z = bpm < 136 ? 2 : bpm < 146 ? 3 : 4
       zs.forEach((el, i) => el.classList.toggle('cur', i === z - 1))
       sl.textContent = `${bpm} bpm · Zone ${z} · 12:${String(4 + Math.floor(t / 60) % 50).padStart(2, '0')}`
-      const fm = 14 * 60 + 22 + Math.floor(t * 2) // fast: two minutes a second
-      ft.textContent = `${Math.floor(fm / 60) % 24}:${String(fm % 60).padStart(2, '0')}`
-      fa.setAttribute('stroke-dashoffset', (238.8 * (1 - ((fm / 60) % 16) / 16)).toFixed(1))
       const cyc = t % 70 // 30 s left side, 5 s switch, 30 s right, 5 s
       const left = cyc < 30 ? 30 - cyc : cyc < 35 ? 0 : cyc < 65 ? 65 - cyc : 0
       tn.textContent = cyc < 30 || (cyc >= 35 && cyc < 65) ? Math.ceil(left) : 'Switch'
@@ -1755,7 +2558,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
   })()
 
   // ======================================================================
-  // 6. The closing blob: the app icon, alive. Its drops drift and follow the pointer.
+  // 9. The closing blob: the app icon, alive. Its drops drift and follow the pointer.
   // ======================================================================
   ;(() => {
     const g = $('#blob-goo'), wrap = $('#blob'), svg = wrap.querySelector('svg')

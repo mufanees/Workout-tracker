@@ -143,6 +143,25 @@ function lastDone(ex) {
   return d.reduce((a, b) => ((b.at ?? 0) >= (a.at ?? 0) ? b : a))
 }
 
+/** Its number (estimated strength) for a list of sets: the best weight × (1 + reps/30). */
+const bestOf = (sets) => Math.max(0, ...sets.filter((s) => working(s) && isNum(s.reps)).map((s) => (isNum(s.weight) && s.weight > 0 ? s.weight : 1) * (1 + Math.min(12, s.reps) / 30)))
+
+/**
+ * The session to build on: the newest one with reps logged, except a rough-day session (morning
+ * check-in) that came out lower than the normal session before it. A bad day is recovery, not a new
+ * baseline; a rough day that went well still counts.
+ */
+export function refSession(ex) {
+  const list = (ex.history || []).filter((h) => h.sets.some((s) => working(s) && isNum(s.reps)))
+  for (let i = 0; i < list.length; i++) {
+    const h = list[i]
+    if (!h.rough) return h
+    const normal = list.slice(i + 1).find((x) => !x.rough)
+    if (!normal || bestOf(h.sets) > bestOf(normal.sets)) return h
+  }
+  return list[0] || null
+}
+
 /**
  * The next set of an exercise in progress: { weId, setIds, weight, reps, kind, reason }.
  * kind: 'up' | 'keep' | 'down' | 'reps'. Null when nothing is done yet or nothing is left.
@@ -193,7 +212,7 @@ export function formToday(ctx) {
   for (const ex of ctx.exercises) {
     if (!usesWeight(ex)) continue
     const today = doneWork(ex).filter((s) => isNum(s.weight) && s.weight > 0 && isNum(s.reps))
-    const prev = (ex.history?.[0]?.sets || []).filter((s) => working(s) && isNum(s.weight) && s.weight > 0 && isNum(s.reps))
+    const prev = (refSession(ex)?.sets || []).filter((s) => working(s) && isNum(s.weight) && s.weight > 0 && isNum(s.reps))
     if (!today.length || !prev.length) continue
     const best = (list, tap) => Math.max(...list.map((s) => s.weight * (1 + Math.min(12, s.reps + (tap(s) ?? 0)) / 30)))
     const t = best(today, (s) => effortOf(s, ex, ctx).rir)
@@ -210,7 +229,7 @@ export function firstSetPlan(ex, ctx, form = formToday(ctx)) {
   if (!open.length) return null
   const base = { weId: ex.id, setIds: open.map((s) => s.id) }
   const range = parseRange(ex.target)
-  const hist = (ex.history || []).find((h) => h.sets.some((s) => working(s) && isNum(s.reps)))
+  const hist = refSession(ex)
   const sets = hist ? hist.sets.filter((s) => working(s) && isNum(s.reps)) : []
   const planReps = range ? range.hi : isNum(open[0].tr) ? open[0].tr : null
   const down = isNum(form) && form < 0.95
@@ -518,10 +537,11 @@ export function setCue(ctx, o = {}) {
 
 /** Plans for every exercise: the next set for ones in progress, the first set for the rest. */
 export function plansFor(ctx) {
-  const form = formToday(ctx)
+  // a rough day already sets the first sets lighter: today's lower numbers aren't a sign to hold back more
+  const form = ctx.rough ? null : formToday(ctx)
   const out = []
   for (const ex of ctx.exercises) {
-    const p = doneWork(ex).length ? nextSetPlan(ex, ctx) : firstSetPlan(ex, ctx, form)
+    const p = doneWork(ex).length ? nextSetPlan(ex, ctx) : roughPlan(firstSetPlan(ex, ctx, form), ex, ctx)
     if (p) out.push(p)
   }
   return out
@@ -565,7 +585,8 @@ export function startBrief(ctx) {
   const fitAll = over && ctx.canFit ? { id: 'fit', kind: 'fit', label: `Fit it to ${b.total} min`, short: `fit it to ${b.total} min`, saves: r.time.over, cost: 0, weIds: [] } : null
   const best = fitAll || r.best
   const fit = over ? `Plan runs ~${mins(r.time.projected)} of ${b.total} min${best ? `: ${best.short}?` : '.'}` : `${b.total} min: ${warm}${lifts.length} exercises, ${sets} sets, ${b.cooldown} min cool-down.`
-  return { text: [fit, focus ? cap(focus) + '.' : ''].filter(Boolean).join(' '), action: over ? best : null, result: r }
+  const rough = ctx.rough ? `${ctx.rough.text}${ctx.rough.note ? ' ' + ctx.rough.note : ''}` : ''
+  return { text: [rough, fit, focus ? cap(focus) + '.' : ''].filter(Boolean).join(' '), action: over ? best : null, result: r }
 }
 
 /** The one-line verdict once lifting is done. `prevTop` = exerciseId → last session's top weight. */
@@ -575,7 +596,7 @@ export function finishVerdict(ctx) {
   const used = mins(t.elapsed)
   const ups = []
   for (const ex of ctx.exercises) {
-    const prev = (ex.history?.[0]?.sets || []).filter((s) => working(s) && isNum(s.weight))
+    const prev = (refSession(ex)?.sets || []).filter((s) => working(s) && isNum(s.weight))
     const today = doneWork(ex).filter((s) => isNum(s.weight))
     if (!prev.length || !today.length) continue
     const pTop = Math.max(...prev.map((s) => s.weight))
@@ -588,6 +609,7 @@ export function finishVerdict(ctx) {
   const time = used <= b.total - b.cooldown ? `${used} min, cool-down still fits in ${b.total}` : used <= b.total ? `${used} min, inside ${b.total}` : `${used} min, ${used - b.total} over ${b.total}`
   const prog = ups.length ? `Up on ${names(ups.slice(0, 3))}${ups.length > 3 ? ` +${ups.length - 3}` : ''}.` : 'Held your numbers.'
   const next = used > b.total ? ' Next time: shorter rests or a superset.' : skipped ? ` ${skipped} exercise${skipped > 1 ? 's' : ''} not done.` : ''
+  if (ctx.rough) return `Rough day, still showed up. That counts. ${time}.${ups.length ? ' ' + prog : ''}${next}`
   return `${time}. ${prog}${next}`
 }
 
@@ -602,9 +624,104 @@ export function sessionLine(ctx) {
   const ex = (p) => ctx.exercises.find((e) => e.id === p.weId)
   const up = ups.length ? `, go ${fmtW(ctx, ups[0].weight, ex(ups[0]))} on ${ex(ups[0]).name.toLowerCase()} today` : ''
   const fa = fatigueAdvice(ctx)
-  const tired = fa ? `${cap(fa.short)}. ` : ''
+  const tired = ctx.rough ? `${cap(ctx.rough.short)}. ` : fa ? `${cap(fa.short)}. ` : ''
   if (r.time.state === 'over') return `${tired}${b.total} min: plan runs ~${mins(r.time.projected)}, so ${ctx.canFit ? 'tap Fit it when you start' : r.best ? r.best.short : 'trim as we go'}${fa ? '' : up}`
   return `${tired}${b.total} min: ${shape}${fa ? '' : up}`
+}
+
+// ---------------------------------------------------------------- a rough day (the morning check-in)
+
+const ROUGH_WORDS = { sleep: 'short sleep', energy: 'low energy', stress: 'high stress' }
+const ROUGH_LEAD = { sleep: 'Short sleep last night', energy: 'Low energy today', stress: 'A stressful day' }
+const NOT_WEAK = "Strength doesn't vanish overnight."
+
+/**
+ * How today's morning check-in (sleep / energy / stress, 1–3; stress 1 = high stress) reads.
+ * Null when it wasn't answered or the day looks fine. 'rough': any 1. 'mild': two or more 2s.
+ * Returns { level, why: fields, text (the start line), short (for Train) }.
+ */
+export function roughDay(c) {
+  if (!c) return null
+  const f = ['sleep', 'energy', 'stress'].filter((k) => isNum(c[k]))
+  const ones = f.filter((k) => c[k] === 1)
+  const twos = f.filter((k) => c[k] === 2)
+  if (ones.length) {
+    const lead = ones.length === 1 ? ROUGH_LEAD[ones[0]] : cap(names(ones.map((k) => ROUGH_WORDS[k])))
+    return { level: 'rough', why: ones, text: `${lead}: a bit lighter today. ${NOT_WEAK}`, short: `${lead.charAt(0).toLowerCase() + lead.slice(1)}: a bit lighter today` }
+  }
+  if (twos.length >= 2) return { level: 'mild', why: twos, text: `Not your sharpest morning: a touch lighter today. ${NOT_WEAK}`, short: 'not your sharpest morning: a touch lighter today' }
+  return null
+}
+
+/**
+ * A first-set plan for a rough day: from last session's weight (no step up today), about 5–10% lighter
+ * on a rough day (at least one step) or ~5% on a mild one; bodyweight / reps-only → one rep fewer on a rough day.
+ * Unchanged when there's no rough day or nothing to lighten.
+ */
+export function roughPlan(plan, ex, ctx, r = ctx.rough) {
+  if (!plan || !r) return plan
+  if (isNum(plan.weight) && plan.weight > 0 && usesWeight(ex)) {
+    const eq = equipmentFor(ex, ctx.equipment)
+    const prev = (refSession(ex)?.sets || []).filter((s) => working(s) && isNum(s.weight) && s.weight > 0)
+    const prevTop = prev.length ? Math.min(Math.max(...prev.map((s) => s.weight)), eq.max) : null
+    const ref = plan.kind === 'up' && isNum(prevTop) && prevTop < plan.weight ? prevTop : plan.weight
+    let w = r.level === 'rough' ? loadDown(ref, eq) : roundTo(ref * 0.95, eq.step)
+    w = Math.max(eq.step, Math.min(w, ref))
+    // at the heaviest dumbbell the plan asked for one more rep: not today
+    const reps = plan.kind === 'up' && ref === plan.weight && isNum(plan.reps) ? Math.max(1, plan.reps - 1) : plan.reps
+    return { ...plan, weight: w, reps, kind: w < plan.weight ? 'down' : 'keep', rough: true, reason: `${r.level === 'rough' ? 'Easier today' : 'A touch easier today'}: ${fmtW(ctx, w, ex)} × ${reps ?? ''}`.replace(/ × $/, '') }
+  }
+  // bodyweight and reps-only moves: one rep fewer (a new weighted lift keeps its "pick a weight" line)
+  if (plan.weight == null && !usesWeight(ex) && isNum(plan.reps) && r.level === 'rough') {
+    const reps = Math.max(1, plan.reps - 1)
+    return { ...plan, reps, rough: true, reason: `Easier today: aim for ${reps}` }
+  }
+  return plan
+}
+
+/**
+ * The rest of a rough day's start, before anything is lifted: one set fewer on accessories that have
+ * three or more (rough only), and 15 s more rest on everything not started when that still fits the
+ * budget (never breaks it). Returns { setIds, names, restAdd, weIds, note } or null.
+ */
+export function roughAdjust(ctx, r = ctx.rough) {
+  if (!r || r.level !== 'rough') return null
+  const setIds = []
+  const dropped = []
+  for (const e of ctx.exercises) {
+    if (!isAccessory(e) || doneWork(e).length || e.type === 'duration') continue
+    const open = openWork(e)
+    if (open.length >= 3) setIds.push(open.at(-1).id), dropped.push(e.name)
+  }
+  const trimmed = ctx.exercises.map((e) => ({ ...e, sets: e.sets.filter((s) => !setIds.includes(s.id)) }))
+  const weIds = trimmed.filter((e) => !doneWork(e).length && openWork(e).length && e.rest > 0).map((e) => e.id)
+  const rested = trimmed.map((e) => (weIds.includes(e.id) ? { ...e, rest: e.rest + 15 } : e))
+  const base = timeStatus(ctx)
+  const delta = mainLeft({ ...ctx, exercises: rested }).secs - mainLeft(ctx).secs
+  const restAdd = weIds.length && base.projected + delta <= base.total ? 15 : 0
+  const parts = [restAdd ? 'rests +15 s' : '', dropped.length ? `one set fewer on ${names(dropped)}` : ''].filter(Boolean)
+  return { setIds, names: dropped, restAdd, weIds: restAdd ? weIds : [], note: parts.length ? cap(parts.join(', ')) + '.' : '' }
+}
+
+/**
+ * Stuck: the same top weight three sessions running with no rep gain → that weight, else null.
+ * sessions: newest first, { rough?, sets: [{ kind, weight, reps, done? }] }. Rough-day sessions are left
+ * out: a low day isn't a stall.
+ */
+export function stalledTop(sessions) {
+  const last3 = sessions.filter((s) => !s.rough).slice(0, 3)
+  if (last3.length < 3) return null
+  const tops = last3.map((s) => {
+    const work = s.sets.filter((x) => working(x) && x.done !== false && isNum(x.weight))
+    if (!work.length) return null
+    const w = Math.max(...work.map((x) => x.weight))
+    const reps = Math.max(...work.filter((x) => x.weight === w).map((x) => x.reps || 0))
+    return { w, reps }
+  })
+  if (tops.some((t) => !t)) return null
+  const [newest, , oldest] = tops
+  if (!tops.every((t) => t.w === newest.w)) return null
+  return newest.reps <= oldest.reps ? newest.w : null
 }
 
 // ---------------------------------------------------------------- fatigue (shared/fatigue.mjs feeds it)

@@ -57,7 +57,7 @@ export function sanitize(store: StoreName, rec: unknown): Record<string, unknown
     const start = num(rec.start)
     if (start == null) return null
     const hr = Array.isArray(rec.hr) ? rec.hr.filter((p) => Array.isArray(p) && num(p[0]) != null && num(p[1]) != null) : undefined
-    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr, warmup: strs(rec.warmup), cooldown: strs(rec.cooldown), shoulder: num(rec.shoulder), timing: cleanTiming(rec.timing), cardio: cleanCardio(rec.cardio) }
+    return { ...rec, updatedAt, name: String(rec.name ?? 'Workout'), start, end: num(rec.end), notes: String(rec.notes ?? ''), routineId: typeof rec.routineId === 'string' ? rec.routineId : null, exercises: cleanExercises(rec.exercises), hr, warmup: strs(rec.warmup), cooldown: strs(rec.cooldown), shoulder: num(rec.shoulder), rough: rec.rough === true ? true : undefined, timing: cleanTiming(rec.timing), cardio: cleanCardio(rec.cardio) }
   }
   if (store === 'routines') {
     let program = typeof rec.program === 'string' ? rec.program : ''
