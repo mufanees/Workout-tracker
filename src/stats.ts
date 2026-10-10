@@ -1,8 +1,11 @@
 // Derived data: previous performance, personal records, exercise history.
 import { computed } from '@preact/signals'
-import { workouts, exMap } from './store'
+import { workouts, exMap, settings } from './store'
 import type { Workout, WSet, ExType } from './types'
-import { counts, e1rm, setVolume } from './util'
+import { bindWeights, counts, e1rm, setVolume, viewFactor } from './util'
+
+// util.ts turns stored weights into what you see (totals for a pair by default); give it the store.
+bindWeights({ ex: (id) => exMap.value.get(id), view: () => settings.value.weightView ?? 'total', unit: () => settings.value.unit })
 
 export interface Session {
   workout: Workout
@@ -185,7 +188,9 @@ export function recentWin(): { exerciseId: string; from: number; to: number; uni
     if (gain > bestGain) {
       bestGain = gain
       const unit = type === 'duration' ? 'time' : type === 'reps' || base.sets.every((s) => s.weight == null) ? 'reps' : 'weight'
-      best = { exerciseId, from, to, unit, since: base.workout.start }
+      // weights as shown (a pair's total in the total view), since this is only ever displayed
+      const f = unit === 'weight' ? viewFactor(exMap.value.get(exerciseId)) : 1
+      best = { exerciseId, from: from * f, to: to * f, unit, since: base.workout.start }
     }
   }
   return best

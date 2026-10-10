@@ -153,6 +153,137 @@ const BUFF_DUDES = {
   ],
 }
 
+// ---- Buff Dudes 12 Week · 25 min ----
+// The same program cut to the owner's hard time budget: 5 min warm-up, ~15 min lifting, 5 min cool-down.
+// Written by hand with the fitting rules of shared/budget.mjs (fitToBudget), then checked with its estimate
+// (qa/budget-test.mjs): each phase keeps its moves and split, sets go heavier for fewer reps (3 × 10 → 3 × 6–8,
+// about 15% heavier, roughly the same weight × reps), non-competing pairs become supersets (push + pull,
+// legs + core) with 60 s after each round, and what doesn't fit goes in this order: isolation, then core,
+// then a compound that repeats on another day of the phase. No bench: floor presses, the sofa or a sturdy
+// chair where a bench helped.
+
+const BD25 = 'Buff Dudes 12 Week · 25 min'
+const BD25_WARMUP = ['Jump Rope · 2 min', "World's Greatest Stretch · 30 s / side", 'Arm Circles · 45 s', 'Cat Stretch · 45 s']
+const BD25_COOLDOWN = ["Child's Pose · 60 s", 'Hamstring Stretch · 30 s / side', 'Chest And Front Of Shoulder Stretch · 30 s / side', 'Intermediate Hip Flexor and Quad Stretch · 30 s / side']
+const BD25_NOTE = 'Two supersets: do A1 then A2, rest 60 s (up to 75 if you need it), 3 rounds; then the same for B. Heavier than the original: pick a weight you could lift about 2 more times than the top of the range.'
+const HEAVY = 'Heavier than for 10: about 15% more. '
+// [library name, sets, reps, superset ('A' | 'B'), notes?, extra?]
+const ss = (name, sets, reps, superset, notes = '', extra = {}) => ({
+  name,
+  sets,
+  reps: String(reps),
+  notes,
+  equipment: /plank|crunch|superman|wiper|roll-?out/i.test(name) ? 'Bodyweight' : 'Dumbbell',
+  superset,
+  rest: 60,
+  ...extra,
+})
+const bd25Day = (folder, name, exercises, notes = '') => ({ folder, name, notes: [notes, BD25_NOTE].filter(Boolean).join(' '), warmup: BD25_WARMUP, cooldown: BD25_COOLDOWN, budget: 25, exercises })
+
+const Q1 = 'Phase 1 · Full Body (weeks 1–3)'
+const Q2 = 'Phase 2 · Full Body Plus (weeks 4–6)'
+const Q3 = 'Phase 3 · Upper/Lower (weeks 7–9)'
+const Q4 = 'Phase 4 · Classic Split (weeks 10–12)'
+
+const BUFF_DUDES_25 = {
+  program: BD25,
+  routines: [
+    bd25Day(Q1, 'Day 1 · Full Body', [
+      ss('Dumbbell Floor Press', 3, '6–8', 'A', HEAVY + 'The original’s bench press, on the floor'),
+      ss('Bent-Over Dumbbell Row', 3, '6–8', 'A', HEAVY),
+      ss('Goblet Squat', 3, '6–8', 'B', HEAVY + 'Heaviest dumbbell, slow on the way down'),
+      ss('Dumbbell Roll-Out', 3, 10, 'B', 'Core: roll outs'),
+    ], 'Shoulder press is on days 2 and 3.'),
+    bd25Day(Q1, 'Day 2 · Full Body', [
+      ss('Dumbbell Shoulder Press', 3, '6–8', 'A', HEAVY + 'Seated on a chair or standing'),
+      ss('Bent Over Two-Dumbbell Row With Palms In', 3, '6–8', 'A', HEAVY + 'The original’s prone row, without the bench'),
+      ss('Farmer Squat', 3, '6–8', 'B', HEAVY + 'Dumbbells at your sides'),
+      ss('Twisting Plank', 3, '6 / side', 'B', 'Core: twisting planks'),
+    ], 'Incline press needs a bench: floor press is on days 1 and 3.'),
+    bd25Day(Q1, 'Day 3 · Full Body', [
+      ss('Dumbbell Floor Press', 3, '6–8', 'A', 'Alternating: one arm, then the other (the original’s single arm press)'),
+      ss('One-Arm Dumbbell Row', 3, '5–6 / side', 'A', HEAVY + 'Free hand on the sofa or a chair'),
+      ss('Dumbbell Step Ups', 3, '5–6 / side', 'B', 'A sturdy step, stair or chair'),
+      ss('Otis-Up', 2, 8, 'B', 'Core: Otis ups, 2 hard sets', { equipment: 'Other' }),
+    ], 'Single arm shoulder press: on day 2 as the two-arm press.'),
+
+    bd25Day(Q2, 'Day 1 · Full Body + Iso', [
+      ss('Dumbbell Floor Press', 3, '5–7', 'A', 'Heavier than the original 4 × 8'),
+      ss('Commando Row', 3, '6–8', 'A', 'Rows from a plank: core too'),
+      ss('Dumbbell Thruster', 3, '6–8', 'B', 'Squat thrusters'),
+      ss('Superman Lift', 3, 12, 'B', "Core: superman's"),
+    ], 'Isolation (skull crushers, curls) left out to fit 25 min: add 2 sets each on a day with time to spare.'),
+    bd25Day(Q2, 'Day 2 · Full Body + Iso', [
+      ss('Close-Grip Dumbbell Press', 3, '5–7', 'A', 'On the floor'),
+      ss('Bent-Over Dumbbell Row', 3, '5–7', 'A', 'Forehead on the sofa arm if your back needs it'),
+      ss('Overhead Dumbbell Split Squat', 3, '6 / side', 'B'),
+      ss('Windshield Wiper', 3, '5 / side', 'B', 'Core: windshield wipers'),
+    ], 'Scott press, pull overs and around the worlds left out to fit 25 min.'),
+    bd25Day(Q2, 'Day 3 · Full Body + Iso', [
+      ss('Dumbbell Push Press', 3, '5–7', 'A'),
+      ss('Bent Over Two-Dumbbell Row', 3, '6–8', 'A', 'High row: elbows wide, pull to the chest (the original’s incline high row, no bench)'),
+      ss('Dumbbell Jump Squat', 3, 6, 'B', 'Squat jumps, light dumbbells, land soft'),
+      ss('Weighted Crunches', 3, 12, 'B', 'Core: hold a dumbbell on your chest', { equipment: 'Other' }),
+    ], 'Incline press needs a bench (pressing is on days 1, 2 and 4); isolation left out to fit 25 min.'),
+    bd25Day(Q2, 'Day 4 · Full Body + Iso', [
+      ss('Standing Alternating Dumbbell Press', 3, '6–8', 'A', 'Alternating shoulder press'),
+      ss('Bent-Over Dumbbell Row', 3, '6–8', 'A', 'Alternating: one arm, then the other'),
+      ss('Dumbbell Box Squat', 3, '6–8', 'B', 'Sit back to a chair or the sofa edge'),
+      ss('Reverse Crunch', 3, 12, 'B', 'Core', { equipment: 'Bodyweight' }),
+    ], 'Isolation (shoulder extensions, flys) left out to fit 25 min.'),
+
+    bd25Day(Q3, 'Day 1 · Lower', [
+      ss('Sumo to Goblet Squat', 3, '6–8', 'A', HEAVY),
+      ss('Russian Twist', 3, '6 / side', 'A', 'Core', { equipment: 'Dumbbell' }),
+      ss('Dumbbell Romanian Deadlift', 3, '6–8', 'B', HEAVY + "RDL's"),
+      ss('Standing Dumbbell Calf Raise', 2, '8–10', 'B', 'Slow, full stretch at the bottom'),
+    ], 'Lower and upper days for more volume per muscle. Hip thrusts and walking lunges left out to fit 25 min.'),
+    bd25Day(Q3, 'Day 2 · Upper', [
+      ss('Dumbbell Floor Press', 3, '6–8', 'A', HEAVY + 'Wide to close: one rep wide, one close'),
+      ss('Commando Row', 3, '6–8', 'A', HEAVY),
+      ss('Dumbbell Hang Clean and Press', 3, '6–8', 'B', HEAVY),
+      ss('Otis-Up', 3, 12, 'B', 'Core: hold a dumbbell', { equipment: 'Other' }),
+    ], 'Pull overs and man makers left out to fit 25 min.'),
+    bd25Day(Q3, 'Day 3 · Lower', [
+      ss('Bulgarian Split Squat', 3, '5–6 / side', 'A', HEAVY + 'Back foot on the sofa or a chair'),
+      ss('Superman Lift', 3, 8, 'A', "Core: superman's, 2 s hold at the top"),
+      ss('Dumbbell Swing', 3, 10, 'B', 'Like a kettlebell swing: snap the hips'),
+      ss("Farmer's Carry", 2, '40 s', 'B', 'Farmer walks: heaviest pair, walk the room', { type: 'duration', seconds: 40 }),
+    ], 'Farmer squats, single leg RDLs and calf raises left out to fit 25 min.'),
+    bd25Day(Q3, 'Day 4 · Upper', [
+      ss('Dumbbell Floor Press', 3, '6–8', 'A', HEAVY),
+      ss('Bent Over Two-Dumbbell Row With Palms In', 3, '6–8', 'A', HEAVY + 'Low to high: alternate a low row and a high row'),
+      ss('Dumbbell Snatch', 3, '5 / side', 'B', 'Single arm snatch'),
+      ss('Side Plank', 3, '30 s / side', 'B', 'Core', { seconds: 30, equipment: 'Bodyweight', type: 'duration' }),
+    ], 'Around the worlds left out to fit 25 min.'),
+
+    bd25Day(Q4, 'Day 1 · Legs', [
+      ss('Dumbbell Front Squat', 3, '8–10', 'A', 'Heavier than for 12: about 15% more. Dumbbells on the shoulders'),
+      ss('Accordion Crunch', 3, 10, 'A', 'Core'),
+      ss('Dumbbell Romanian Deadlift', 3, '8–10', 'B', "Heavier than for 12: about 15% more. RDL's"),
+      ss('Standing Dumbbell Calf Raise', 2, '10–12', 'B', '2 hard sets'),
+    ], 'A body-part split, cut to the big moves: sumo deadlifts, jumping split squats and hamstring curls left out to fit 25 min.'),
+    bd25Day(Q4, 'Day 2 · Back & Biceps', [
+      ss('Bent-Over Dumbbell Row', 3, '8–10', 'A', 'Heavier than for 12: about 15% more. Low row: pull to the hips'),
+      ss('Twisting Plank', 3, '6 / side', 'A', 'Core'),
+      ss('Straight-Arm Dumbbell Pullover', 2, '8–10', 'B', 'On the floor. 2 hard sets'),
+      ss('Hammer Curl', 2, '8–10', 'B', '2 hard sets'),
+    ], 'One-arm rows, high rows and circular curls left out to fit 25 min.'),
+    bd25Day(Q4, 'Day 3 · Chest & Triceps', [
+      ss('Dumbbell Floor Press', 3, '8–10', 'A', 'Heavier than for 12: about 15% more. Twisting: palms in at the bottom, forward at the top'),
+      ss('Dumbbell Roll-Out', 3, 10, 'A', 'Core: roll outs'),
+      ss('Dumbbell Flyes', 2, '8–10', 'B', 'On the floor: underhand, palms toward your head. 2 hard sets'),
+      ss('Lying Dumbbell Tricep Extension', 2, '8–10', 'B', 'Skull crushers, on the floor. 2 hard sets'),
+    ], 'Close press, single arm press and kickbacks left out to fit 25 min.'),
+    bd25Day(Q4, 'Day 4 · Shoulders & Traps', [
+      ss('Dumbbell Hang Clean and Press', 3, '8–10', 'A', 'Heavier than for 12: about 15% more'),
+      ss('Reverse Flyes', 3, '10–12', 'A', 'Rear delts: bent over, light'),
+      ss('Side Lateral Raise', 2, '10–12', 'B', '2 hard sets'),
+      ss('Dumbbell Shrug', 2, '8–10', 'B', 'Heaviest pair. 2 hard sets'),
+    ], 'Scott press, windmill press, front raises and crunches left out to fit 25 min.'),
+  ],
+}
+
 export const PROGRAM_CATALOG = [
   {
     id: 'buff-dudes-12',
@@ -170,6 +301,23 @@ export const PROGRAM_CATALOG = [
       { folder: P4, weeks: 3, days: 4, summary: 'Classic split, 4 × 12, four days' },
     ],
     plan: BUFF_DUDES,
+  },
+  {
+    id: 'buff-dudes-25',
+    name: BD25,
+    by: 'Buff Dudes, cut to 25 min',
+    weeks: 12,
+    daysPerWeek: 4,
+    minutes: 25,
+    equipment: 'Dumbbells, the floor, a sofa or sturdy chair (no bench)',
+    summary: 'Buff Dudes 12 Week inside a hard 25-minute budget: 5 min warm-up (jump rope, mobility), 15 min of lifting, 5 min of stretches. Same phases and moves, done the minimalist way: heavier weights for fewer reps (3 × 6–8 instead of 3 × 10, about the same weight × reps), two supersets a day (push + pull, legs + core) with 60–75 s after each round, and the isolation extras left out.',
+    phases: [
+      { folder: Q1, weeks: 3, days: 3, summary: 'Full body, 3 × 6–8 heavier, three days a week' },
+      { folder: Q2, weeks: 3, days: 4, summary: 'Full body plus, 3 × 5–8, four days' },
+      { folder: Q3, weeks: 3, days: 4, summary: 'Upper/lower split, 3 × 6–8, four days' },
+      { folder: Q4, weeks: 3, days: 4, summary: 'Classic split cut to the big moves, 3 × 8–10, four days' },
+    ],
+    plan: BUFF_DUDES_25,
   },
   {
     id: 'comeback',

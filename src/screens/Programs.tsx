@@ -4,7 +4,7 @@ import { back, navigate, route } from '../router'
 import { routines, settings } from '../store'
 import { Icon } from '../ui/icons'
 import { actionSheet, confirmDialog, toast } from '../ui/overlay'
-import { catalog, COMEBACK, hasProgram, isFollowing, startCatalogProgram } from '../programs'
+import { catalog, COMEBACK, hasProgram, isFollowing, programFit, startCatalogProgram } from '../programs'
 import { programStatus } from '../program'
 import { planStatus } from '../plan'
 import type { CatalogProgram } from '../../shared/programs.mjs'
@@ -47,6 +47,7 @@ function ProgramEntry({ p, open, onToggle, following }: { p: CatalogProgram; ope
   const [busy, setBusy] = useState(false)
   const on = isFollowing(p)
   const added = hasProgram(p)
+  const fit = programFit(p)
   const start = async (week = 1) => {
     if (busy) return
     if (following && following !== p.name && !(await confirmDialog({ title: `Switch to ${p.name}?`, message: `Train will follow ${p.name} instead of ${following}. ${following}’s routines and your history stay.`, confirm: 'Switch' }))) return
@@ -94,6 +95,11 @@ function ProgramEntry({ p, open, onToggle, following }: { p: CatalogProgram; ope
       <p class="catalog-equip">
         <Icon name="dumbbell" size={14} /> {p.equipment}
       </p>
+      {fit && (
+        <p class={'catalog-time ' + (fit.fits ? 'fits' : 'over')}>
+          <Icon name="timer" size={14} /> {fit.text} · {fit.fits ? `fits your ${fit.budget} min` : `over your ${fit.budget} min budget`}
+        </p>
+      )}
       {open && (
         <ol class="catalog-phases">
           {p.phases.map((ph) => (

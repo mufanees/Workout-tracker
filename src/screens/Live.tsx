@@ -4,14 +4,17 @@ import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate, navPending } from '../router'
 import { adjustRest, armRest, armSetTimer, cancelSetTimer, discardActive, finishActive, finishSetTimer, logLine, logTick, onSetTimerDone, pauseSetTimer, restTimer, resumeSetTimer, setTimer, startRest, startSetTimer, stopRest, unlockAudio, type SetTimer } from '../workout'
 import { HRPanel } from '../ui/HR'
-import { checkCoach, coachOn, quick } from '../coach'
+import * as LC from '../../shared/liveCoach.mjs'
+import { applyAction, coachable, isCoached, coachClock, dismissAction, nextText, startLiveCoach, stateOf, undoAction, verdictFor, type CoachLine } from '../liveCoach'
 import { summarizeHR } from '../hr'
 import { WorkoutEditor, completeSet, placeholderFor, nextUp } from '../ui/WorkoutEditor'
-import type { WExercise, WSet } from '../types'
+import type { WExercise, WSet, Workout } from '../types'
 import { Icon } from '../ui/icons'
 import { AutoText, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { doneSets, fmtClock, fmtNum, fmtVolume, toDisplay, workoutVolume, haptic, timeDose } from '../util'
 import { gooSplash } from '../ui/Goo'
+import { SwapSheet } from '../ui/SwapSheet'
+import { openSwap } from '../swap'
 import { moveExercise, moveVideo, parseMove } from '../moves'
 import { MoveText } from '../ui/MoveList'
 import { hasOwnVideo } from '../videos'
@@ -56,6 +59,8 @@ function PaceLine() {
   const w = active.value
   const now = useNow(15000)
   if (!w?.timePlan || settings.value.showPace === false) return null
+  // the coach strip reads the clock during strength work; two pace estimates side by side would disagree
+  if (isCoached(w)) return <span class="pace on">of {w.timePlan.budget} min</span>
   const p = pace(w, now)
   const over = (now - w.start) / 60000 > w.timePlan.budget
   const cls = !p || Math.abs(p.behind) < 2 ? 'on' : p.behind > 0 ? 'behind' : 'ahead'
@@ -85,6 +90,7 @@ export function Live() {
   const w = active.value
   const [finishing, setFinishing] = useState(false)
   useWakeLock(!!w && settings.value.keepAwake)
+  useEffect(() => startLiveCoach(), [])
   useEffect(() => {
     if (restTimer.value) armRest()
     if (setTimer.value) armSetTimer()
@@ -225,7 +231,6 @@ export function Live() {
 
       <main class="live-body">
         <HRPanel />
-        <CoachPlanCard />
         {w.routineId && w.exercises.length > 0 && <RoutineNotes />}
         {w.warmup?.length ? <Checklist kind="w" title="Warm-up" items={w.warmup} /> : null}
         <WorkoutEditor
@@ -241,9 +246,13 @@ export function Live() {
         </button>
       </main>
 
-      <RestBar />
-      <SetTimerBar />
+      <div class="live-dock">
+        <CoachStrip />
+        <RestBar />
+        <SetTimerBar />
+      </div>
       <FinishSheet open={finishing} onClose={() => setFinishing(false)} />
+      <SwapSheet />
     </div>
   )
 }
@@ -308,93 +317,6 @@ function RoutineNotes() {
       <Icon name="note" size={16} />
       <span>{notes}</span>
     </button>
-  )
-}
-
-/** Today's targets from the coach, fetched once when a routine workout starts. */
-function CoachPlanCard() {
-  const w = active.value!
-  const plan = w.coachPlan
-  const started = w.exercises.some((e) => e.sets.some((s) => s.done))
-  useEffect(() => {
-    if (coachOn.value == null) void checkCoach()
-  }, [])
-  useEffect(() => {
-    // a mobility session already is the coach's plan
-    if (!coachOn.value || w.coachPlanAsked || w.mobility || !w.exercises.length || started) return
-    updateActive((x) => void (x.coachPlanAsked = true))
-    const names = w.exercises.map((e) => exMap.value.get(e.exerciseId)?.name || '').filter(Boolean)
-    quick<{ focus: string; targets: { exercise: string; weight_kg?: number; reps?: string; note?: string }[] }>({ kind: 'pre', routine: w.name, exercises: names })
-      .then((r) => updateActive((x) => void (x.coachPlan = { focus: r.focus, targets: r.targets || [] })))
-      .catch(() => updateActive((x) => void (x.coachPlan = null)))
-  }, [coachOn.value])
-  if (!coachOn.value || w.mobility || (!plan && (!w.coachPlanAsked || started))) return null
-  if (!plan) {
-    return (
-      <section class="coach-card loading">
-        <span class="eyebrow">
-          <Icon name="sparkles" size={14} /> Coach
-        </span>
-        <span class="coach-status">
-          <span class="spinner" aria-hidden="true" /> Working out today’s targets…
-        </span>
-      </section>
-    )
-  }
-  const u = unit.value
-  const apply = () => {
-    let n = 0
-    updateActive((x) => {
-      for (const t of plan.targets) {
-        const want = t.exercise.toLowerCase()
-        const we = x.exercises.find((e) => (exMap.value.get(e.exerciseId)?.name || '').toLowerCase() === want) || x.exercises.find((e) => (exMap.value.get(e.exerciseId)?.name || '').toLowerCase().includes(want))
-        if (!we) continue
-        const reps = Number(String(t.reps || '').match(/\d+/)?.[0])
-        for (const s of we.sets) {
-          if (s.done || s.kind === 'warmup') continue
-          if (t.weight_kg != null && Number.isFinite(t.weight_kg)) s.cw = t.weight_kg
-          if (Number.isFinite(reps)) s.cr = reps
-        }
-        n++
-      }
-      if (x.coachPlan) x.coachPlan.applied = true
-    })
-    toast(n ? `Targets set for ${n} exercise${n > 1 ? 's' : ''}` : 'Couldn’t match those exercises')
-  }
-  return (
-    <section class="coach-card">
-      <span class="eyebrow">
-        <Icon name="sparkles" size={14} /> Coach · today
-      </span>
-      {plan.focus && <p>{plan.focus}</p>}
-      {plan.targets.length > 0 && (
-        <ul class="coach-targets">
-          {plan.targets.map((t) => (
-            <li>
-              <span>
-                {t.exercise}
-                {t.note && <small>{t.note}</small>}
-              </span>
-              <b>
-                {t.weight_kg != null ? `${fmtNum(toDisplay(t.weight_kg, u))} ${u}` : ''}
-                {t.weight_kg != null && t.reps ? ' × ' : ''}
-                {t.reps || ''}
-              </b>
-            </li>
-          ))}
-        </ul>
-      )}
-      {plan.targets.length > 0 &&
-        (plan.applied ? (
-          <span class="proposal-state">
-            <Icon name="check" size={14} /> Targets are in your grey values
-          </span>
-        ) : (
-          <button class="btn btn-secondary btn-sm" onClick={apply}>
-            Use these targets
-          </button>
-        ))}
-    </section>
   )
 }
 
@@ -465,6 +387,115 @@ function Checklist({ kind, title, items }: { kind: 'w' | 'c'; title: string; ite
         </ul>
       )}
     </section>
+  )
+}
+
+const LINE_ICON: Record<CoachLine['kind'], string> = {
+  start: 'play',
+  set: 'trendUp',
+  hr: 'heart',
+  'rest-end': 'zap',
+  time: 'clock',
+  last: 'target',
+  finish: 'trophy',
+  llm: 'sparkles',
+  applied: 'check',
+}
+
+/**
+ * The coach, always on during a strength workout: the latest line (tap for the earlier ones), the clock
+ * against the budget, and either the one thing to tap (Apply, Go now, +30 s, Undo), heart rate during a
+ * rest, or the next set as its grey values read.
+ */
+function CoachStrip() {
+  const w = active.value
+  const now = coachClock.value
+  const [open, setOpen] = useState(false)
+  if (!coachable(w)) return null
+  const lines = w.coachLive?.lines || []
+  const last = lines[lines.length - 1]
+  const st = stateOf(w, now)
+  const t = LC.timeStatus(st)
+  const resting = !!w.restRun && now < w.restRun.end
+  const hr = resting ? LC.hrState(st) : null
+  const drop = hr && hr.atRestStart != null ? hr.atRestStart - hr.bpm : null
+  const nx = nextText(w)
+  const act = last?.action
+  // a rest action only while that rest runs; a time action until something newer is said
+  const action = act && (act.kind !== 'extend' || resting) ? act : null
+  const undo = w.coachLive?.undo && last?.kind === 'applied' && !/^Undone/.test(last.text) ? w.coachLive.undo : null
+  return (
+    <section class={'coach-strip' + (open ? ' open' : '') + (t.state === 'over' || t.state === 'out' ? ' behind' : '')} aria-label="Coach">
+      {open && lines.length > 1 && (
+        <ol class="cs-history" aria-label="Earlier from the coach">
+          {lines
+            .slice(0, -1)
+            .reverse()
+            .map((l) => (
+              <li data-src={l.src} key={l.id}>
+                <span class="cs-at">{fmtClock(Math.max(0, (l.at - w.start) / 1000))}</span>
+                <span>{l.text}</span>
+              </li>
+            ))}
+        </ol>
+      )}
+      <button class="cs-line" onClick={() => lines.length > 1 && setOpen(!open)} aria-expanded={lines.length > 1 ? open : undefined} data-src={last?.src || 'engine'} data-kind={last?.kind || 'idle'} aria-live="polite">
+        <Icon name={last ? LINE_ICON[last.kind] : 'coach'} size={16} />
+        <span class="cs-text" key={last?.id}>
+          {last?.text || 'Coach is on: watching your sets, heart rate and the clock.'}
+        </span>
+        {lines.length > 1 && <Icon name="down" size={16} class={'chev' + (open ? ' open' : '')} />}
+      </button>
+      <div class="cs-row">
+        <span class={'cs-time ' + t.state}>
+          <Icon name="clock" size={14} />
+          {LC.timeText(t)}
+        </span>
+        {action ? (
+          <span class="cs-acts">
+            <button class="cs-btn primary" onClick={() => (haptic(12), applyAction(action.id))}>
+              {action.label}
+            </button>
+            {action.kind !== 'extend' && (
+              <button class="cs-x" onClick={() => dismissAction(action.id)} aria-label="Not now">
+                <Icon name="x" size={16} />
+              </button>
+            )}
+          </span>
+        ) : undo ? (
+          <button class="cs-btn" onClick={() => (haptic(8), undoAction())}>
+            Undo
+          </button>
+        ) : hr ? (
+          <span class={'cs-hr' + (hr.high ? ' high' : '')} aria-label={`Heart rate ${hr.bpm}${drop ? `, down ${drop} since the rest began` : ''}`}>
+            <Icon name="heart" size={14} /> {hr.bpm}
+            {drop != null && drop > 0 && <small> ↓{drop}</small>}
+          </span>
+        ) : nx ? (
+          <span class="cs-next">
+            Next <b>{nx.name}</b> {nx.text}
+          </span>
+        ) : null}
+        {!action && !undo && !hr && nx && !started(w, nx.weId) && (
+          <button class="cs-swap" onClick={() => openSwap(nx.weId)} aria-label={`Can’t do ${nx.name}? Swap it`}>
+            <Icon name="swap" size={16} /> Swap
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}
+
+const started = (w: Workout, weId: string) => !!w.exercises.find((e) => e.id === weId)?.sets.some((s) => s.done)
+
+/** The coach's one-line verdict in the finish sheet. */
+function Verdict({ w }: { w: Workout }) {
+  const v = verdictFor(w)
+  if (!v) return null
+  return (
+    <p class="coach-verdict">
+      <Icon name="sparkles" size={14} /> {v}
+    </p>
   )
 }
 
@@ -550,6 +581,7 @@ function FinishSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
         </button>
       }
     >
+      <Verdict w={w} />
       <div class="summary-stats">
         <div>
           <span class="stat-label">Duration</span>
@@ -651,7 +683,10 @@ function scrollToSet(setId: string, behavior: ScrollBehavior = 'smooth') {
     if (!el) return
     const r = el.getBoundingClientRect()
     // Leave room for the sticky header and the rest bar.
-    if (r.top < 150 || r.bottom > window.innerHeight - 130) el.scrollIntoView({ behavior, block: 'center' })
+    // Leave room for the sticky header and whatever is docked at the bottom (coach strip, rest bar).
+    const dock = document.querySelector('.live-dock')?.getBoundingClientRect()
+    const floor = dock && dock.height ? dock.top - 12 : window.innerHeight - 130
+    if (r.top < 150 || r.bottom > floor) el.scrollIntoView({ behavior, block: 'center' })
   })
 }
 

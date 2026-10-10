@@ -6,7 +6,7 @@ import { Icon } from '../ui/icons'
 import { ExerciseForm, filterExercises, MuscleChips } from '../ui/ExercisePicker'
 import { LineChart, type Point } from '../ui/Chart'
 import { actionSheet, confirmDialog, toast } from '../ui/overlay'
-import { counts, e1rm, fmtDay, fmtNum, fmtSeconds, fmtSet, fmtVolume, fmtWeight, relDays, setVolume, toDisplay } from '../util'
+import { counts, e1rm, fmtDay, fmtExWeight, fmtNum, fmtSeconds, fmtSet, fmtVolume, loadFactor, loadOf, relDays, setVolume, showsEach, toDisplay, viewFactor } from '../util'
 import { hasOwnVideo, videoFor } from '../videos'
 import { openVideoSheet } from '../ui/VideoSheet'
 import type { WSet } from '../types'
@@ -113,16 +113,18 @@ export function ExerciseDetail({ id }: { id: string }) {
       else if (m === 'reps') v = Math.max(v, set.reps || 0)
       else if (m === 'time') v = Math.max(v, set.seconds || 0)
     }
-    return { t: s.workout.start, v: m === 'weight' || m === '1rm' || (m === 'volume' && type !== 'reps') ? toDisplay(v, u) : v }
+    // weights as you view them (a pair's total by default); volume always counts both dumbbells
+    const f = m === 'volume' ? loadFactor(ex) : viewFactor(ex)
+    return { t: s.workout.start, v: m === 'weight' || m === '1rm' || (m === 'volume' && type !== 'reps') ? toDisplay(v * f, u) : v }
   }).filter((p) => p.v > 0)
   const format = (v: number) => (m === 'time' ? fmtSeconds(Math.round(v)) : m === 'reps' || (m === 'volume' && type === 'reps') ? `${fmtNum(v)} reps` : `${fmtNum(Math.round(v * 10) / 10)} ${u}`)
 
   const records: [string, string][] = []
   if (type === 'weight_reps') {
-    if (recs.heaviest) records.push(['Heaviest weight', fmtSet(recs.heaviest, type, u)])
-    if (recs.best1rm) records.push(['Best est. 1RM', fmtWeight(e1rm(recs.best1rm.weight!, recs.best1rm.reps!), u)])
-    if (recs.bestVol) records.push(['Best set', fmtSet(recs.bestVol, type, u)])
-    if (recs.bestSession) records.push(['Best session volume', fmtVolume(recs.bestSession, u)])
+    if (recs.heaviest) records.push(['Heaviest weight', fmtSet(recs.heaviest, type, u, ex)])
+    if (recs.best1rm) records.push(['Best est. 1RM', fmtExWeight(ex, e1rm(recs.best1rm.weight!, recs.best1rm.reps!), u)])
+    if (recs.bestVol) records.push(['Best set', fmtSet(recs.bestVol, type, u, ex)])
+    if (recs.bestSession) records.push(['Best session volume', fmtVolume(recs.bestSession * loadFactor(ex), u)])
     if (!recs.heaviest && recs.mostReps) records.push(['Most reps', `${recs.mostReps.reps}`])
   } else if (type === 'reps') {
     if (recs.mostReps) records.push(['Most reps in a set', `${recs.mostReps.reps}`])
@@ -167,7 +169,7 @@ export function ExerciseDetail({ id }: { id: string }) {
       <h1 class="detail-title">{ex.name}</h1>
       <p class="detail-date">
         {ex.muscle} · {ex.equipment}
-        {type === 'weight_reps' && ex.equipment === 'Dumbbell' && !/goblet/i.test(ex.name) ? ' · log one dumbbell’s weight' : ''}
+        {loadOf(ex) === 'each' ? (showsEach(ex) ? ' · weights are one dumbbell' : ' · weights are both dumbbells') : ''}
       </p>
       <div class="row gap ex-video-row">
         <a class="btn btn-secondary grow" href={videoFor(ex)} target="_blank" rel="noopener">
@@ -219,7 +221,7 @@ export function ExerciseDetail({ id }: { id: string }) {
                   </div>
                   <div class="hi-sets">
                     {s.sets.map((set) => (
-                      <span class={'hi-set' + (set.kind === 'warmup' ? ' warm' : '')}>{fmtSet(set, type, u)}</span>
+                      <span class={'hi-set' + (set.kind === 'warmup' ? ' warm' : '')}>{fmtSet(set, type, u, ex)}</span>
                     ))}
                   </div>
                 </button>

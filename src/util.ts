@@ -1,4 +1,4 @@
-import type { ExType, Workout, WSet, WExercise } from './types'
+import type { Exercise, ExType, Workout, WSet, WExercise } from './types'
 
 export const uid = (prefix = '') =>
   prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
@@ -17,6 +17,67 @@ export function fromDisplay(v: number, unit: 'kg' | 'lb'): number {
 
 export function fmtNum(n: number, max = 2): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: max }).format(n)
+}
+
+// ---- Exercise weights: stored per dumbbell for a pair, shown as totals (or each) ----
+// The ONE place a logged weight is turned into what you see and back. Storage never changes:
+// a pair ('each') keeps one dumbbell's kg, a single weight or a total keeps the whole weight.
+// Settings.weightView 'total' (default) shows and takes both dumbbells together for pairs.
+
+export type Load = 'each' | 'one' | 'total'
+export type WeightView = 'total' | 'each'
+
+/** A dumbbell lift done with one in each hand (guess from the name; Exercise.load wins in loadOf). */
+export function twoDumbbells(ex: Exercise | undefined): boolean {
+  if (!ex || ex.type !== 'weight_reps' || !/dumbbell/i.test(ex.equipment)) return false
+  return !/goblet|one.?arm|single|half.?kneeling|glute bridge|hip thrust|pullover/i.test(ex.name)
+}
+
+/** How an exercise's weight is stored: set by hand, else guessed for dumbbell lifts (a pair → per hand). */
+export function loadOf(ex: Exercise | undefined): Load | null {
+  if (!ex || ex.type !== 'weight_reps' || ex.equipment === 'Bodyweight') return null
+  if (ex.load) return ex.load
+  if (!/dumbbell/i.test(ex.equipment)) return null
+  return twoDumbbells(ex) ? 'each' : 'one'
+}
+
+interface WeightCtx {
+  ex: (id: string) => Exercise | undefined
+  view: () => WeightView
+  unit: () => 'kg' | 'lb'
+}
+let wctx: WeightCtx = { ex: () => undefined, view: () => 'total', unit: () => 'kg' }
+/** Wired to the store once (stats.ts), so defaults follow Settings without every caller passing them. */
+export function bindWeights(c: WeightCtx) {
+  wctx = c
+}
+export const weightView = (): WeightView => wctx.view()
+export const exById = (id: string) => wctx.ex(id)
+
+/** 2 when a stored weight is one dumbbell of a pair but the view shows both, else 1. */
+export function viewFactor(ex: Exercise | undefined, view: WeightView = wctx.view()): 1 | 2 {
+  return view === 'total' && loadOf(ex) === 'each' ? 2 : 1
+}
+/** Both dumbbells for a pair, whatever the view: what volume (weight × reps) counts. */
+export function loadFactor(ex: Exercise | undefined): 1 | 2 {
+  return loadOf(ex) === 'each' ? 2 : 1
+}
+/** A stored exercise weight (kg) as shown: doubled for a pair in the total view, then in your unit. */
+export function shownWeight(ex: Exercise | undefined, kg: number, unit: 'kg' | 'lb' = wctx.unit(), view: WeightView = wctx.view()): number {
+  return toDisplay(kg * viewFactor(ex, view), unit)
+}
+/** What you typed (in your unit and view) as the stored kg: 13 total for a pair → 6.5 per dumbbell. */
+export function storedWeight(ex: Exercise | undefined, shown: number, unit: 'kg' | 'lb' = wctx.unit(), view: WeightView = wctx.view()): number {
+  return Math.round((fromDisplay(shown, unit) / viewFactor(ex, view)) * 10000) / 10000
+}
+/** "12 kg" for a stored 6 kg pair in the total view. */
+export function fmtExWeight(ex: Exercise | undefined, kg: number, unit: 'kg' | 'lb' = wctx.unit(), withUnit = true, view: WeightView = wctx.view()): string {
+  const s = fmtNum(shownWeight(ex, kg, unit, view), 2)
+  return withUnit ? `${s} ${unit}` : s
+}
+/** Does this exercise's weight column read "each" (one of a pair) rather than a total? */
+export function showsEach(ex: Exercise | undefined, view: WeightView = wctx.view()): boolean {
+  return view === 'each' && loadOf(ex) === 'each'
 }
 
 export function fmtWeight(kg: number | null, unit: 'kg' | 'lb', withUnit = true): string {
@@ -115,9 +176,13 @@ export function setVolume(s: WSet): number {
   return s.weight && s.reps ? s.weight * s.reps : 0
 }
 
+/** Total weight moved: weight × reps over counted sets, both dumbbells for a pair (whatever the view). */
 export function workoutVolume(w: Pick<Workout, 'exercises'>): number {
   let v = 0
-  for (const e of w.exercises) for (const s of e.sets) if (counts(s)) v += setVolume(s)
+  for (const e of w.exercises) {
+    const f = loadFactor(wctx.ex(e.exerciseId))
+    for (const s of e.sets) if (counts(s)) v += setVolume(s) * f
+  }
   return v
 }
 
@@ -133,12 +198,13 @@ export function totalSets(w: Pick<Workout, 'exercises'>): number {
   return n
 }
 
-export function fmtSet(s: WSet, type: ExType, unit: 'kg' | 'lb'): string {
+/** One set as text; pass the exercise so a pair's weight shows as you view it (total or each). */
+export function fmtSet(s: WSet, type: ExType, unit: 'kg' | 'lb', ex?: Exercise): string {
   if (type === 'duration') return s.seconds != null ? fmtSeconds(s.seconds) : '–'
   if (type === 'reps') return s.reps != null ? `${s.reps} reps` : '–'
   const reps = s.reps ?? '–'
   if (s.weight == null) return `${reps} reps`
-  return `${fmtWeight(s.weight, unit)} × ${reps}`
+  return `${ex ? fmtExWeight(ex, s.weight, unit) : fmtWeight(s.weight, unit)} × ${reps}`
 }
 
 export function newSet(kind: WSet['kind'] = 'normal'): WSet {

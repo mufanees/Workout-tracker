@@ -6,7 +6,7 @@ import { computed } from '@preact/signals'
 import { bodyWeights, coachItems, exMap, fasts, workouts } from './store'
 import { sessionsByExercise } from './stats'
 import { summarizeHR } from './hr'
-import { counts, startOfWeek } from './util'
+import { counts, loadFactor, startOfWeek, twoDumbbells } from './util'
 import type { CoachItem, Exercise, GoalSpec, WSet } from './types'
 
 const DAY = 86400000
@@ -77,10 +77,8 @@ export function estimate(w: number, r: number, reps: number): number {
 }
 
 /** Lifts with a dumbbell in each hand, where "total" means both dumbbells together. */
-export function twoDumbbells(ex: Exercise | undefined): boolean {
-  if (!ex || ex.type !== 'weight_reps' || !/dumbbell/i.test(ex.equipment)) return false
-  return !/goblet|one.?arm|single|half.?kneeling|glute bridge|hip thrust|pullover/i.test(ex.name)
-}
+// moved to util.ts (one home for how weights are stored and shown); kept here for existing imports
+export { twoDumbbells }
 const isolation = (ex: Exercise) => /fly|raise|curl|kickback|extension|shrug/i.test(ex.name)
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -92,7 +90,7 @@ function findExercise(name: string): Exercise | undefined {
 
 /** Best set per session for one exercise, as total kg you could lift for `reps`. */
 function liftSeries(ex: Exercise, reps: number): { pts: Pt[]; sets: WSet[] } {
-  const factor = twoDumbbells(ex) ? 2 : 1
+  const factor = loadFactor(ex) // 2 when the stored weight is one dumbbell of a pair
   const sessions = [...(sessionsByExercise.value.get(ex.id) || [])].reverse()
   const pts: Pt[] = []
   const sets: WSet[] = []

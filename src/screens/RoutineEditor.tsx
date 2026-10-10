@@ -8,7 +8,7 @@ import { AutoText, confirmDialog, toast } from '../ui/overlay'
 import type { Routine } from '../types'
 import { clone, uid } from '../util'
 import { MoveListEditor } from '../ui/MoveList'
-import { estimate } from '../timeplan'
+import { budgetFor, estimate, fitToBudget, totalOf } from '../timeplan'
 
 export function RoutineEditor({ id }: { id: string }) {
   const isNew = id === 'new'
@@ -89,7 +89,7 @@ export function RoutineEditor({ id }: { id: string }) {
           ))}
         </datalist>
       </label>
-      <TimeBudgetField draft={draft} onChange={(budget) => setDraft({ ...draft, budget })} />
+      <TimeBudgetField draft={draft} onChange={(budget) => setDraft({ ...draft, budget })} onFit={(r) => setDraft(r)} />
       <label class="field">
         <span>Notes</span>
         <AutoText value={draft.notes} onInput={(v) => setDraft({ ...draft, notes: v })} placeholder="Warm-up, cues, anything to remember" class="input-like" />
@@ -122,24 +122,69 @@ export function RoutineEditor({ id }: { id: string }) {
   )
 }
 
-/** Optional time budget, next to what the plan is estimated to take. */
-function TimeBudgetField({ draft, onChange }: { draft: Routine; onChange: (v: number | null) => void }) {
+/** The time budget: does this routine fit it, and one tap to make it fit (with undo). */
+function TimeBudgetField({ draft, onChange, onFit }: { draft: Routine; onChange: (v: number | null) => void; onFit: (r: Routine) => void }) {
+  const [fitted, setFitted] = useState<{ changes: string[]; was: Routine; from: number; to: number } | null>(null)
   const e = estimate(draft)
-  const total = e.warmup + e.main + e.cooldown
+  const total = totalOf(e)
+  const b = budgetFor(draft)
+  const over = total - b.total
+  const fit = () => {
+    const res = fitToBudget(draft)
+    if (!res.changes.length) return toast('Nothing left to trim')
+    const was = clone(draft)
+    onFit({ ...draft, ...res.routine })
+    setFitted({ changes: res.changes, was, from: res.before, to: res.after })
+    toast(res.fits ? `Fits in ${res.after} min now` : `Down to ${res.after} min`, { label: 'Undo', run: () => undo(was) })
+  }
+  const undo = (was: Routine) => {
+    onFit(was)
+    setFitted(null)
+  }
   return (
-    <label class="field">
-      <span>Time you have (minutes)</span>
-      <input
-        id="routine-budget"
-        type="text"
-        inputMode="numeric"
-        value={draft.budget ?? ''}
-        placeholder={`About ${total} (estimated)`}
-        onInput={(ev) => onChange(Number(ev.currentTarget.value.replace(/\D/g, '')) || null)}
-      />
-      <span class="field-hint">
-        Estimated {total} min{e.paced ? ' from your pace' : ''}: warm-up {e.warmup}, sets {e.main}, cool-down {e.cooldown}. The workout screen shows whether you’re on pace.
-      </span>
-    </label>
+    <div class="field budget-field">
+      <div class={'budget-line' + (over > 0 ? ' over' : ' fits')}>
+        <Icon name={over > 0 ? 'timer' : 'check'} size={18} />
+        <span>
+          <b>{over > 0 ? `Over your ${b.total} min by ${over}` : `Fits your ${b.total} min`}</b>
+          <small>
+            About {total} min{e.paced ? ' from your pace' : ''}: warm-up {e.warmup}, sets {e.main}, cool-down {e.cooldown}
+          </small>
+        </span>
+        {over > 0 && (
+          <button class="btn btn-primary btn-sm" onClick={fit}>
+            Fit to budget
+          </button>
+        )}
+      </div>
+      {fitted && (
+        <div class="budget-changes" role="status">
+          <div class="bc-head">
+            <b>
+              {fitted.from} → {fitted.to} min
+            </b>
+            <button class="btn btn-text btn-sm" onClick={() => undo(fitted.was)}>
+              Undo
+            </button>
+          </div>
+          <ul>
+            {fitted.changes.map((c) => (
+              <li>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <label class="budget-own">
+        <span>This routine’s own budget (minutes)</span>
+        <input
+          id="routine-budget"
+          type="text"
+          inputMode="numeric"
+          value={draft.budget ?? ''}
+          placeholder={`${b.total} (your time budget)`}
+          onInput={(ev) => onChange(Number(ev.currentTarget.value.replace(/\D/g, '')) || null)}
+        />
+      </label>
+    </div>
   )
 }

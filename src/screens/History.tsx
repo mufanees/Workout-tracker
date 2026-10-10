@@ -22,6 +22,7 @@ import { QuoteCard } from '../ui/Quote'
 import type { Workout } from '../types'
 import { fitToWorkout, parseFit } from '../fit'
 import { activityOf } from '../activity'
+import { WorkedMap } from '../ui/BodyMap'
 import { summarizeHR as hrSummary } from '../hr'
 import { counts, doneSets, startOfDay, fmtDay, fmtDuration, fmtMonth, fmtSet, fmtTime, fmtVolume, startOfWeek, uid, workoutVolume, clone } from '../util'
 
@@ -344,6 +345,7 @@ export function WorkoutDetail({ id }: { id: string }) {
       <FeedbackCard w={w} open={celebrate} />
       <CoachTakeaway w={w} celebrate={celebrate} />
       <HRSummaryCard w={w} />
+      <WorkedMap w={w} />
       <MuscleSplit w={w} />
 
       <div class="detail-list">
@@ -364,7 +366,7 @@ export function WorkoutDetail({ id }: { id: string }) {
                   return (
                     <li class={counts(s) ? '' : 'muted'}>
                       <span class={'set-kind static k-' + s.kind}>{label}</span>
-                      <span class="ds-val">{fmtSet(s, ex?.type || 'weight_reps', u)}</span>
+                      <span class="ds-val">{fmtSet(s, ex?.type || 'weight_reps', u, ex)}</span>
                       {kinds.length > 0 && (
                         <span class="pr-pill" title={kinds.map((k) => PR_LABEL[k]).join(', ')}>
                           <Icon name="medal" size={13} /> {PR_LABEL[kinds[0]]}

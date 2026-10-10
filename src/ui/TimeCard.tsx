@@ -23,14 +23,14 @@ export function TimeCard({ w }: { w: Workout }) {
   return (
     <section class="card time-card" aria-label="Time">
       <div class="tc-head">
-        <span class="eyebrow">{o ? 'Time vs plan' : 'Time'}</span>
+        <span class="eyebrow">{o ? (tp?.fixed ? 'Time vs budget' : 'Time vs plan') : 'Time'}</span>
         {o ? (
           <b class={'tc-diff ' + tone(o.diff)}>{tone(o.diff) === 'on' ? 'On time' : o.diff > 0 ? `${o.diff} min over` : `${-o.diff} min under`}</b>
         ) : (
           t && <b class="tc-diff on">{fmtSecs(t.total)}</b>
         )}
       </div>
-      {o && <PlanBars planned={o.planned} actual={o.actual} diff={o.diff} />}
+      {o && <PlanBars planned={o.planned} actual={o.actual} diff={o.diff} label={tp?.fixed ? 'Budget' : 'Planned'} />}
       {t ? <TimeSplit t={t} /> : tp && o && <PlanParts w={w} />}
       {t && <ExerciseTimes w={w} />}
       {tp?.paced && <p class="tc-note">Plan from your pace: your measured set times and rests.</p>}
@@ -40,12 +40,12 @@ export function TimeCard({ w }: { w: Workout }) {
 
 const tone = (diff: number) => (diff > 2 ? 'over' : diff < -2 ? 'under' : 'on')
 
-function PlanBars({ planned, actual, diff }: { planned: number; actual: number; diff: number }) {
+function PlanBars({ planned, actual, diff, label }: { planned: number; actual: number; diff: number; label: string }) {
   const max = Math.max(planned, actual)
   return (
     <div class="tc-bars">
       <div class="tc-bar">
-        <span>Planned</span>
+        <span>{label}</span>
         <i style={{ width: `${(planned / max) * 100}%` }} />
         <b>{planned} min</b>
       </div>

@@ -9,6 +9,7 @@ import { AccentPicker, GooSettings } from './GooSettings'
 import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { REST_OPTIONS } from '../ui/WorkoutEditor'
 import { fmtRest } from '../util'
+import { budgetOf, type Budget } from '../../shared/budget.mjs'
 import { QuoteText } from '../ui/Quote'
 import { disablePush, enablePush, pushOn, pushSupported } from '../push'
 import { scheduleTrainingReminder } from '../workout'
@@ -18,6 +19,7 @@ import type { StoreName } from '../types'
 import { sanitize } from '../validate'
 import { googleClientId } from '../account'
 import { AccountSection, ConnectorLink, PeopleSection } from './Account'
+import { checkCoach, coachMode, coachProblemText, coachStatus, coachTest, runCoachTest } from '../coach'
 
 const STATUS: Record<string, [string, string]> = {
   checking: ['Connecting…', 'muted'],
@@ -173,6 +175,13 @@ export function Settings() {
           <span>Units</span>
           <Segmented label="Units" value={st.unit} options={[['kg', 'kg'], ['lb', 'lb']]} onChange={(v) => saveSettings({ unit: v })} />
         </div>
+        <div class="setting">
+          <span>
+            Dumbbell pairs
+            <small>{(st.weightView ?? 'total') === 'total' ? 'Both dumbbells together: two 6s = 12' : 'One dumbbell: two 6s = 6'}</small>
+          </span>
+          <Segmented label="Dumbbell pairs" value={st.weightView ?? 'total'} options={[['total', 'Total'], ['each', 'Each']]} onChange={(v) => saveSettings({ weightView: v })} />
+        </div>
         <button
           class="setting"
           onClick={() =>
@@ -226,8 +235,14 @@ export function Settings() {
         </div>
       </div>
 
+      <h2 class="section-title">Training</h2>
+      <BudgetSettings />
+
       <h2 class="section-title">Motivation</h2>
       <QuoteSettings />
+
+      <h2 class="section-title">Coach</h2>
+      <CoachSettings />
 
       <h2 class="section-title">Notifications</h2>
       <div class="settings-group">
@@ -320,8 +335,7 @@ export function Settings() {
         <AccentPicker />
       </div>
 
-      <h2 class="section-title">Goo</h2>
-      <GooSettings />
+      <AnimationSettings />
 
       {googleClientId.value && (
         <>
@@ -586,5 +600,133 @@ function QuoteSettings() {
         </div>
       )}
     </div>
+  )
+}
+
+/** Which API the coach runs on, whether it works, and a one-tap real test. */
+function CoachSettings() {
+  const [testing, setTesting] = useState(false)
+  useEffect(() => {
+    void checkCoach()
+  }, [])
+  const s = coachStatus.value
+  const t = coachTest.value
+  const problem = coachProblemText()
+  const ago = (at: number) => {
+    const m = Math.round((Date.now() - at) / 60000)
+    return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : new Date(at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+  }
+  if (coachMode.value === 'claude')
+    return (
+      <div class="settings-group">
+        <p class="setting-note">The coach runs on Claude here (inside the Claude app), so there’s nothing to set up.</p>
+      </div>
+    )
+  const state = !s ? 'Checking…' : problem ? problem.title : t?.ok ? `working (${(t.ms / 1000).toFixed(1)} s)` : s.lastOk ? 'working' : 'not tested yet'
+  const tone = !s ? '' : problem ? 'bad' : t?.ok || s.lastOk ? 'good' : ''
+  const test = async () => {
+    setTesting(true)
+    try {
+      const r = await runCoachTest()
+      toast(r.ok ? `Coach answered in ${(r.ms / 1000).toFixed(1)} s` : 'The coach test failed')
+    } finally {
+      setTesting(false)
+    }
+  }
+  return (
+    <div class="settings-group coach-health">
+      <div class="setting">
+        <span>
+          {s?.label || 'Coach'}
+          {s?.model ? ` · ${s.model}` : ''}
+          <small>
+            {s?.planModel && s.planModel !== s.model ? `Planning and weekly review: ${s.planModel}` : s?.reach === 'ok' ? 'Chat, targets, takeaways and weekly review' : ''}
+            {s?.todayCalls ? ` · ${s.todayCalls} API call${s.todayCalls === 1 ? '' : 's'} today` : ''}
+          </small>
+        </span>
+        <span class={'coach-state ' + tone}>
+          <span class="dot" /> {state}
+        </span>
+      </div>
+      {problem && <p class="setting-note coach-problem">{problem.detail}</p>}
+      {s?.reach === 'ok' && s.enabled && (
+        <button class="setting" onClick={test} disabled={testing}>
+          <span>
+            Test coach
+            <small>Sends one tiny message (“Reply with OK”) through your server</small>
+          </span>
+          {testing ? <span class="spinner" aria-label="Testing" /> : <Icon name="right" size={18} />}
+        </button>
+      )}
+      {t && !t.ok && t.error && (!problem || t.error !== problem.detail) && <p class="setting-note coach-problem">Test: {t.error}</p>}
+      {t?.ok && t.reply && <p class="setting-note">Test reply: “{t.reply}”</p>}
+      {s?.lastError && (
+        <p class="setting-note">
+          Last error ({ago(s.lastError.at)}
+          {s.lastError.status ? `, HTTP ${s.lastError.status}` : ''}){problem?.detail === s.lastError.message ? '' : `: ${s.lastError.message}`}
+          {s.lastOk && s.lastOk > s.lastError.at ? ` Working again since ${ago(s.lastOk)}.` : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Settings → Training → Time budget: total, warm-up and cool-down minutes every workout is planned to. */
+function BudgetSettings() {
+  const b = budgetOf(settings.value.timeBudget)
+  const set = (patch: Partial<Budget>) => {
+    const next = { ...b, ...patch }
+    // the warm-up and cool-down always leave at least 5 minutes of lifting
+    if (next.warmup + next.cooldown > next.total - 5) {
+      if (patch.total != null) next.total = next.warmup + next.cooldown + 5
+      else return
+    }
+    void saveSettings({ timeBudget: next })
+  }
+  const rows: [keyof Budget, string, string, number, number, number][] = [
+    ['total', 'Whole workout', 'Warm-up and cool-down included', 15, 60, 5],
+    ['warmup', 'Warm-up', 'Part of the whole', 0, 15, 1],
+    ['cooldown', 'Cool-down', 'Part of the whole', 0, 15, 1],
+  ]
+  return (
+    <div class="settings-group budget-settings">
+      <p class="budget-intro">
+        Time budget: every routine is planned to fit {b.total} min, {b.total - b.warmup - b.cooldown} of them lifting. Over it? The routine editor and the workout offer to fit it: heavier sets of fewer reps, supersets, shorter rests.
+      </p>
+      {rows.map(([k, label, hint, min, max, step]) => (
+        <div class="setting">
+          <span>
+            {label}
+            <small>{hint}</small>
+          </span>
+          <div class="stepper">
+            <button class="icon-btn step" aria-label={`${label}: ${step} min less`} disabled={b[k] <= min} onClick={() => set({ [k]: Math.max(min, b[k] - step) })}>
+              <Icon name="minus" />
+            </button>
+            <b aria-live="polite">{b[k]} min</b>
+            <button class="icon-btn step" aria-label={`${label}: ${step} min more`} disabled={b[k] >= max} onClick={() => set({ [k]: Math.min(max, b[k] + step) })}>
+              <Icon name="plus" />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Goo and motion tweaks, folded away: the live preview is distracting while you're changing other settings. */
+function AnimationSettings() {
+  const [open, setOpen] = useState(false)
+  return (
+    <section class={'settings-fold' + (open ? ' open' : '')}>
+      <button class="settings-fold-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span>
+          Animation
+          <small>Goo effects and motion</small>
+        </span>
+        <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
+      </button>
+      {open && <GooSettings />}
+    </section>
   )
 }

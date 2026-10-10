@@ -1,6 +1,6 @@
-// AI coach on Google's Gemini API (REST, no SDK).
+// AI coach on Google's Gemini API, any OpenAI-compatible API, or Claude (REST, no SDK; COACH_PROVIDER picks).
 //
-// - Chat streams over SSE. Gemini can call tools: read-only look-ups (reusing the MCP tools),
+// - Chat streams over SSE. The model can call tools: read-only look-ups (reusing the MCP tools),
 //   memory (notes, commitments) that the server writes into the synced "coach" store, and
 //   proposals (routine changes, goals, profile edits) that the app shows for one-tap approval.
 // - The coach's memory (your profile, notes, goals, open commitments) goes into every request.
@@ -11,26 +11,121 @@ import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise } from '../shared/planImport.mjs'
 import { videoInfo } from './video.mjs'
-import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, trimHistory, ymd as ymdShared } from '../shared/coachSpec.mjs'
+import { COACH_SYSTEM, COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, toJsonSchema, trimHistory, ymd as ymdShared } from '../shared/coachSpec.mjs'
 import { PROGRAM_CATALOG } from '../shared/programs.mjs'
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
-// Optional stronger model for planning questions and weekly reviews (e.g. a Pro model); defaults to MODEL.
-const PLAN_MODEL = process.env.GEMINI_PLAN_MODEL || MODEL
-const BASE = (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com').replace(/\/$/, '')
+// ---- which API the coach runs on (env only, no code change to switch) -----------------
+//
+// COACH_PROVIDER: 'gemini' (default) | 'openai' (any OpenAI-compatible Chat Completions API: OpenRouter,
+// DeepSeek, Groq, Together, Mistral, OpenAI…) | 'anthropic' (Claude Messages API).
+// COACH_API_KEY, COACH_BASE_URL, COACH_MODEL, COACH_PLAN_MODEL; the GEMINI_* names still work for Gemini.
+const env = process.env
+const PROVIDER_RAW = String(env.COACH_PROVIDER || 'gemini').trim().toLowerCase()
+const PROVIDER = { claude: 'anthropic', 'openai-compatible': 'openai', openrouter: 'openai', deepseek: 'openai', groq: 'openai' }[PROVIDER_RAW] || PROVIDER_RAW
+const IS_GEMINI = PROVIDER === 'gemini'
+const CONFIG_ERROR = ['gemini', 'openai', 'anthropic'].includes(PROVIDER) ? '' : `COACH_PROVIDER “${PROVIDER_RAW}” isn’t one of gemini, openai, anthropic.`
+const KEY_VAR = env.COACH_API_KEY ? 'COACH_API_KEY' : IS_GEMINI && env.GEMINI_API_KEY ? 'GEMINI_API_KEY' : PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY ? 'ANTHROPIC_API_KEY' : PROVIDER === 'openai' && env.OPENAI_API_KEY ? 'OPENAI_API_KEY' : IS_GEMINI ? 'GEMINI_API_KEY' : 'COACH_API_KEY'
+const API_KEY = () => env[KEY_VAR] || ''
+const DEFAULT_BASE = { gemini: 'https://generativelanguage.googleapis.com', anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com/v1' }
+const BASE = String(env.COACH_BASE_URL || (IS_GEMINI ? env.GEMINI_BASE_URL : '') || DEFAULT_BASE[PROVIDER] || '')
+  .trim()
+  .replace(/\/+$/, '')
+  .replace(/\/chat\/completions$/, '')
+  .replace(PROVIDER === 'anthropic' ? /\/v1(\/messages)?$/ : /$^/, '')
+const HOST = (() => {
+  try {
+    return new URL(BASE).host
+  } catch {
+    return ''
+  }
+})()
+const defaultModel = () => {
+  if (IS_GEMINI) return 'gemini-3.5-flash'
+  if (PROVIDER === 'anthropic') return 'claude-haiku-5-5'
+  if (/deepseek/.test(HOST)) return 'deepseek-chat'
+  return '' // OpenAI-compatible APIs all name models differently: COACH_MODEL is required
+}
+const MODEL_VAR = env.COACH_MODEL ? 'COACH_MODEL' : IS_GEMINI ? 'GEMINI_MODEL' : 'COACH_MODEL'
+const MODEL = env.COACH_MODEL || (IS_GEMINI ? env.GEMINI_MODEL : '') || defaultModel()
+const PLAN_VAR = env.COACH_PLAN_MODEL ? 'COACH_PLAN_MODEL' : IS_GEMINI ? 'GEMINI_PLAN_MODEL' : 'COACH_PLAN_MODEL'
+// Optional stronger model for planning questions and weekly reviews; defaults to MODEL.
+const PLAN_MODEL = env.COACH_PLAN_MODEL || (IS_GEMINI ? env.GEMINI_PLAN_MODEL : '') || MODEL
+/** What the athlete calls the service in messages. */
+const LABEL = IS_GEMINI
+  ? 'Gemini'
+  : PROVIDER === 'anthropic'
+    ? 'Claude'
+    : /openrouter/.test(HOST)
+      ? 'OpenRouter'
+      : /deepseek/.test(HOST)
+        ? 'DeepSeek'
+        : /groq/.test(HOST)
+          ? 'Groq'
+          : /together/.test(HOST)
+            ? 'Together'
+            : /mistral/.test(HOST)
+              ? 'Mistral'
+              : /openai\.com/.test(HOST)
+                ? 'OpenAI'
+                : /googleapis/.test(HOST)
+                  ? 'Gemini'
+                  : // a proxy or self-hosted gateway: name the model's maker when it's obvious
+                    { deepseek: 'DeepSeek', gpt: 'OpenAI', mistral: 'Mistral', llama: 'Llama', qwen: 'Qwen', claude: 'Claude', gemini: 'Gemini' }[
+                      (String(MODEL).toLowerCase().match(/deepseek|gpt|mistral|llama|qwen|claude|gemini/) || [])[0]
+                    ] || 'The AI service'
 const DAY = 86400000
 
-export const coachEnabled = () => !!process.env.GEMINI_API_KEY
+export const coachEnabled = () => !CONFIG_ERROR && !!API_KEY() && !!MODEL
 
+/** Why the coach is off, in plain words (null when it's configured). */
+export function coachProblem() {
+  if (CONFIG_ERROR) return CONFIG_ERROR
+  if (!API_KEY()) return `No API key on the server: set ${IS_GEMINI ? 'GEMINI_API_KEY (or COACH_API_KEY)' : 'COACH_API_KEY'} in Coolify and redeploy.`
+  if (!MODEL) return 'No model set: set COACH_MODEL to a model id from your provider and redeploy.'
+  return null
+}
 
-// ---- Gemini REST -----------------------------------------------------------------
+// ---- health, for Settings → Coach ----
+const stats = { lastOk: 0, lastError: null, day: '', todayCalls: 0, lastUsage: null }
+function countCall() {
+  const d = new Date().toISOString().slice(0, 10)
+  if (stats.day !== d) Object.assign(stats, { day: d, todayCalls: 0 })
+  stats.todayCalls++
+}
+const noteOk = () => (stats.lastOk = Date.now())
+function noteError(e) {
+  if (e?.name === 'AbortError' && !e.code) return // stopped by the athlete
+  stats.lastError = { at: Date.now(), message: friendlyError(e), status: e?.status || 0, code: errorKind(e) }
+}
+function noteUsage(u) {
+  if (u) stats.lastUsage = { ...u, at: Date.now() }
+}
+export function coachStatus() {
+  return {
+    enabled: coachEnabled(),
+    provider: PROVIDER,
+    label: LABEL,
+    model: MODEL || null,
+    planModel: PLAN_MODEL || null,
+    host: HOST,
+    keyVar: KEY_VAR,
+    modelVar: MODEL_VAR,
+    problem: coachProblem(),
+    lastOk: stats.lastOk || null,
+    lastError: stats.lastError,
+    todayCalls: stats.day === new Date().toISOString().slice(0, 10) ? stats.todayCalls : 0,
+    lastUsage: stats.lastUsage,
+  }
+}
 
-// A chat round that sends nothing for this long is given up on (Gemini went quiet); a whole chat
+// ---- HTTP with retries (shared by every provider) ----------------------------------
+
+// A chat round that sends nothing for this long is given up on (the API went quiet); a whole chat
 // reply, tool rounds included, is capped at COACH_TOTAL_MS. Both are env-tunable for tests.
-const IDLE_MS = Number(process.env.COACH_IDLE_MS) || 90000
-const TOTAL_MS = Number(process.env.COACH_TOTAL_MS) || 5 * 60000
+const IDLE_MS = Number(env.COACH_IDLE_MS) || 90000
+const TOTAL_MS = Number(env.COACH_TOTAL_MS) || 5 * 60000
 const MAX_ROUNDS = 8
-// Longest wait for a per-minute free-tier limit before retrying (Gemini says how long in RetryInfo).
+// Longest wait for a per-minute limit before retrying (Gemini says how long in RetryInfo, others in Retry-After).
 const MAX_QUOTA_WAIT = 65000
 
 const sleep = (ms, signal) =>
@@ -51,35 +146,68 @@ function parseGeminiError(json) {
   return { message: String(err.message || ''), retryMs, daily }
 }
 
-/** POST to Gemini. Busy or flaky answers (429, 5xx, network) are retried with backoff before giving up.
- *  A per-minute free-tier 429 waits as long as Gemini asks (up to about a minute); a daily one fails at once. */
-async function geminiFetch(method, payload, signal, model = MODEL, onWait) {
+/** OpenAI-style ({error:{message,type,code}}, OpenRouter nests the upstream's in metadata) and Anthropic ({type:'error', error:{type,message}}) bodies. */
+function parseOtherError(json) {
+  const err = json?.error && typeof json.error === 'object' ? json.error : json || {}
+  const raw = err?.metadata?.raw ? ` (${String(err.metadata.raw).slice(0, 200)})` : ''
+  const message = String(err.message || (typeof json?.error === 'string' ? json.error : '') || json?.message || '') + raw
+  const type = String(err.type || err.code || '')
+  return { message, type, retryMs: 0, daily: /per ?day|daily|RPD/i.test(message), credits: /insufficient_quota|insufficient.*(credit|balance|fund)|credit balance|billing|payment required/i.test(message + ' ' + type) }
+}
+
+function retryAfter(headers) {
+  const ms = Number(headers.get('retry-after-ms'))
+  if (ms > 0) return ms
+  const h = headers.get('retry-after')
+  if (!h) return 0
+  const s = Number(h)
+  if (Number.isFinite(s)) return s * 1000
+  const t = Date.parse(h)
+  return Number.isFinite(t) ? Math.max(0, t - Date.now()) : 0
+}
+
+/** POST JSON to the provider. Busy or flaky answers (429, 5xx, 529, network) are retried with backoff before
+ *  giving up. A per-minute 429 waits as long as asked (up to about a minute); a daily one or one about money
+ *  fails at once. `adjust(status, message, payload)` may return a fixed payload for a 400 (e.g. a token cap
+ *  the model doesn't accept); it's tried once per kind of fix. */
+async function apiFetch(url, headers, payload, { signal, model, onWait, adjust } = {}) {
   let res
   let quotaWaited = false
+  const fixes = new Set()
   for (let attempt = 0; ; attempt++) {
+    countCall()
     try {
-      res = await fetch(`${BASE}/v1beta/models/${encodeURIComponent(model)}:${method}`, {
-        method: 'POST',
-        signal,
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-        body: JSON.stringify(payload),
-      })
+      res = await fetch(url, { method: 'POST', signal, headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(payload) })
     } catch (e) {
-      if (e?.name === 'AbortError' || attempt >= 2) throw Object.assign(e, { network: e?.name !== 'AbortError' })
+      if (e?.name === 'AbortError' || attempt >= 2) throw Object.assign(e, { network: e?.name !== 'AbortError', api: true, provider: PROVIDER, model })
       await sleep(1500 * 2 ** attempt, signal)
       continue
     }
     if (res.ok) return res
-    let info = { message: '', retryMs: 0, daily: false }
+    let info = { message: '', retryMs: 0, daily: false, credits: false, type: '' }
+    let text = ''
     try {
-      info = parseGeminiError(await res.json())
+      text = await res.text()
+      const json = JSON.parse(text)
+      info = IS_GEMINI ? { ...info, ...parseGeminiError(json) } : { ...info, ...parseOtherError(json) }
     } catch {
-      /* not JSON */
+      if (!info.message && text) info.message = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
     }
-    const header = Number(res.headers.get('retry-after')) * 1000 || 0
-    const fail = () => Object.assign(new Error(info.message || `HTTP ${res.status}`), { status: res.status, gemini: true, model, daily: info.daily, retryMs: info.retryMs || header })
+    const header = retryAfter(res.headers)
+    const fail = () =>
+      Object.assign(new Error(info.message || `HTTP ${res.status}`), {
+        status: res.status,
+        api: true,
+        gemini: IS_GEMINI,
+        provider: PROVIDER,
+        model,
+        daily: info.daily,
+        credits: info.credits || res.status === 402,
+        type: info.type,
+        retryMs: info.retryMs || header,
+      })
     if (res.status === 429) {
-      if (info.daily) throw fail()
+      if (info.daily || info.credits) throw fail()
       const wait = info.retryMs || header
       if (wait > 8000) {
         // Per-minute limit (tokens or requests): wait it out once if it's short enough.
@@ -94,43 +222,25 @@ async function geminiFetch(method, payload, signal, model = MODEL, onWait) {
       await sleep(wait || 1500 * 2 ** attempt, signal)
       continue
     }
-    if (res.status >= 500 && attempt < 2) {
+    if ((res.status >= 500 || res.status === 408) && attempt < 2) {
       await sleep(Math.min(8000, header || 1500 * 2 ** attempt), signal)
       continue
     }
-    // Some models cap output lower than we ask; drop the cap rather than fail.
-    if (res.status === 400 && /max_?output_?tokens|maxOutputTokens/i.test(info.message) && payload.generationConfig?.maxOutputTokens) {
-      const { maxOutputTokens, ...rest } = payload.generationConfig
-      payload = { ...payload, generationConfig: rest }
-      attempt--
-      continue
+    if (res.status === 400 || res.status === 422) {
+      const fixed = adjust?.(info.message, payload, fixes)
+      if (fixed) {
+        payload = fixed
+        attempt--
+        continue
+      }
     }
     throw fail()
   }
 }
 
-export function friendlyError(e) {
-  const status = e?.status
-  const message = e?.message
-  if (e?.code === 'idle') return `Gemini stopped responding (nothing for ${Math.round(IDLE_MS / 1000)} seconds), so I stopped waiting. Try again; if it keeps happening, ask for a smaller piece, e.g. one phase.`
-  if (e?.code === 'total') return `That took over ${Math.round(TOTAL_MS / 60000)} minutes, so I stopped. Try again, or ask for a smaller piece, e.g. one phase.`
-  if (!e?.gemini) return e?.network ? 'The server couldn’t reach Gemini (network problem on the server). Try again in a minute.' : 'The coach is unavailable right now.'
-  if (status === 429) {
-    if (e.daily) return 'The free Gemini daily limit is used up. It resets at midnight Pacific time (or add billing to the key for more).'
-    const s = Math.round((e.retryMs || 0) / 1000)
-    return `The free Gemini limit is used up for the moment (it allows only so many requests and tokens per minute). Try again in ${s > 5 ? `about ${s} seconds` : 'a minute'}.`
-  }
-  if (status === 400 && /api key/i.test(message || '')) return 'The server’s GEMINI_API_KEY was rejected.'
-  if (status === 403) return 'The server’s GEMINI_API_KEY isn’t allowed to use this model.'
-  if (status === 404) return `Gemini doesn’t know the model “${e.model || MODEL}”. Set GEMINI_MODEL${e.model && e.model !== MODEL ? ' / GEMINI_PLAN_MODEL' : ''} on the server.`
-  if (status === 503) return 'Gemini is overloaded right now (Google’s side). Try again in a minute.'
-  if (status >= 500) return 'Gemini had an internal error. Try again in a minute.'
-  return `Gemini: ${message}`
-}
-
-/** One streamed model turn. Calls onText for visible text; returns the raw parts (kept for tool loops).
- *  Gives up with code 'idle' when Gemini sends nothing for idleMs; a malformed event is skipped, not fatal. */
-async function streamTurn(payload, { onText, onWait, signal, model, idleMs = IDLE_MS }) {
+/** Reads an SSE response, calling onEvent(eventName, dataString) per event (data lines joined). Gives up with
+ *  code 'idle' when nothing arrives for idleMs; onEvent may throw to stop. Tolerates CRLF and split chunks. */
+async function readSse(open, onEvent, { signal, idleMs = IDLE_MS }) {
   const ctrl = new AbortController()
   const stop = () => ctrl.abort()
   if (signal?.aborted) ctrl.abort()
@@ -141,40 +251,18 @@ async function streamTurn(payload, { onText, onWait, signal, model, idleMs = IDL
     clearTimeout(timer)
     timer = setTimeout(() => ((idle = true), ctrl.abort()), ms)
   }
-  const parts = []
-  let finish = ''
-  let blocked = ''
-  let bad = 0
   const handle = (chunk) => {
-    const data = chunk
-      .split(/\r?\n/)
-      .filter((l) => l.startsWith('data:'))
-      .map((l) => l.slice(5).trim())
-      .join('')
-    if (!data) return
-    let ev
-    try {
-      ev = JSON.parse(data)
-    } catch {
-      bad++
-      return
+    let event = ''
+    const data = []
+    for (const l of chunk.split(/\r?\n/)) {
+      if (l.startsWith('event:')) event = l.slice(6).trim()
+      else if (l.startsWith('data:')) data.push(l.slice(5).trim())
     }
-    if (ev?.error) {
-      const info = parseGeminiError(ev)
-      throw Object.assign(new Error(info.message || 'error in stream'), { status: Number(ev.error.code) || 500, gemini: true, model, daily: info.daily, retryMs: info.retryMs })
-    }
-    if (ev.promptFeedback?.blockReason) blocked = ev.promptFeedback.blockReason
-    const cand = ev.candidates?.[0]
-    for (const part of cand?.content?.parts || []) {
-      // Keep every part exactly as received: Gemini 3 attaches thought signatures that must be sent back.
-      parts.push(part)
-      if (part.text && !part.thought) onText(part.text)
-    }
-    if (cand?.finishReason) finish = cand.finishReason
+    if (data.length) onEvent(event, data.join(''))
   }
   try {
     arm()
-    const res = await geminiFetch('streamGenerateContent?alt=sse', payload, ctrl.signal, model, (ms) => (arm(ms + idleMs), onWait?.(ms)))
+    const res = await open(ctrl.signal, (ms) => arm(ms + idleMs))
     arm()
     const reader = res.body.getReader()
     const dec = new TextDecoder()
@@ -194,42 +282,544 @@ async function streamTurn(payload, { onText, onWait, signal, model, idleMs = IDL
     buf += dec.decode()
     if (buf.trim()) handle(buf)
   } catch (e) {
-    if (idle && !signal?.aborted) throw Object.assign(new Error('Gemini went quiet'), { code: 'idle' })
+    if (idle && !signal?.aborted) throw Object.assign(new Error(`${LABEL} went quiet`), { code: 'idle' })
     throw e
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', stop)
   }
-  if (bad) console.warn(`coach: skipped ${bad} unreadable event(s) from Gemini`)
-  return { parts, finish, blocked }
 }
 
-/** A single JSON answer that follows `schema` (Gemini Schema format, uppercase types). */
-async function generateJson(system, prompt, schema, model = MODEL) {
+/** The first JSON object in a reply (tolerates ```json fences and a sentence around it). */
+function extractJson(text) {
+  const s = String(text || '').trim()
+  try {
+    return JSON.parse(s)
+  } catch {
+    /* look inside */
+  }
+  const fenced = s.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1])
+    } catch {
+      /* keep looking */
+    }
+  }
+  const a = s.indexOf('{')
+  const b = s.lastIndexOf('}')
+  if (a >= 0 && b > a) return JSON.parse(s.slice(a, b + 1))
+  throw Object.assign(new Error(`${LABEL} didn’t answer in JSON`), { code: 'json' })
+}
+
+const isMaxTokMsg = (m) => /max_?(output_|completion_)?tokens|maxOutputTokens/i.test(m)
+
+// ---- the three providers -----------------------------------------------------------
+//
+// Each keeps the conversation in its own native shape (so Gemini's thought signatures and Claude's thinking
+// blocks go back unchanged) and offers:
+//   start(messages) → history
+//   turn({ system, history, textOnly, planning, model, onText, onWait, signal }) → { calls: [{id, name, args}], wrote, finish, blocked, raw }
+//     finish uses Gemini's words: STOP, MAX_TOKENS, MALFORMED_FUNCTION_CALL, SAFETY, PAUSE (Claude's pause_turn), …
+//   addTurn(history, turn, results)  (results: [{ call, response }])
+//   json(system, prompt, jsonSchema, model, opts) → parsed object
+//   ping(model, signal) → reply text
+
+const DECLARATIONS = COACH_TOOLS.map(({ name, description, parameters }) => ({ name, description, parameters: toGemini(parameters) }))
+const OPENAI_TOOLS = COACH_TOOLS.map(({ name, description, parameters }) => ({ type: 'function', function: { name, description, parameters: toJsonSchema(parameters) } }))
+const ANTHROPIC_TOOLS = COACH_TOOLS.map(({ name, description, parameters }, i, all) => ({
+  name,
+  description,
+  input_schema: toJsonSchema(parameters),
+  // Cache the static prefix (tools + instructions) across tool rounds and requests.
+  ...(i === all.length - 1 ? { cache_control: { type: 'ephemeral' } } : {}),
+}))
+
+const gemini = {
+  url: (model, method) => `${BASE}/v1beta/models/${encodeURIComponent(model)}:${method}`,
+  headers: () => ({ 'x-goog-api-key': API_KEY() }),
+  // Some models cap output lower than we ask; drop the cap rather than fail.
+  adjust(message, payload, fixes) {
+    if (isMaxTokMsg(message) && payload.generationConfig?.maxOutputTokens && !fixes.has('max')) {
+      fixes.add('max')
+      const { maxOutputTokens, ...rest } = payload.generationConfig
+      return { ...payload, generationConfig: rest }
+    }
+    return null
+  },
+  start: (messages) => messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+  async turn({ system, history, textOnly, planning, model, onText, onWait, signal }) {
+    const payload = {
+      systemInstruction: { parts: [{ text: system }] },
+      contents: history,
+      tools: [{ functionDeclarations: DECLARATIONS }],
+      ...(textOnly ? { toolConfig: { functionCallingConfig: { mode: 'NONE' } } } : {}),
+      generationConfig: { maxOutputTokens: planning ? 65536 : 32768 },
+    }
+    const parts = []
+    let finish = ''
+    let blocked = ''
+    let bad = 0
+    let usage = null
+    await readSse(
+      (sig, rearm) => apiFetch(this.url(model, 'streamGenerateContent?alt=sse'), this.headers(), payload, { signal: sig, model, onWait: (ms) => (rearm(ms), onWait?.(ms)), adjust: this.adjust }),
+      (_, data) => {
+        let ev
+        try {
+          ev = JSON.parse(data)
+        } catch {
+          bad++
+          return
+        }
+        if (ev?.error) {
+          const info = parseGeminiError(ev)
+          throw Object.assign(new Error(info.message || 'error in stream'), { status: Number(ev.error.code) || 500, api: true, gemini: true, provider: PROVIDER, model, daily: info.daily, retryMs: info.retryMs })
+        }
+        if (ev.promptFeedback?.blockReason) blocked = ev.promptFeedback.blockReason
+        if (ev.usageMetadata) usage = { input: ev.usageMetadata.promptTokenCount || 0, output: ev.usageMetadata.candidatesTokenCount || 0, cacheRead: ev.usageMetadata.cachedContentTokenCount || 0 }
+        const cand = ev.candidates?.[0]
+        for (const part of cand?.content?.parts || []) {
+          // Keep every part exactly as received: Gemini 3 attaches thought signatures that must be sent back.
+          parts.push(part)
+          if (part.text && !part.thought) onText(part.text)
+        }
+        if (cand?.finishReason) finish = cand.finishReason
+      },
+      { signal },
+    )
+    if (bad) console.warn(`coach: skipped ${bad} unreadable event(s) from Gemini`)
+    const calls = parts.filter((p) => p.functionCall).map((p) => ({ id: p.functionCall.id, name: p.functionCall.name, args: p.functionCall.args }))
+    return { calls, wrote: parts.some((p) => p.text && !p.thought && p.text.trim()), finish, blocked, raw: parts, usage }
+  },
+  addTurn(history, turn, results) {
+    history.push({ role: 'model', parts: turn.raw })
+    history.push({ role: 'user', parts: results.map(({ call, response }) => ({ functionResponse: { name: call.name, ...(call.id ? { id: call.id } : {}), response } })) })
+  },
+  async json(system, prompt, schema, model, { signal } = {}) {
+    const res = await apiFetch(
+      this.url(model, 'generateContent'),
+      this.headers(),
+      {
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: toGemini(schema), maxOutputTokens: 4096 },
+      },
+      { signal, model, adjust: this.adjust },
+    )
+    const json = await res.json()
+    const u = json.usageMetadata
+    if (u) noteUsage({ input: u.promptTokenCount || 0, output: u.candidatesTokenCount || 0, cacheRead: u.cachedContentTokenCount || 0 })
+    const text = (json.candidates?.[0]?.content?.parts || []).filter((p) => p.text && !p.thought).map((p) => p.text).join('')
+    return extractJson(text)
+  },
+  async ping(model, signal) {
+    const res = await apiFetch(this.url(model, 'generateContent'), this.headers(), { contents: [{ role: 'user', parts: [{ text: 'Reply with OK' }] }] }, { signal, model })
+    const json = await res.json()
+    return (json.candidates?.[0]?.content?.parts || []).filter((p) => p.text && !p.thought).map((p) => p.text).join('')
+  },
+}
+
+const openai = {
+  url: () => `${BASE}/chat/completions`,
+  headers: () => ({ authorization: `Bearer ${API_KEY()}`, ...(/openrouter/.test(HOST) ? { 'x-title': 'Gloop' } : {}) }),
+  /** Providers differ on optional fields: drop the one a 400 complains about and try again. */
+  adjust(message, payload, fixes) {
+    const drop = (key, tag = key) => {
+      if (!(key in payload) || fixes.has(tag)) return null
+      fixes.add(tag)
+      const { [key]: _, ...rest } = payload
+      return rest
+    }
+    if (isMaxTokMsg(message)) return drop('max_tokens')
+    if (/stream_options/i.test(message)) return drop('stream_options')
+    if (/tool_choice/i.test(message)) return drop('tool_choice')
+    return null
+  },
+  start: (messages) => messages.map((m) => ({ role: m.role, content: m.content })),
+  async turn({ system, history, textOnly, planning, model, onText, onWait, signal }) {
+    const payload = {
+      model,
+      stream: true,
+      stream_options: { include_usage: true },
+      messages: [{ role: 'system', content: system }, ...history],
+      tools: OPENAI_TOOLS,
+      tool_choice: textOnly ? 'none' : 'auto',
+      max_tokens: planning ? 32768 : 16384,
+    }
+    let text = ''
+    let reasoning = ''
+    let finish = ''
+    let bad = 0
+    let usage = null
+    const slots = [] // tool calls assembled by index
+    await readSse(
+      (sig, rearm) => apiFetch(this.url(), this.headers(), payload, { signal: sig, model, onWait: (ms) => (rearm(ms), onWait?.(ms)), adjust: this.adjust }),
+      (_, data) => {
+        if (data === '[DONE]') return
+        let ev
+        try {
+          ev = JSON.parse(data)
+        } catch {
+          bad++
+          return
+        }
+        if (ev?.error) {
+          const info = parseOtherError(ev)
+          throw Object.assign(new Error(info.message || 'error in stream'), { status: Number(ev.error.code) || Number(ev.error.status) || 500, api: true, provider: PROVIDER, model, credits: info.credits })
+        }
+        if (ev.usage) usage = { input: ev.usage.prompt_tokens || 0, output: ev.usage.completion_tokens || 0, cacheRead: ev.usage.prompt_tokens_details?.cached_tokens || ev.usage.prompt_cache_hit_tokens || 0 }
+        const choice = ev.choices?.[0]
+        if (!choice) return
+        const d = choice.delta || choice.message || {}
+        if (typeof d.content === 'string' && d.content) {
+          text += d.content
+          onText(d.content)
+        }
+        if (typeof d.reasoning_content === 'string') reasoning += d.reasoning_content
+        if (Array.isArray(d.tool_calls)) {
+          d.tool_calls.forEach((tc, j) => {
+            const i = Number.isInteger(tc.index) ? tc.index : j
+            const slot = (slots[i] ||= { id: '', name: '', args: '' })
+            if (tc.id) slot.id = tc.id
+            if (tc.function?.name) slot.name += tc.function.name
+            if (tc.function?.arguments != null) slot.args += typeof tc.function.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function.arguments)
+          })
+        }
+        if (choice.finish_reason) finish = choice.finish_reason
+      },
+      { signal },
+    )
+    if (bad) console.warn(`coach: skipped ${bad} unreadable event(s) from ${LABEL}`)
+    const calls = []
+    let malformed = false
+    slots.filter(Boolean).forEach((s, i) => {
+      if (!s.name) return void (malformed = true)
+      try {
+        calls.push({ id: s.id || `call_${i}_${Date.now().toString(36)}`, name: s.name, args: s.args.trim() ? JSON.parse(s.args) : {}, rawArgs: s.args || '{}' })
+      } catch {
+        malformed = true
+      }
+    })
+    const map = { stop: 'STOP', tool_calls: 'STOP', function_call: 'STOP', length: 'MAX_TOKENS', content_filter: 'SAFETY' }
+    return {
+      calls: malformed ? [] : calls,
+      wrote: !!text.trim(),
+      finish: malformed ? 'MALFORMED_FUNCTION_CALL' : map[finish] || (finish ? finish.toUpperCase() : ''),
+      blocked: '',
+      raw: { text, reasoning },
+      usage,
+    }
+  },
+  addTurn(history, turn, results) {
+    history.push({
+      role: 'assistant',
+      content: turn.raw.text || null,
+      // DeepSeek's thinking mode wants its reasoning back within a tool loop; only sent when it sent one.
+      ...(turn.raw.reasoning ? { reasoning_content: turn.raw.reasoning } : {}),
+      tool_calls: results.map(({ call }) => ({ id: call.id, type: 'function', function: { name: call.name, arguments: call.rawArgs || JSON.stringify(call.args || {}) } })),
+    })
+    for (const { call, response } of results) history.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(response) })
+  },
+  async json(system, prompt, schema, model, { signal } = {}) {
+    const ask = (format, extra = '') =>
+      apiFetch(
+        this.url(),
+        this.headers(),
+        {
+          model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: prompt + extra },
+          ],
+          max_tokens: 4096,
+          ...(format ? { response_format: format } : {}),
+        },
+        { signal, model, adjust: this.adjust },
+      )
+    const asText = `\n\nReply with only a JSON object (no prose, no code fences) that matches this JSON Schema:\n${JSON.stringify(schema)}`
+    let res
+    try {
+      res = await ask({ type: 'json_schema', json_schema: { name: 'reply', schema, strict: false } })
+    } catch (e) {
+      if (![400, 404, 422].includes(e?.status) || !/response_format|json_schema|schema|structured|not support/i.test(e.message || '')) throw e
+      try {
+        res = await ask({ type: 'json_object' }, asText)
+      } catch (e2) {
+        if (![400, 404, 422].includes(e2?.status) || !/response_format|json_object|json|not support/i.test(e2.message || '')) throw e2
+        res = await ask(null, asText)
+      }
+    }
+    const json = await res.json()
+    if (json.usage) noteUsage({ input: json.usage.prompt_tokens || 0, output: json.usage.completion_tokens || 0, cacheRead: json.usage.prompt_tokens_details?.cached_tokens || 0 })
+    return extractJson(json.choices?.[0]?.message?.content || '')
+  },
+  async ping(model, signal) {
+    const res = await apiFetch(this.url(), this.headers(), { model, messages: [{ role: 'user', content: 'Reply with OK' }] }, { signal, model, adjust: this.adjust })
+    const json = await res.json()
+    return String(json.choices?.[0]?.message?.content || '')
+  },
+}
+
+/** Claude's system prompt as two blocks: the static coach instructions (cached) and today's memory and data. */
+function claudeSystem(system) {
+  if (system.startsWith(COACH_SYSTEM)) {
+    const rest = system.slice(COACH_SYSTEM.length).trim()
+    return [{ type: 'text', text: COACH_SYSTEM, cache_control: { type: 'ephemeral' } }, ...(rest ? [{ type: 'text', text: rest }] : [])]
+  }
+  return [{ type: 'text', text: system }]
+}
+
+/** Claude needs the schema strict: every object closed. */
+function strictSchema(s) {
+  if (!s || typeof s !== 'object') return s
+  const out = { ...s }
+  if (out.type === 'object') {
+    out.additionalProperties = false
+    if (out.properties) out.properties = Object.fromEntries(Object.entries(out.properties).map(([k, v]) => [k, strictSchema(v)]))
+  }
+  if (out.items) out.items = strictSchema(out.items)
+  return out
+}
+
+const anthropic = {
+  url: () => `${BASE}/v1/messages`,
+  headers: () => ({ 'x-api-key': API_KEY(), 'anthropic-version': '2023-06-01' }),
+  adjust(message, payload, fixes) {
+    if (/effort/i.test(message) && payload.output_config?.effort && !fixes.has('effort')) {
+      fixes.add('effort')
+      const { effort, ...oc } = payload.output_config
+      const { output_config, ...rest } = payload
+      return Object.keys(oc).length ? { ...rest, output_config: oc } : rest
+    }
+    if (/max_tokens/i.test(message) && payload.max_tokens > 8192 && !fixes.has('max')) {
+      fixes.add('max')
+      return { ...payload, max_tokens: 8192 }
+    }
+    if (/tool_choice/i.test(message) && payload.tool_choice && !fixes.has('tool_choice')) {
+      fixes.add('tool_choice')
+      const { tool_choice, ...rest } = payload
+      return rest
+    }
+    return null
+  },
+  /** Alternating user/assistant turns that end on the athlete (a trailing assistant turn would be read as a prefill). */
+  start(messages) {
+    const out = []
+    for (const m of messages) {
+      const last = out[out.length - 1]
+      if (last?.role === m.role) last.content += `\n\n${m.content}`
+      else out.push({ role: m.role, content: m.content })
+    }
+    while (out.length && out[out.length - 1].role !== 'user') out.pop()
+    return out
+  },
+  async turn({ system, history, textOnly, planning, model, onText, onWait, signal }) {
+    const payload = {
+      model,
+      max_tokens: 16000,
+      stream: true,
+      system: claudeSystem(system),
+      messages: history,
+      tools: ANTHROPIC_TOOLS,
+      ...(textOnly ? { tool_choice: { type: 'none' } } : {}),
+      output_config: { effort: planning ? 'medium' : 'low' },
+    }
+    const blocks = []
+    let finish = ''
+    let bad = 0
+    let usage = {}
+    let malformed = false
+    await readSse(
+      (sig, rearm) => apiFetch(this.url(), this.headers(), payload, { signal: sig, model, onWait: (ms) => (rearm(ms), onWait?.(ms)), adjust: this.adjust }),
+      (event, data) => {
+        let ev
+        try {
+          ev = JSON.parse(data)
+        } catch {
+          bad++
+          return
+        }
+        const type = ev.type || event
+        if (type === 'error') {
+          const t = String(ev.error?.type || '')
+          const status = { overloaded_error: 529, rate_limit_error: 429, api_error: 500, authentication_error: 401, permission_error: 403, not_found_error: 404, invalid_request_error: 400, request_too_large: 413, billing_error: 402 }[t] || 500
+          throw Object.assign(new Error(ev.error?.message || 'error in stream'), { status, api: true, provider: PROVIDER, model, type: t })
+        }
+        if (type === 'message_start') Object.assign(usage, ev.message?.usage || {})
+        else if (type === 'message_delta') {
+          if (ev.delta?.stop_reason) finish = ev.delta.stop_reason
+          Object.assign(usage, ev.usage || {})
+        } else if (type === 'content_block_start') {
+          const b = { ...ev.content_block }
+          if (b.type === 'tool_use') b._json = ''
+          blocks[ev.index] = b
+          if (b.type === 'text' && b.text) onText(b.text)
+        } else if (type === 'content_block_delta') {
+          const b = blocks[ev.index]
+          const d = ev.delta || {}
+          if (!b) return
+          if (d.type === 'text_delta') {
+            b.text = (b.text || '') + d.text
+            if (d.text) onText(d.text)
+          } else if (d.type === 'input_json_delta') b._json += d.partial_json || ''
+          else if (d.type === 'thinking_delta') b.thinking = (b.thinking || '') + (d.thinking || '')
+          else if (d.type === 'signature_delta') b.signature = (b.signature || '') + (d.signature || '')
+        } else if (type === 'content_block_stop') {
+          const b = blocks[ev.index]
+          if (b?.type === 'tool_use') {
+            try {
+              b.input = b._json.trim() ? JSON.parse(b._json) : b.input || {}
+            } catch {
+              malformed = true
+            }
+            delete b._json
+          }
+        }
+      },
+      { signal },
+    )
+    if (bad) console.warn(`coach: skipped ${bad} unreadable event(s) from Claude`)
+    // Sent back unchanged (thinking blocks included), minus empty text blocks, which the API refuses.
+    const content = blocks.filter(Boolean).filter((b) => !(b.type === 'text' && !b.text))
+    for (const b of content) if (b._json != null) (b.input = b.input || {}), delete b._json
+    const calls = content.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, args: b.input }))
+    const map = { end_turn: 'STOP', stop_sequence: 'STOP', tool_use: 'STOP', max_tokens: 'MAX_TOKENS', model_context_window_exceeded: 'MAX_TOKENS', refusal: 'SAFETY', pause_turn: 'PAUSE' }
+    const u = { input: usage.input_tokens || 0, output: usage.output_tokens || 0, cacheRead: usage.cache_read_input_tokens || 0, cacheWrite: usage.cache_creation_input_tokens || 0 }
+    return {
+      calls: malformed ? [] : calls,
+      wrote: content.some((b) => b.type === 'text' && b.text.trim()),
+      finish: malformed ? 'MALFORMED_FUNCTION_CALL' : map[finish] || (finish ? finish.toUpperCase() : ''),
+      blocked: '',
+      raw: content,
+      usage: u,
+    }
+  },
+  addTurn(history, turn, results) {
+    if (turn.raw.length) history.push({ role: 'assistant', content: turn.raw })
+    if (results.length)
+      history.push({
+        role: 'user',
+        content: results.map(({ call, response }) => ({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(response), ...(response?.error ? { is_error: true } : {}) })),
+      })
+  },
+  async json(system, prompt, schema, model, { signal, effort = 'low' } = {}) {
+    const ask = (structured) =>
+      apiFetch(
+        this.url(),
+        this.headers(),
+        {
+          model,
+          max_tokens: 4096,
+          system: claudeSystem(system),
+          messages: [{ role: 'user', content: structured ? prompt : `${prompt}\n\nReply with only a JSON object (no prose, no code fences) that matches this JSON Schema:\n${JSON.stringify(schema)}` }],
+          output_config: { effort, ...(structured ? { format: { type: 'json_schema', schema: strictSchema(schema) } } : {}) },
+        },
+        { signal, model, adjust: this.adjust },
+      )
+    let res
+    try {
+      res = await ask(true)
+    } catch (e) {
+      if (e?.status !== 400 || !/output_config|format|schema|structured/i.test(e.message || '')) throw e
+      res = await ask(false)
+    }
+    const json = await res.json()
+    if (json.usage) noteUsage({ input: json.usage.input_tokens || 0, output: json.usage.output_tokens || 0, cacheRead: json.usage.cache_read_input_tokens || 0, cacheWrite: json.usage.cache_creation_input_tokens || 0 })
+    if (json.stop_reason === 'refusal') throw Object.assign(new Error('Claude declined'), { code: 'refusal' })
+    return extractJson((json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join(''))
+  },
+  async ping(model, signal) {
+    const res = await apiFetch(this.url(), this.headers(), { model, max_tokens: 256, messages: [{ role: 'user', content: 'Reply with OK' }], output_config: { effort: 'low' } }, { signal, model, adjust: this.adjust })
+    const json = await res.json()
+    return (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('')
+  },
+}
+
+const API = { gemini, openai, anthropic }[PROVIDER] || gemini
+
+/** What kind of failure, for the app's status line. */
+function errorKind(e) {
+  const s = e?.status
+  const m = String(e?.message || '')
+  if (e?.code === 'idle' || e?.code === 'total' || e?.name === 'TimeoutError') return 'timeout'
+  if (e?.network) return 'network'
+  if (!e?.api) return 'other'
+  if (e.credits || s === 402) return 'credits'
+  if (s === 429) return e.daily ? 'daily' : 'quota'
+  if (s === 401 || (s === 403 && !IS_GEMINI) || (s === 400 && /api[ _-]?key/i.test(m))) return 'key'
+  if (s === 403) return 'key'
+  if (s === 404 || (s === 400 && /model/i.test(m) && /not (exist|found|valid|supported)|invalid|unknown|does not|no such/i.test(m))) return 'model'
+  if (s === 503 || s === 529) return 'overloaded'
+  if (s >= 500) return 'server'
+  return 'other'
+}
+
+export function friendlyError(e) {
+  const status = e?.status
+  const message = e?.message
+  if (e?.code === 'idle') return `${LABEL} stopped responding (nothing for ${Math.round(IDLE_MS / 1000)} seconds), so I stopped waiting. Try again; if it keeps happening, ask for a smaller piece, e.g. one phase.`
+  if (e?.code === 'total') return `That took over ${Math.round(TOTAL_MS / 60000)} minutes, so I stopped. Try again, or ask for a smaller piece, e.g. one phase.`
+  if (e?.code === 'json') return `${LABEL} didn’t answer in the expected format. Try again.`
+  if (!e?.api) return e?.network ? `The server couldn’t reach ${LABEL} (network problem on the server). Try again in a minute.` : 'The coach is unavailable right now.'
+  if (e?.network) return `The server couldn’t reach ${LABEL} at ${HOST} (network problem on the server${IS_GEMINI ? '' : ', or COACH_BASE_URL is wrong'}). Try again in a minute.`
+  const kind = errorKind(e)
+  const modelVar = e.model && e.model !== MODEL ? PLAN_VAR : MODEL_VAR
+  if (kind === 'credits') return `${LABEL} says the account is out of credits or quota (${status}). Add credits or billing there, or switch COACH_MODEL to a free model.`
+  if (status === 429) {
+    if (IS_GEMINI) {
+      if (e.daily) return 'The free Gemini daily limit is used up. It resets at midnight Pacific time (or add billing to the key for more).'
+      const s = Math.round((e.retryMs || 0) / 1000)
+      return `The free Gemini limit is used up for the moment (it allows only so many requests and tokens per minute). Try again in ${s > 5 ? `about ${s} seconds` : 'a minute'}.`
+    }
+    if (e.daily) return `${LABEL}’s daily limit for this key is used up. Try again tomorrow, or raise the limit on their side.`
+    const s = Math.round((e.retryMs || 0) / 1000)
+    return `${LABEL} is rate-limiting this key for the moment. Try again in ${s > 5 ? `about ${s} seconds` : 'a minute'}.`
+  }
+  if (IS_GEMINI && status === 403) return 'The server’s GEMINI_API_KEY isn’t allowed to use this model.'
+  if (kind === 'key') return `The server’s ${KEY_VAR} was rejected by ${LABEL}. Check the key in Coolify and redeploy.`
+  if (kind === 'model') return `${LABEL} doesn’t know the model “${e.model || MODEL}”. Set ${modelVar} on the server${!IS_GEMINI && status === 404 ? ' (or check COACH_BASE_URL)' : ''}.`
+  if (kind === 'overloaded') return `${LABEL} is overloaded right now (their side). Try again in a minute.`
+  if (status >= 500) return `${LABEL} had an internal error. Try again in a minute.`
+  return `${LABEL}: ${message}`
+}
+
+/** A single JSON answer that follows `schema` (JSON Schema, or Gemini's upper-case dialect: both work). */
+async function generateJson(system, prompt, schema, model = MODEL, opts = {}) {
   // Same patience as a chat reply: never hang a pre-workout card or the weekly review forever.
   const signal = AbortSignal.timeout(IDLE_MS + 30000)
-  let json
   try {
-    const res = await geminiFetch('generateContent', {
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: schema, maxOutputTokens: 4096 },
-    }, signal, model)
-    json = await res.json()
+    const out = await API.json(system, prompt, toJsonSchema(schema), model, { ...opts, signal })
+    noteOk()
+    return out
   } catch (e) {
-    if (e?.name === 'TimeoutError' || (e?.name === 'AbortError' && signal.aborted)) throw Object.assign(new Error('Gemini went quiet'), { code: 'idle' })
-    throw e
+    const err = e?.name === 'TimeoutError' || (e?.name === 'AbortError' && signal.aborted) ? Object.assign(new Error(`${LABEL} went quiet`), { code: 'idle' }) : e
+    noteError(err)
+    throw err
   }
-  const text = (json.candidates?.[0]?.content?.parts || [])
-    .filter((p) => p.text && !p.thought)
-    .map((p) => p.text)
-    .join('')
-  return JSON.parse(text)
+}
+
+/** One tiny real call, for Settings → Coach → Test. */
+export async function testCoach() {
+  const base = { provider: PROVIDER, label: LABEL, model: MODEL || null }
+  if (!coachEnabled()) return { ...base, ok: false, ms: 0, error: coachProblem() }
+  const t0 = Date.now()
+  const signal = AbortSignal.timeout(20000)
+  try {
+    const reply = await API.ping(MODEL, signal)
+    noteOk()
+    return { ...base, ok: true, ms: Date.now() - t0, reply: String(reply || '').trim().slice(0, 80) }
+  } catch (e) {
+    const err = e?.name === 'TimeoutError' || signal.aborted ? Object.assign(new Error('timeout'), { code: 'test-timeout' }) : e
+    if (err.code === 'test-timeout') {
+      stats.lastError = { at: Date.now(), message: `${LABEL} didn’t answer within 20 seconds.`, status: 0, code: 'timeout' }
+      return { ...base, ok: false, ms: Date.now() - t0, error: stats.lastError.message, code: 'timeout' }
+    }
+    noteError(err)
+    return { ...base, ok: false, ms: Date.now() - t0, error: friendlyError(err), code: errorKind(err), status: err?.status || 0 }
+  }
 }
 
 // ---- tools ----------------------------------------------------------------------
-
-const DECLARATIONS = COACH_TOOLS.map(({ name, description, parameters }) => ({ name, description, parameters: toGemini(parameters) }))
 
 export function createCoach({ db, q, mcp, push }) {
   const items = () => mcp.rows('coach')
@@ -347,6 +937,7 @@ export function createCoach({ db, q, mcp, push }) {
       case 'propose_training_block':
       case 'propose_program':
       case 'propose_mobility_plan':
+      case 'swap_exercise':
       case 'propose_profile_update': {
         const id = newId('prop')
         emit({ proposal: { id, tool: name, args } })
@@ -381,21 +972,21 @@ export function createCoach({ db, q, mcp, push }) {
     const smaller = planning ? 'Ask for one phase at a time, or start it from the program library if it’s there.' : 'Ask again a bit more narrowly.'
     switch (finish) {
       case 'MAX_TOKENS':
-        return said ? '\n\n(Answer cut short: it ran out of room.)' : `That came out too long for Gemini to finish. ${smaller}`
+        return said ? '\n\n(Answer cut short: it ran out of room.)' : `That came out too long for ${LABEL} to finish. ${smaller}`
       case 'MALFORMED_FUNCTION_CALL':
       case 'UNEXPECTED_TOOL_CALL':
-        return `${said ? '\n\n' : ''}Gemini garbled the change it was preparing (twice), so nothing was proposed. ${smaller}`
+        return `${said ? '\n\n' : ''}${LABEL} garbled the change it was preparing (twice), so nothing was proposed. ${smaller}`
       case 'RECITATION':
-        return `${said ? '\n\n' : ''}Gemini stopped because the answer repeated published text word for word. Ask it to summarise or adapt instead of copying.`
+        return `${said ? '\n\n' : ''}${LABEL} stopped because the answer repeated published text word for word. Ask it to summarise or adapt instead of copying.`
       case 'SAFETY':
       case 'PROHIBITED_CONTENT':
       case 'BLOCKLIST':
       case 'SPII':
-        return '\n\nGemini declined to answer that one. Try asking about your training a different way.'
+        return `\n\n${LABEL} declined to answer that one. Try asking about your training a different way.`
       case 'TOO_MANY_TOOL_CALLS':
         return `${said ? '\n\n' : ''}That needed too many look-ups at once. ${smaller}`
       default:
-        return `${said ? '\n\n' : ''}Gemini came back without an answer${finish && finish !== 'STOP' ? ` (${finish})` : ''}. Try again; if it keeps happening, ${planning ? 'ask for one phase at a time.' : 'rephrase the question.'}`
+        return `${said ? '\n\n' : ''}${LABEL} came back without an answer${finish && finish !== 'STOP' ? ` (${finish})` : ''}. Try again; if it keeps happening, ${planning ? 'ask for one phase at a time.' : 'rephrase the question.'}`
     }
   }
 
@@ -452,35 +1043,41 @@ export function createCoach({ db, q, mcp, push }) {
     const lastUser = messages[messages.length - 1]?.content || ''
     const planning = isPlanning(lastUser)
     const model = planning ? PLAN_MODEL : MODEL
-    const contents = messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
+    const history = API.start(messages)
     const system = systemText({ context: typeof body.context === 'string' ? body.context.slice(0, 300000) : '', tz })
     const appRoutines = typeof body.routines === 'string' ? body.routines.slice(0, 50000) : ''
+    const usage = { rounds: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    let pauses = 0
     try {
       for (let round = 0; round < MAX_ROUNDS; round++) {
         // The last round (and a retry after an empty reply) must answer in words, so a reply never ends on a silent tool call.
         const textOnly = forceText || round === MAX_ROUNDS - 1
-        const { parts, finish, blocked } = await streamTurn(
-          {
-            systemInstruction: { parts: [{ text: system }] },
-            contents,
-            tools: [{ functionDeclarations: DECLARATIONS }],
-            ...(textOnly ? { toolConfig: { functionCallingConfig: { mode: 'NONE' } } } : {}),
-            generationConfig: { maxOutputTokens: planning ? 65536 : 32768 },
-          },
-          {
-            onText: (t) => ((said = true), send({ t })),
-            onWait: (ms) => send({ status: `Gemini’s free tier asked to wait ${Math.round(ms / 1000)} s` }),
-            signal: run.ctrl.signal,
-            model,
-          },
-        )
+        const turn = await API.turn({
+          system,
+          history,
+          textOnly,
+          planning,
+          model,
+          onText: (t) => ((said = true), send({ t })),
+          onWait: (ms) => send({ status: `${IS_GEMINI ? 'Gemini’s free tier' : LABEL} asked to wait ${Math.round(ms / 1000)} s` }),
+          signal: run.ctrl.signal,
+        })
+        const { calls, wrote, finish, blocked } = turn
+        usage.rounds++
+        for (const k of ['input', 'output', 'cacheRead', 'cacheWrite']) usage[k] += turn.usage?.[k] || 0
         ended = true // until this round asks for tools
         if (blocked || ['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII'].includes(finish)) {
           send({ t: finishText('SAFETY', said, planning) })
           break
         }
-        const calls = parts.filter((p) => p.functionCall)
-        const wrote = parts.some((p) => p.text && !p.thought && p.text.trim())
+        if (finish === 'PAUSE' && !calls.length && pauses < 2) {
+          // Claude paused a long turn: send it back as-is so it carries on.
+          pauses++
+          API.addTurn(history, turn, [])
+          ended = false
+          round--
+          continue
+        }
         if (!calls.length) {
           if (wrote && finish !== 'MAX_TOKENS' && finish !== 'RECITATION') break // a normal answer
           if (proposed && !wrote && (!finish || finish === 'STOP')) break // the proposal card speaks for itself
@@ -497,27 +1094,30 @@ export function createCoach({ db, q, mcp, push }) {
           break
         }
         ended = false
-        contents.push({ role: 'model', parts })
-        const responses = []
-        for (const { functionCall } of calls) {
-          send({ tool: functionCall.name })
+        const results = []
+        for (const call of calls) {
+          send({ tool: call.name })
           let response
           try {
-            response = await runTool(functionCall.name, functionCall.args, send, appRoutines, lastUser)
+            response = await runTool(call.name, call.args, send, appRoutines, lastUser)
           } catch (e) {
             response = { error: String(e?.message || e) }
           }
-          if (functionCall.name.startsWith('propose_') && !response.error) proposed = true
-          responses.push({ functionResponse: { name: functionCall.name, ...(functionCall.id ? { id: functionCall.id } : {}), response } })
+          if (call.name.startsWith('propose_') && !response.error) proposed = true
+          results.push({ call, response })
         }
-        contents.push({ role: 'user', parts: responses })
+        API.addTurn(history, turn, results)
       }
+      noteOk()
+      noteUsage(usage)
+      console.log(`coach: ${PROVIDER} ${model} · ${usage.rounds} round(s) · in ${usage.input}${usage.cacheRead ? ` (cached ${usage.cacheRead})` : ''} · out ${usage.output}`)
       if (!ended && !said && !proposed) send({ t: 'That took too many steps without an answer. Ask again more narrowly, e.g. one phase or one routine.' })
       send({ done: true })
     } catch (e) {
       const err = overTime ? Object.assign(new Error('too long'), { code: 'total' }) : e
       if (err?.name !== 'AbortError' || overTime) {
         console.error('coach error', err?.status || err?.code || '', err?.message || err)
+        noteError(err)
         send({ error: friendlyError(err) })
       } else send({ error: 'Stopped.', stopped: true })
     } finally {
@@ -576,6 +1176,16 @@ export function createCoach({ db, q, mcp, push }) {
       for (const text of notes) write({ id: newId('note'), kind: 'note', text: text.slice(0, 300), created: Date.now(), source: 'coach' })
       return { notes }
     }
+    if (body.kind === 'live') {
+      // a short line during a workout; the phone's own engine already set the numbers (src/liveCoach.ts)
+      const state = body.state && typeof body.state === 'object' ? body.state : {}
+      const out = await generateJson(
+        system,
+        QUICK.live.prompt(state),
+        toGemini(QUICK.live.schema),
+      )
+      return QUICK.live.clean(out)
+    }
     throw Object.assign(new Error('Unknown request'), { status: 400 })
   }
 
@@ -600,7 +1210,7 @@ export function createCoach({ db, q, mcp, push }) {
         `THIS WEEK'S WORKOUTS\n${await mcp.callTool('recent_workouts', { from: weekKey, limit: 20 })}`,
         ...(fresh ? [] : [`EARLIER WORKOUTS\n${await mcp.callTool('recent_workouts', { to: ymd(Date.now() - 7 * DAY, tz), limit: 12 })}`, await mcp.callTool('body_stats', {})]),
       ].join('\n\n')
-      const out = await generateJson(systemText({ context, tz }), QUICK.weekly.prompt(), toGemini(QUICK.weekly.schema), PLAN_MODEL)
+      const out = await generateJson(systemText({ context, tz }), QUICK.weekly.prompt(), toGemini(QUICK.weekly.schema), PLAN_MODEL, { effort: 'medium' })
       const text = String(out.review || '').trim()
       if (!text) return
       write({ id, kind: 'insight', type: 'weekly', ref: weekKey, text, created: Date.now(), source: 'coach' })

@@ -8,12 +8,13 @@ import { exMap, workouts } from '../store'
 import { sessionsByExercise } from '../stats'
 import { buildCoachContext, coachPasteText, routinesText } from '../coachContext'
 import { claudeChat } from '../coachClaude'
-import { applyProposal, checkCoach, coachMode, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal } from '../coach'
+import { applyProposal, checkCoach, coachMode, coachOn, coachProblemText, coachStatus, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal } from '../coach'
 import { Icon } from '../ui/icons'
 import { confirmDialog, toast } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
 import { adjustMessage } from '../ui/Feedback'
 import { saveVideo } from '../videos'
+import { swapFromCoach } from '../swap'
 import { fmtDay, uid } from '../util'
 
 interface Msg {
@@ -206,6 +207,8 @@ export function Coach() {
   const [status, setStatus] = useState('')
   /** The last question that failed, with why: shown under the chat with a Retry button. */
   const [failure, setFailure] = useState<{ q: string; text: string } | null>(null)
+  /** A question asked while the coach is off: kept so it can be copied to paste into another AI. */
+  const [offAsked, setOffAsked] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
   const abort = useRef<AbortController | null>(null)
 
@@ -253,7 +256,13 @@ export function Coach() {
   const ask = async (text: string, focusWorkoutId?: string, base: Msg[] = msgs) => {
     const q = text.trim()
     if (!q || busy) return
-    if (!coachOn.value) return copyForClaude(q)
+    if (!coachOn.value) {
+      // Say why instead of silently copying; copying stays one tap away.
+      setInput(q)
+      setOffAsked(q)
+      toast(`The coach can’t answer: ${coachProblemText()?.title || 'it isn’t set up'}. See the note above.`)
+      return
+    }
     setFailure(null)
     const history: Msg[] = [...base, { role: 'user', content: q }]
     const reply: Msg = { role: 'assistant', content: '', memory: [], proposals: [] }
@@ -298,7 +307,7 @@ export function Coach() {
               show()
             },
             onProposal: (p) => {
-              reply.proposals!.push(p)
+              reply.proposals!.push(liveSwap(p))
               show()
             },
           })
@@ -330,7 +339,7 @@ export function Coach() {
           const ex = exMap.value.get(ev.video.exerciseId)
           if (ex) void saveVideo(ex, ev.video.url, { title: ev.video.title || undefined })
         }
-        if (ev.proposal) reply.proposals!.push({ ...ev.proposal, state: 'pending' })
+        if (ev.proposal) reply.proposals!.push(liveSwap({ ...ev.proposal, state: 'pending' }))
         if (ev.t || ev.tool || ev.status || ev.memory || ev.proposal) show()
       }
       // The reply keeps running on the server if the stream breaks; pick it up again (it's replayed from the start).
@@ -350,6 +359,7 @@ export function Coach() {
       if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : 'The coach came back without an answer. Try again, or ask a bit more narrowly.'
       save(await condense([...history, reply]))
       void syncNow() // pull memory the coach saved
+      if (coachProblemText()) void checkCoach() // it answered: clear a stale "last call failed" banner
     } catch (e) {
       if ((e as Error).name === 'AbortError') {
         // Stopped by the athlete: tell the server to stop too (it keeps going for a lost connection otherwise).
@@ -358,6 +368,7 @@ export function Coach() {
         save([...history, { ...reply, content: reply.content ? reply.content + ' …' : '(stopped)' }])
       } else {
         const why = e instanceof Lost ? lostText(e.why) : (e as Error).message || 'The coach is unavailable right now.'
+        if (coachMode.value === 'server') void checkCoach() // refresh the status banner
         if (reply.content || reply.proposals?.length || reply.memory?.length) {
           // Keep what arrived, say why it stopped, and offer to ask again.
           save([...history, { ...reply, note: why }])
@@ -409,6 +420,7 @@ export function Coach() {
   }
 
   const off = coachOn.value === false
+  const problem = coachProblemText()
   const weekly = latestWeekly.value
   const showWeekly = weekly && Date.now() - (weekly.created || 0) < 8 * 86400000
   const open = openCommitments.value
@@ -453,13 +465,24 @@ export function Coach() {
         </section>
       )}
 
-      {off && (
-        <section class="coach-off">
-          <b>The in-app coach isn’t set up here</b>
-          <span>
-            It runs on your server with a free Gemini API key (set <code>GEMINI_API_KEY</code>, see the README). Until then, tap a question below: Gloop copies it with your
-            training summary, ready to paste into Gemini or Claude.
-          </span>
+      {problem && (
+        <section class={'coach-off coach-banner' + (off ? ' off' : '')} role="status">
+          <b>
+            <Icon name="alert" size={16} /> {problem.title}
+          </b>
+          <span>{problem.detail}</span>
+          <div class="coach-banner-actions">
+            {coachStatus.value?.reach === 'ok' && (
+              <button class="btn btn-secondary btn-sm" onClick={() => navigate('/settings')}>
+                Check in Settings
+              </button>
+            )}
+            {off && (
+              <button class="btn btn-text btn-sm" onClick={() => copyForClaude(offAsked || input || suggestions()[0])}>
+                <Icon name="copy" size={14} /> Copy question to ask another AI
+              </button>
+            )}
+          </div>
         </section>
       )}
 
@@ -528,7 +551,7 @@ export function Coach() {
         <div class="chips-wrap coach-chips">
           {suggestions().map((s) => (
             <button class="chip" onClick={() => ask(s)}>
-              {off && <Icon name="copy" size={13} />} {s}
+              {s}
             </button>
           ))}
         </div>
@@ -545,7 +568,7 @@ export function Coach() {
           id="coach-input"
           rows={1}
           value={input}
-          placeholder={off ? 'Ask, then paste into Gemini' : 'Ask your coach'}
+          placeholder={off ? 'The coach is off (see above)' : 'Ask your coach'}
           aria-label="Message your coach"
           onInput={(e) => setInput(e.currentTarget.value)}
           onKeyDown={(e) => {
@@ -560,8 +583,8 @@ export function Coach() {
             <Icon name="x" size={20} />
           </button>
         ) : (
-          <button type="submit" class="send" disabled={!input.trim()} aria-label={off ? 'Copy question and training summary' : 'Send'}>
-            <Icon name={off ? 'copy' : 'up'} size={20} />
+          <button type="submit" class="send" disabled={!input.trim()} aria-label="Send">
+            <Icon name="up" size={20} />
           </button>
         )}
       </form>
@@ -619,4 +642,13 @@ export function Markdown({ text }: { text: string }) {
 
 function inline(s: string): ComponentChildren[] {
   return s.split(/(\*\*[^*]+\*\*)/g).map((part) => (part.startsWith('**') && part.endsWith('**') ? <b>{part.slice(2, -2)}</b> : part))
+}
+
+/** A swap the athlete asked for mid-workout applies at once (with Undo); otherwise it waits for Approve. */
+function liveSwap(p: Proposal): Proposal {
+  if (p.tool !== 'swap_exercise') return p
+  const r = swapFromCoach(p.id, p.args)
+  if (!r) return p
+  toast(r.text, { label: 'Undo', run: r.undo })
+  return { ...p, state: 'approved' }
 }

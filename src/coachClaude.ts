@@ -179,8 +179,18 @@ export async function claudeQuick<T>(body: Record<string, unknown>, focusWorkout
   if (!sample) throw new Error('The coach isn’t available here.')
   const system = systemText({ list: coachItems.value, context: buildCoachContext({ focusWorkoutId }), tz: tz() })
   const kind = String(body.kind)
-  const spec = kind === 'pre' ? QUICK.pre : kind === 'workout' ? QUICK.workout : kind === 'condense' ? QUICK.condense : null
+  const spec = kind === 'pre' ? QUICK.pre : kind === 'workout' ? QUICK.workout : kind === 'condense' ? QUICK.condense : kind === 'live' ? QUICK.live : null
   if (!spec) throw new Error('Unknown request')
+  if (kind === 'live') {
+    // a short line during a workout (src/liveCoach.ts); the quick model keeps it fast
+    const state = body.state && typeof body.state === 'object' ? (body.state as Record<string, unknown>) : {}
+    try {
+      const out = await sample.json<Record<string, unknown>>(`${system}\n\n${QUICK.live.prompt(state)}\n\nReply with only one JSON object of this JSON Schema:\n${JSON.stringify(QUICK.live.schema)}`, { modelTier: 'quick' })
+      return QUICK.live.clean(out) as T
+    } catch (e) {
+      throw new Error(sampleError(e))
+    }
+  }
   const transcript = Array.isArray(body.messages) ? (body.messages as { role: string; content: string }[]).map((m) => `${m.role === 'user' ? 'Athlete' : 'Coach'}: ${m.content}`).join('\n\n') : ''
   const prompt =
     kind === 'pre'

@@ -48,7 +48,7 @@ You need: a Coolify server, a domain (or subdomain) pointed at it, and this repo
 4. **Domain.** In **Domains**, enter `https://reps.yourdomain.com`. Coolify gets the HTTPS certificate for you. HTTPS is required for installing the app, notifications and Bluetooth.
 5. **Environment variables** (Configuration → Environment Variables):
    - `APP_TOKEN` = a long random string. This is your sync key, like a password. Generate one with `openssl rand -hex 24`.
-   - `GEMINI_API_KEY` = your free key from aistudio.google.com → Get API key (optional, turns on the AI coach).
+   - `GEMINI_API_KEY` = your free key from aistudio.google.com → Get API key (optional, turns on the AI coach). To run the coach on another API instead (DeepSeek, OpenRouter, Claude…), see **Choosing a coach model** below.
    - `TZ` = your time zone, e.g. `America/Toronto` (optional, used for reminders and the Sunday review until the app tells the server).
    - `GOOGLE_CLIENT_ID` and `ADMIN_EMAIL` (optional) turn on accounts: Google sign-in and invites. See **Accounts** below.
 6. **Storage.** Configuration → **Persistent Storage → + Add → Volume Mount**. Name: `reps-data`, Destination path: **`/data`**. Use a *Volume* mount, not a *Directory* mount. Without it your data is wiped on every redeploy.
@@ -78,7 +78,7 @@ Optional. Without it the server is one person with `APP_TOKEN`. With it, each pe
 1. **Google Cloud Console** (console.cloud.google.com) → create a project (e.g. "Gloop").
 2. **APIs & Services → OAuth consent screen** (Google Auth Platform → Branding): app name **Gloop**, your email as support and developer contact. Audience **External**. Click **Publish app** so it isn't limited to test users (sign-in only asks for name, email and picture, so Google doesn't need to review it).
 3. **Credentials (Clients) → Create OAuth client ID** → type **Web application**. Under **Authorized JavaScript origins** add `https://gloop.yourdomain.com` (exactly your app's address, no trailing slash). No redirect URIs needed. Create, then copy the **Client ID** (`….apps.googleusercontent.com`; there's no secret to keep).
-4. In Coolify, add env `GOOGLE_CLIENT_ID` = that ID and `ADMIN_EMAIL` = the Gmail you'll sign in with. Optional `COACH_DAILY_LIMIT` (default 60): coach messages per person per day, since everyone shares your Gemini key; you're unlimited. **Redeploy**.
+4. In Coolify, add env `GOOGLE_CLIENT_ID` = that ID and `ADMIN_EMAIL` = the Gmail you'll sign in with. Optional `COACH_DAILY_LIMIT` (default 60): coach messages per person per day, since everyone shares your coach API key; you're unlimited. **Redeploy**.
 5. In the app: **Settings → Account → Continue with Google**. Signing in with `ADMIN_EMAIL` makes you the owner and opens your existing log (the one `APP_TOKEN` used, which keeps working).
 6. **Settings → People → Invite**: makes a link (works once, lasts 14 days) and opens the share sheet. Your friend opens it, signs in with Google, and starts with an empty log of their own. From People you see who's in, their coach use today, and can turn someone's access off (their log is kept).
 
@@ -121,17 +121,81 @@ Then ask, for example, "import this plan into Gloop" with the plan attached. Too
 
 ## AI coach
 
-In the Claude-hosted copy the coach runs on Claude (your Claude usage; the page asks once for permission) and your data is saved to your Claude account, so closing the page loses nothing. On your own server it runs on Gemini as below.
+In the Claude-hosted copy the coach runs on Claude (your Claude usage; the page asks once for permission) and your data is saved to your Claude account, so closing the page loses nothing. On your own server it runs on Gemini by default, or on another API you choose (see **Choosing a coach model**).
 
 The Coach tab sends your question plus a text summary of your training (the last 8 weeks of totals, 4 weeks of workouts, progression per exercise, heart rate zones, morning readings, shoulder ratings, weight and fasts) to your server, which asks Google's Gemini (`gemini-3.5-flash` by default) and streams the answer back. To turn it on:
 
 1. Create a free API key in Google AI Studio (aistudio.google.com → Get API key).
 2. Add `GEMINI_API_KEY=...` to the server's environment in Coolify and redeploy.
-3. Optional: `GEMINI_MODEL` to use a different Gemini model, and `GEMINI_PLAN_MODEL` for a stronger one (e.g. a Pro model) used only for planning questions (goals, training blocks) and the Sunday review. Busy or failed Gemini calls are retried twice before you see an error.
+3. Optional: `GEMINI_MODEL` to use a different Gemini model, and `GEMINI_PLAN_MODEL` for a stronger one (e.g. a Pro model) used only for planning questions (goals, training blocks) and the Sunday review. Busy or failed calls are retried twice before you see an error.
+4. Check it: **Settings → Coach** shows which API and model the server uses, whether it works ("working (1.2 s)", or the problem in plain words: no key, key rejected, model not found, free-tier limit reached, out of credits) and the last error. **Test coach** sends one tiny real message through the server. The same check is `GET /api/coach/status` and `POST /api/coach/test` (with your sync key).
 
 The free tier has per-minute and per-day request limits, which one person asking a coach won't normally hit. On Google's free tier, your prompts (including the training summary) may be used by Google to improve its products; a paid key doesn't have that.
 
-Without a key the Coach tab still works: tapping a question copies it with your training summary so you can paste it into the Gemini or Claude app. Conversations are kept on the phone.
+Without a key the Coach tab says so (and why) at the top, and can still copy your question with your training summary to paste into the Gemini or Claude app. Conversations are kept on the phone.
+
+### Coach environment variables
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `COACH_PROVIDER` | `gemini` | `gemini`, `openai` (any OpenAI-compatible Chat Completions API: OpenRouter, DeepSeek, Groq, Together, Mistral, OpenAI…) or `anthropic` (Claude). |
+| `COACH_API_KEY` | `GEMINI_API_KEY` for Gemini | The provider's API key. Also read: `GEMINI_API_KEY` (gemini), `ANTHROPIC_API_KEY` (anthropic), `OPENAI_API_KEY` (openai). |
+| `COACH_BASE_URL` | per provider | API address, e.g. `https://openrouter.ai/api/v1`, `https://api.deepseek.com/v1`, `https://api.groq.com/openai/v1`. Defaults: Google's Gemini API, `https://api.openai.com/v1`, `https://api.anthropic.com`. |
+| `COACH_MODEL` | `gemini-3.5-flash` / `claude-haiku-5-5` / `deepseek-chat` on DeepSeek | Model for chat, pre-workout targets, takeaways and live tips. Required for other OpenAI-compatible APIs. `GEMINI_MODEL` still works for Gemini. |
+| `COACH_PLAN_MODEL` | `COACH_MODEL` | Optional stronger model for planning questions (goals, programs, blocks) and the Sunday review. `GEMINI_PLAN_MODEL` still works for Gemini. |
+| `COACH_DAILY_LIMIT` | `60` | Coach messages per invited person per day (you're unlimited). |
+| `COACH_IDLE_MS`, `COACH_TOTAL_MS` | `90000`, `300000` | Give up when the API sends nothing for this long / when one reply takes longer than this. |
+| `GEMINI_BASE_URL` | Google | Gemini only, for testing with a stand-in. |
+
+### Choosing a coach model
+
+Switching is env vars only: set them in Coolify and **Redeploy**, then **Settings → Coach → Test coach**. Every option gets the same coach: tools, memory, proposals, the weekly review. Prices change often; check the provider's pricing page.
+
+**Gemini (default).** Free tier with per-minute and per-day limits (and your prompts may be used by Google); on a paid key `gemini-3.5-flash` is about $1.50 in / $9 out per million tokens.
+
+```
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-3.5-flash
+```
+
+**Claude (Anthropic).** Small model for everyday chat, bigger one only for planning and the weekly review. `claude-haiku-5-5` is about $0.10 in / $0.50 out per million tokens, `claude-sonnet-5-5` about $2 / $10. The coach's instructions and tools are cached between requests, which cuts the input cost of follow-up rounds.
+
+```
+COACH_PROVIDER=anthropic
+COACH_API_KEY=sk-ant-...
+COACH_MODEL=claude-haiku-5-5
+COACH_PLAN_MODEL=claude-sonnet-5-5
+```
+
+**DeepSeek** (OpenAI-compatible). Roughly $0.14–0.28 in / $0.28–0.42 out per million tokens per third-party sources; check their pricing page.
+
+```
+COACH_PROVIDER=openai
+COACH_API_KEY=sk-...
+COACH_BASE_URL=https://api.deepseek.com/v1
+COACH_MODEL=deepseek-chat
+```
+
+**OpenRouter** (one key, almost any model; pay per model).
+
+```
+COACH_PROVIDER=openai
+COACH_API_KEY=sk-or-...
+COACH_BASE_URL=https://openrouter.ai/api/v1
+COACH_MODEL=<model id>
+COACH_PLAN_MODEL=<model id>
+```
+
+**Groq, Together, Mistral, OpenAI** (all OpenAI-compatible): same pattern.
+
+```
+COACH_PROVIDER=openai
+COACH_API_KEY=...
+COACH_BASE_URL=https://api.groq.com/openai/v1   # or https://api.together.xyz/v1, https://api.mistral.ai/v1, https://api.openai.com/v1
+COACH_MODEL=<model id>
+```
+
+Pick a model that supports tool (function) calling; without it the coach can't look things up, remember or propose changes.
 
 ### What the coach remembers and does on its own
 

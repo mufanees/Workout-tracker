@@ -4,109 +4,108 @@
 // A routine can also carry a fixed time budget that overrides the estimate.
 // Once workouts have been timed (shared/timing.mjs), each exercise's measured seconds per set and
 // your usual rest overrun replace the guesses ("from your pace").
-import type { Routine, WExercise, Workout } from './types'
-import { exMap } from './store'
+import type { Routine, Workout } from './types'
+import { exMap, settings } from './store'
 import { pace6w } from './timing'
+import { clone, fmtExWeight } from './util'
+import { matchPrevious, previousSets } from './stats'
+import { budgetOf, estimateParts, fitToBudget as fitCore, lineSeconds, totalOf, type Budget, type BudgetCtx, type FitResult } from '../shared/budget.mjs'
+
+export { lineSeconds, totalOf }
+export type { Budget }
 
 export interface TimePlan {
-  budget: number // minutes you have (the routine's budget, or the estimate)
+  budget: number // minutes you have: the routine's own budget, else Settings → Time budget
   warmup: number // estimated minutes
   main: number
   cooldown: number
-  fixed: boolean // true when the routine has its own budget
+  fixed: boolean // a hard budget (always, since every workout is planned to one)
   paced?: boolean // sets and rests come from your measured pace
 }
 
 /** Measured sets needed before an exercise's own pace replaces the guess. */
 const MIN_PACE_SETS = 2
 
-/** Your measured seconds per set for an exercise (start delay included), if there's enough data. */
-function pacedSet(exerciseId: string): number | null {
-  const p = pace6w.value.byEx.get(exerciseId)
-  return p && p.sets >= MIN_PACE_SETS ? p.avg : null
+/** Your time budget (Settings → Training), defaults 25 min with 5 warm-up and 5 cool-down. */
+export function timeBudget(): Budget {
+  return budgetOf(settings.value.timeBudget)
 }
 
-/** How much longer (or shorter) than planned you usually rest, in seconds; 0 without data. */
-function restOverrun(): number {
-  const r = pace6w.value.rest
-  return r && r.n >= 3 ? r.overrun : 0
+/** The budget a routine is planned to: its own minutes if set, else yours (warm-up / cool-down from yours). */
+export function budgetFor(src: { budget?: number | null }): Budget {
+  const b = timeBudget()
+  return src.budget && src.budget > 0 ? { ...b, total: src.budget } : b
 }
 
-const TRANSITION = 10 // seconds between checklist moves
-const SET_REST_FALLBACK = 60
-
-/** Seconds one warm-up / cool-down line takes. */
-export function lineSeconds(line: string): number {
-  const l = line.toLowerCase().replace(/https?:\/\/\S+/g, '') // a video link isn't a dose
-  const sides = /\/\s*side|each side|per side/.test(l) ? 2 : 1
-  if (/ramp-?up/.test(l)) return 75
-  const secs = l.match(/(\d+)\s*(s|sec|seconds?)\b/)
-  if (secs) return Number(secs[1]) * sides + TRANSITION
-  const mins = l.match(/(\d+)\s*min/)
-  if (mins) return Number(mins[1]) * 60 * sides + TRANSITION
-  const reps = l.match(/[×x]\s*(\d+)/)
-  const parts = l.includes('+') ? l.split('+').length : 1 // "Glute bridge + bodyweight squat × 10 each"
-  if (reps) return Math.max(20, Number(reps[1]) * 3 * sides * parts) + TRANSITION
-  return 45
-}
-
-/** Seconds of work for one set: your measured pace, else a guess from the reps. */
-function setWork(we: WExercise, i: number): number {
-  const measured = pacedSet(we.exerciseId)
-  if (measured != null) return measured
-  const ex = exMap.value.get(we.exerciseId)
-  const s = we.sets[i]
-  if (ex?.type === 'duration') return (s.seconds || 40) + 5
-  const top = Number((we.target || '').match(/(\d+)\s*$/)?.[1]) || s.reps || 10
-  return Math.min(90, top * 3.5 + 8)
-}
-
-/** Seconds for the strength part: sets, rest between sets / rounds, moving between exercises. */
-function mainSeconds(exercises: WExercise[]): { secs: number; paced: boolean } {
-  let total = 0
-  let paced = false
-  const over = restOverrun()
-  const seen = new Set<string>()
-  const groups: WExercise[][] = []
-  for (const we of exercises) {
-    if (we.superset && seen.has(we.superset)) continue
-    if (we.superset) seen.add(we.superset)
-    groups.push(we.superset ? exercises.filter((e) => e.superset === we.superset) : [we])
+/** What the estimate and the fitter know: exercise names and kinds, and your measured pace. */
+export function paceCtx(): BudgetCtx {
+  const p = pace6w.value
+  const r = p.rest
+  return {
+    info: (id) => exMap.value.get(id),
+    setSecs: (id) => {
+      const e = p.byEx.get(id)
+      return e && e.sets >= MIN_PACE_SETS ? e.avg : null
+    },
+    restOverrun: r && r.n >= 3 ? r.overrun : 0,
+    fmtWeight: (id, kg) => fmtExWeight(exMap.value.get(id), kg),
   }
-  groups.forEach((group, gi) => {
-    const rounds = Math.max(...group.map((e) => e.sets.length))
-    const planned = Math.max(...group.map((e) => e.rest || 0))
-    const rest = Math.max(0, (planned || SET_REST_FALLBACK) + (planned ? over : 0))
-    // measured set times already hold the walk to the next exercise and the start delay
-    const measured = group.every((e) => pacedSet(e.exerciseId) != null)
-    if (measured) paced = true
-    for (let r = 0; r < rounds; r++) {
-      for (const e of group) if (r < e.sets.length) total += setWork(e, r) + (group.length > 1 && !measured ? 10 : 0)
-      if (r < rounds - 1) total += rest
-    }
-    // the move to the next exercise: the rest that runs after the last round when measured, else a guess
-    if (measured) total += gi < groups.length - 1 && planned ? rest : 0
-    else total += 45
-  })
-  return { secs: total, paced }
 }
 
 export function estimate(src: Pick<Routine, 'exercises' | 'warmup' | 'cooldown'>): Omit<TimePlan, 'budget' | 'fixed'> {
-  const min = (s: number) => Math.round(s / 60)
-  const main = mainSeconds(src.exercises)
-  return {
-    warmup: min((src.warmup || []).reduce((a, l) => a + lineSeconds(l), 0)),
-    main: min(main.secs),
-    cooldown: min((src.cooldown || []).reduce((a, l) => a + lineSeconds(l), 0)),
-    ...(main.paced ? { paced: true } : {}),
-  }
+  return estimateParts(src, paceCtx())
 }
 
 export function planFor(src: Pick<Routine, 'exercises' | 'warmup' | 'cooldown'> & { budget?: number | null }): TimePlan {
-  const e = estimate(src)
-  const total = e.warmup + e.main + e.cooldown
-  return { ...e, budget: src.budget && src.budget > 0 ? src.budget : total, fixed: !!(src.budget && src.budget > 0) }
+  return { ...estimate(src), budget: budgetFor(src).total, fixed: true }
 }
+
+/**
+ * A time-boxed version of a routine (or a workout's exercises): same exercises where possible, with heavier
+ * sets of fewer reps, supersets, shorter rests and 2-set accessories until it fits; drops isolation and
+ * core before any compound. See shared/budget.mjs. `pace` defaults to your measured pace.
+ */
+export function fitToBudget<R extends Pick<Routine, 'exercises' | 'warmup' | 'cooldown'>>(routine: R, budgetMin?: number | Budget, pace: BudgetCtx = paceCtx()): FitResult<R> {
+  const b = budgetMin == null ? budgetFor(routine as { budget?: number | null }) : typeof budgetMin === 'number' ? { ...timeBudget(), total: budgetMin } : budgetMin
+  return fitCore(routine, b, pace)
+}
+
+/**
+ * Fit a live workout. Its grey numbers come from last time, so the heavier, fewer-rep sets are worked out
+ * from those and set as today's targets (cw / cr, like the coach's), leaving the routine's plan alone.
+ */
+export function fitWorkout(w: Workout, budgetMin: number) {
+  const input = clone(w.exercises)
+  for (const we of input) {
+    const m = matchPrevious(we.sets, previousSets(we.exerciseId, w.id))
+    we.sets.forEach((s, i) => {
+      const p = m[i]
+      if (s.cw != null) s.tw = s.cw
+      else if (p?.weight != null) s.tw = p.weight
+      if (s.cr != null) s.tr = s.cr
+      else if (p?.reps != null) s.tr = p.reps
+    })
+  }
+  const seen = clone(input)
+  const fit = fitToBudget({ exercises: input, warmup: w.warmup, cooldown: w.cooldown }, budgetMin)
+  const before = new Map(seen.flatMap((we) => we.sets.map((s) => [s.id, s] as const)))
+  const orig = new Map(w.exercises.flatMap((we) => we.sets.map((s) => [s.id, s] as const)))
+  for (const we of fit.routine.exercises) {
+    for (const s of we.sets) {
+      const b = before.get(s.id)
+      const o = orig.get(s.id)
+      if (!b || !o) continue
+      if (s.tw !== b.tw) s.cw = s.tw
+      if (s.tr !== b.tr) s.cr = s.tr
+      s.tw = o.tw
+      s.tr = o.tr
+    }
+  }
+  return fit
+}
+
+// Starting a routine that's over its budget: the live coach's start line offers "Fit it" (src/liveCoach.ts
+// calls fitWorkout), so there's one nudge and one estimate on the workout screen.
 
 /**
  * Pace during a workout: how many minutes ahead (negative) or behind (positive) you are,

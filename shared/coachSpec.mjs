@@ -74,7 +74,12 @@ Memory and follow-through:
 - Save lasting facts with remember: injuries and how they respond, preferences, life constraints, time available, what worked or didn't. Not things already in the training data or profile. Keep each note to one short sentence. Use forget for notes that are wrong or outdated.
 - Don't announce routine memory updates; mention them only if it helps.
 
+- When they say mid-workout that they lack the kit or can't do a move ("no roller", "my shoulder won't take it"), call swap_exercise at once (leave out "to" unless you know the best move) and remember the limitation with remember.
+- MUSCLES shows fatigue and weekly sets per region against a target: when a region sits well over or under its target for weeks, propose the routine edits that fix it (propose_routine_changes), and plan lighter or later work for a region that is still fatigued.
+
 Changes need their approval: use propose_routine_changes, propose_catalog_program, propose_program, propose_goal or propose_profile_update. The app shows each proposal with Approve and Dismiss buttons. Say briefly what you proposed.
+
+Time budget (TIME BUDGET in the training data; default 25 min = 5 warm-up + ~15 lifting + 5 cool-down): it is a hard limit, not a target. Every routine, program, block, swap and today's targets must fit it, counting warm-up, rest and cool-down, and you say the estimate ("about 24 of your 25 min"). Fit it the minimalist way, in this order: heavier weights for fewer reps that keep weight × reps close (3 × 10 → 3 × 6–8 at about 15% more), supersets of non-competing moves (push + pull, legs + core) with 60–75 s after each round, 2 hard sets on accessories, and only then drop exercises, isolation and core before any compound. Warm-up and cool-down are timed lines that fit their minutes. Never answer a lack of time with longer sessions; when something can't fit, say what you left out and where it went.
 
 ${KNOWLEDGE_CORE}
 
@@ -200,6 +205,13 @@ export const COACH_TOOLS = [
     ),
   },
   {
+    name: 'swap_exercise',
+    kind: 'proposal',
+    description:
+      'Swap one exercise for another. During a workout in progress the app applies it right away (they asked) with an Undo; otherwise it is shown as a routine change to approve. Leave out "to" and the app picks the best alternative it can see (same muscles, kit they have, not fatigued).',
+    parameters: obj({ from: str('Exercise to replace, as named in the workout or routine'), to: str('Library exercise to use instead (optional)'), reason: str('One line, e.g. "no rollable dumbbells"'), update_routine: { type: 'boolean', description: 'Also change it in the routine for next time' } }, ['from', 'reason']),
+  },
+  {
     name: 'propose_catalog_program',
     kind: 'proposal',
     description:
@@ -315,6 +327,21 @@ export function toGemini(s) {
   return out
 }
 
+/** Our schemas (or Gemini's upper-case dialect) → standard JSON Schema for OpenAI-compatible APIs and Claude:
+ *  lower-case types, Gemini-only keys dropped, `nullable` folded into the type, empty `required` left out. */
+export function toJsonSchema(s) {
+  if (!s || typeof s !== 'object') return s
+  const { nullable, format, propertyOrdering, ...rest } = s
+  const out = { ...rest }
+  if (typeof s.type === 'string') out.type = nullable ? [s.type.toLowerCase(), 'null'] : s.type.toLowerCase()
+  if (format && /^(date-time|date|time|email|uri|uuid)$/.test(format)) out.format = format
+  if (s.properties) out.properties = Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, toJsonSchema(v)]))
+  if (Array.isArray(out.required) && !out.required.length) delete out.required
+  if (s.items) out.items = toJsonSchema(s.items)
+  if (out.type === 'object' && !out.properties) out.properties = {}
+  return out
+}
+
 export const ymd = (t, tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t))
 
 /** Profile and memory as prompt text, from the coach records. */
@@ -404,6 +431,19 @@ export const QUICK = {
     prompt: () =>
       'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, shoulder, stalls, missed sessions), where they stand on each open goal (pace vs target, next milestone), time use when TIME USE has data (minutes vs budget, rest overrun, idle time; one concrete fix if they ran over), and the plan for next week. Also give a one-sentence headline for a phone notification.',
     schema: obj({ headline: str(), review: str() }, ['headline', 'review']),
+  },
+  live: {
+    prompt: (state) =>
+      `LIVE WORKOUT, happening right now (${state?.moment === 'start' ? 'they are starting' : 'they just finished an exercise'}). The app's own coach engine has already set the next numbers from their sets, effort taps, heart rate and the clock; the total time budget is a hard cut and the cool-down is protected. Give ONE short line to say to them now (at most 140 characters, plain words, no greeting, no emojis): the thing that matters most next, such as how hard to push the next exercise, a heart-rate or recovery call, or a time call. Agree with the engine's numbers unless their history clearly says otherwise; only then fill adjust (weight_kg as stored: one dumbbell for two-dumbbell lifts; never above their heaviest dumbbell).\n\nSTATE\n${JSON.stringify(state || {}).slice(0, 6000)}`,
+    schema: obj({ line: str('One line, at most 140 characters'), adjust: obj({ exercise: str(), weight_kg: num(), reps: int() }, ['exercise']) }, ['line']),
+    /** The answer, cleaned: { line, adjust? }. */
+    clean: (out) => {
+      let line = String(out?.line || '').replace(/\s+/g, ' ').trim()
+      if (line.length > 140) line = line.slice(0, 139).replace(/\s+\S*$/, '') + '…'
+      const a = out?.adjust
+      const adjust = a && typeof a.exercise === 'string' && a.exercise ? { exercise: a.exercise.slice(0, 80), ...(Number.isFinite(Number(a.weight_kg)) && Number(a.weight_kg) > 0 ? { weight_kg: Number(a.weight_kg) } : {}), ...(Number.isFinite(Number(a.reps)) && Number(a.reps) > 0 ? { reps: Math.round(Number(a.reps)) } : {}) } : null
+      return { line, ...(adjust && (adjust.weight_kg || adjust.reps) ? { adjust } : {}) }
+    },
   },
 }
 

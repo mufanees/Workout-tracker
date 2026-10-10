@@ -4,7 +4,7 @@ import { weightModelText } from './weightModel'
 import { goalsText } from './goals'
 import { blockText } from './blocks'
 import { dayKey } from './fasting'
-import { planFor } from './timeplan'
+import { planFor, timeBudget } from './timeplan'
 import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
 import { prIndex, sessionsByExercise, stalledAt } from './stats'
 import { planStatus } from './plan'
@@ -12,6 +12,7 @@ import { programStatus, programText } from './program'
 import { summarizeHR, zoneRange } from './hr'
 import { counts, e1rm, phaseMinutes, startOfWeek } from './util'
 import { mobilityText } from './mobility'
+import { muscleCoachText } from './fatigue'
 import { exerciseTimes, fmtSecs, pace6w, PACE_DAYS, workoutTiming } from './timing'
 import type { Workout, WSet } from './types'
 
@@ -100,11 +101,14 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
   const p = planStatus.value
   if (programStatus.value) out.push(`PROGRAM (coach-built, active)\n${programText()}`)
   else if (p) out.push(`Program: 12-week Dumbbell Comeback plan (every other day, A/B alternating, superset pairs, shoulder-friendly). Currently week ${Math.min(p.week, 12)} of 12, Phase ${p.phase.n} ${p.phase.name} (${p.phase.note}). Next session: Workout ${p.day}. ${p.status}`)
+  const tb = timeBudget()
+  out.push(`TIME BUDGET (hard limit for every strength workout, from Settings): ${tb.total} min in total = ${tb.warmup} min warm-up + ${tb.total - tb.warmup - tb.cooldown} min lifting + ${tb.cooldown} min cool-down. A routine's own budget, when set, replaces the total. Weights on screen: ${(st.weightView ?? 'total') === 'total' ? 'totals (both dumbbells of a pair)' : 'one dumbbell of a pair'}; the data here and every weight_kg in tools stay per dumbbell. When you say a weight in words, say it the way their screen shows it${(st.weightView ?? 'total') === 'total' ? ' (a pair as the total, e.g. "28 kg (2 × 14)")' : ''}.`)
   out.push(`Heart rate zones (bpm): ${[1, 2, 3, 4, 5].map((z) => `Z${z} ${zoneRange(z)}`).join(', ')}. Weekly zone 2 goal: ${st.zone2Goal} min.`)
 
   out.push(`\nGOALS (computed by the app from their logs)\n${goalsText()}`)
   out.push(`\nTRAINING BLOCK\n${blockText()}`)
   out.push(`\nMOBILITY PLAN\n${mobilityText()}`)
+  out.push(`\nMUSCLES (app's recovery model: fatigue from recent hard sets, primary 1, helpers 0.5, decaying with a 24–36 h half-life; fresh under 25%, fatigued from 50%. Sets = working sets in the last 7 days vs a minimalist weekly target. Steer away from or go lighter on fatigued muscles; point out muscles under target)\n${muscleCoachText(now)}`)
 
   const list = workouts.value
   const focus = opts.focusWorkoutId ? list.find((w) => w.id === opts.focusWorkoutId) : null

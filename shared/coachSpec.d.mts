@@ -21,8 +21,13 @@ export const QUICK: {
   workout: { prompt(): string; schema: JsonSchema }
   condense: { prompt(transcript: string): string; schema: JsonSchema }
   weekly: { prompt(): string; schema: JsonSchema }
+  live: { prompt(state: Record<string, unknown>): string; schema: JsonSchema; clean(out: unknown): LiveAnswer }
 }
 export function isPlanning(text: string): boolean
 export function libraryText(): string
 export const LAST_MAX: number
 export function trimHistory<T extends { role: string; content: string }>(list: T[]): { role: 'user' | 'assistant'; content: string }[] | null
+export interface LiveAnswer {
+  line: string
+  adjust?: { exercise: string; weight_kg?: number; reps?: number }
+}

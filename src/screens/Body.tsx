@@ -11,6 +11,7 @@ import type { WeightModel } from '../weightModel'
 import { MorningCheck, ShoulderCard, Zone2Week } from './BodyCards'
 import { Icon } from '../ui/icons'
 import { actionSheet, Sheet, toast } from '../ui/overlay'
+import { MuscleCard } from '../ui/BodyMap'
 
 export function Body() {
   return (
@@ -20,6 +21,7 @@ export function Body() {
       </header>
       <MorningCheck />
       <Zone2Week />
+      <MuscleCard />
       <FastingCard />
       <WeightCard />
       <ShoulderCard />

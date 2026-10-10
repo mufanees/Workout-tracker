@@ -3,8 +3,9 @@ import { PROGRAM_CATALOG, type CatalogProgram } from '../shared/programs.mjs'
 import { resolvePlan } from '../shared/planImport.mjs'
 import { exercises, routines, saveExercise, saveRoutine, saveSettings, settings, workouts } from './store'
 import { seedRoutines } from './seed'
-import type { Exercise, ExType } from './types'
+import type { Exercise, ExType, Routine } from './types'
 import { startOfWeek } from './util'
+import { estimate, timeBudget, totalOf } from './timeplan'
 
 export const catalog: CatalogProgram[] = PROGRAM_CATALOG
 
@@ -37,7 +38,11 @@ export async function addCatalogRoutines(p: CatalogProgram): Promise<number> {
   let n = 0
   const result = resolvePlan(p.plan, exercises.value, () => `p-${p.id}-${++n}`)
   for (const e of result.newExercises) await saveExercise({ id: e.id, name: e.name, muscle: e.muscle, equipment: e.equipment, type: e.type as ExType, custom: true, updatedAt: 0 } as Exercise)
-  for (const r of result.routines) await saveRoutine({ ...r, updatedAt: 0 })
+  // a time-boxed program carries each routine's budget (resolvePlan doesn't know the field)
+  for (const [i, r] of result.routines.entries()) {
+    const budget = Number((p.plan.routines[i] as { budget?: number } | undefined)?.budget) || 0
+    await saveRoutine({ ...r, ...(budget > 0 ? { budget } : {}), updatedAt: 0 })
+  }
   return result.routines.length
 }
 
@@ -92,4 +97,33 @@ export async function followOwnProgram(name: string, weeksPerFolder = 0): Promis
     },
   })
   return `Following ${name}`
+}
+
+const estCache = new Map<string, { lib: unknown; rt: unknown; range: { min: number; max: number } | null }>()
+/** How long each of a program's workouts takes (from your pace when known), as a range of minutes. */
+export function programMinutes(p: CatalogProgram): { min: number; max: number } | null {
+  const lib = exercises.value
+  const hit = estCache.get(p.id)
+  if (hit && hit.lib === lib && hit.rt === routines.value) return hit.range
+  let list: { exercises: Routine['exercises']; warmup?: string[]; cooldown?: string[] }[] = []
+  if (p.plan) {
+    let n = 0
+    try {
+      list = resolvePlan(p.plan, lib, () => `est-${++n}`).routines
+    } catch {
+      list = []
+    }
+  } else list = routines.value.filter((r) => (p.id === COMEBACK ? r.id.startsWith('r-comeback-') : r.program === p.name))
+  const mins = list.map((r) => totalOf(estimate(r)))
+  const range = mins.length ? { min: Math.min(...mins), max: Math.max(...mins) } : null
+  estCache.set(p.id, { lib, rt: routines.value, range })
+  return range
+}
+
+/** "23–25 min a workout", and whether that fits your time budget. */
+export function programFit(p: CatalogProgram): { text: string; fits: boolean; budget: number } | null {
+  const r = programMinutes(p)
+  if (!r) return null
+  const budget = timeBudget().total
+  return { text: r.min === r.max ? `${r.max} min a workout` : `${r.min}–${r.max} min a workout`, fits: r.max <= budget, budget }
 }

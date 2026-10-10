@@ -1,14 +1,14 @@
 import type { ComponentChildren } from 'preact'
 import { useRef, useState } from 'preact/hooks'
 import { signal } from '@preact/signals'
-import { exMap, saveExercise, settings, unit } from '../store'
+import { exMap, saveExercise, saveSettings, settings, unit } from '../store'
 import { matchPrevious, previousSets, stalledAt } from '../stats'
 import { navigate } from '../router'
 import type { Exercise, SetKind, WExercise, WSet } from '../types'
-import { clone, fmtNum, fmtRest, fmtTarget, fromDisplay, haptic, newSet, newWExercise, perSide, supersetColor, targetSeconds, targetTop, toDisplay, uid } from '../util'
-import { twoDumbbells } from '../goals'
+import { clone, fmtNum, fmtRest, fmtTarget, haptic, loadOf, newSet, newWExercise, perSide, shownWeight, showsEach, storedWeight, supersetColor, targetSeconds, targetTop, uid, weightView, type Load } from '../util'
 import { finishSetTimer, logTick, pauseSetTimer, resumeSetTimer, setTimer, startSetTimer, unlogTick } from '../workout'
 import { gooSplash } from './Goo'
+import { openSwap } from '../swap'
 import { Icon } from './icons'
 import { NumInput } from './inputs'
 import { actionSheet, AutoText, Sheet, toast } from './overlay'
@@ -26,24 +26,15 @@ export const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300]
 const KIND_LABEL: Record<SetKind, string> = { normal: 'Normal set', warmup: 'Warm-up set', failure: 'Failure set', drop: 'Drop set' }
 const KIND_SHORT: Record<SetKind, string> = { normal: '', warmup: 'W', failure: 'F', drop: 'D' }
 
-export type Load = 'each' | 'one' | 'total'
+// How an exercise's weight is stored lives in util.ts (loadOf, shownWeight, storedWeight); re-exported for old imports.
+export { loadOf, type Load }
 
-/** How an exercise's weight is logged: set by hand, else guessed for dumbbell lifts (a pair → per hand). */
-export function loadOf(ex: Exercise | undefined): Load | null {
-  if (!ex || ex.type !== 'weight_reps' || ex.equipment === 'Bodyweight') return null
-  if (ex.load) return ex.load
-  if (!/dumbbell/i.test(ex.equipment)) return null
-  return twoDumbbells(ex) ? 'each' : 'one'
-}
-
-const LOADS: [Load, string, string][] = [
-  ['each', 'Each hand', 'Two dumbbells: log the weight of one of them.'],
-  ['one', 'Single weight', 'One dumbbell or weight: log that one.'],
+/** The load choices, worded for the current view (a pair is typed as both dumbbells in the total view). */
+const loads = (view: 'total' | 'each'): [Load, string, string][] => [
+  ['each', 'A pair, one in each hand', view === 'total' ? 'Type both dumbbells together: two 6 kg dumbbells = 12.' : 'Type one of them: two 6 kg dumbbells = 6.'],
+  ['one', 'Single weight', 'One dumbbell or weight: type that one.'],
   ['total', 'Total', 'Everything you lift, added together.'],
 ]
-/** Second line of the weight column's header, and how a weight reads aloud. */
-const LOAD_HEAD: Record<Load, string> = { each: 'each', one: 'single', total: 'total' }
-const LOAD_SAY: Record<Load, string> = { each: ' per hand', one: '', total: ' in total' }
 
 export function WorkoutEditor({
   mode,
@@ -150,6 +141,7 @@ export function WorkoutEditor({
               icon: 'link',
               onSelect: () => supersetMenu(we, others),
             },
+        ...(mode === 'live' ? [{ label: 'Can’t do this? Swap it', icon: 'swap', onSelect: () => openSwap(we.id) }] : []),
         { label: 'Replace exercise', icon: 'swap', onSelect: () => setPicker({ open: true, replace: we.id }) },
         ...(i > 0 ? [{ label: 'Move up', icon: 'up', onSelect: () => move(we.id, -1) }] : []),
         ...(i < exercises.length - 1 ? [{ label: 'Move down', icon: 'downArrow', onSelect: () => move(we.id, 1) }] : []),
@@ -357,8 +349,10 @@ function ExerciseCard({
   const showRest = mode !== 'edit' && !we.superset
   const restValue = we.superset ? Math.max(...group.map((e) => e.rest)) : we.rest
   const bodyweight = ex.equipment === 'Bodyweight'
-  const load = loadOf(ex)
-  const loadSay = load ? LOAD_SAY[load] : ''
+  const each = showsEach(ex)
+  // every weight reads as a total (both dumbbells of a pair), except a pair in the "each" view
+  const loadSay = ex.type === 'weight_reps' && !bodyweight ? (each ? ' per dumbbell' : ' in total') : ''
+  const sw = (kg: number) => shownWeight(ex, kg, u)
   // Timed sets get a start button in the live workout.
   const timed = mode === 'live' && ex.type === 'duration'
   const timer = setTimer.value
@@ -378,10 +372,10 @@ function ExerciseCard({
   const stallMenu = () =>
     actionSheet({
       title: `Same weight for 3 sessions`,
-      message: `You’ve been at ${fmtNum(toDisplay(stall!, u))} ${u} without adding reps. The plan says: one lighter week, about 70% of the weight and 2 sets, then carry on.`,
+      message: `You’ve been at ${fmtNum(sw(stall!))} ${u}${loadSay} without adding reps. The plan says: one lighter week, about 70% of the weight and 2 sets, then carry on.`,
       actions: [
         {
-          label: `Go lighter today: ${fmtNum(toDisplay(deloadW, u))} ${u}, 2 sets`,
+          label: `Go lighter today: ${fmtNum(sw(deloadW))} ${u}, 2 sets`,
           icon: 'downArrow',
           onSelect: () =>
             mut((w) => {
@@ -581,9 +575,9 @@ function ExerciseCard({
               {bodyweight ? (
                 '+' + u.toUpperCase()
               ) : (
-                <button class={'load-head' + (load ? ' two' : '')} onClick={onLoad} aria-label={`Weight in ${u}${loadSay}. Change how the weight is logged`}>
+                <button class="load-head two" onClick={onLoad} aria-label={`Weight in ${u}${loadSay}. Change how the weight is logged`}>
                   <span>{u.toUpperCase()}</span>
-                  {load && <small>{LOAD_HEAD[load]}</small>}
+                  <small>{each ? 'each' : 'total'}</small>
                 </button>
               )}
             </span>
@@ -606,7 +600,7 @@ function ExerciseCard({
               ? `${p.seconds ?? '–'}s`
               : ex.type === 'reps' || p.weight == null
                 ? `${p.reps ?? '–'} reps`
-                : `${fmtNum(toDisplay(p.weight, u))} × ${p.reps ?? '–'}`
+                : `${fmtNum(sw(p.weight))} × ${p.reps ?? '–'}`
             : '—'
           return (
             <SwipeRow key={s.id} setId={s.id} next={mode === 'live' && !s.done && nextUp.value === s.id} onDelete={() => deleteSet(i)} done={s.done && mode === 'live'}>
@@ -635,9 +629,9 @@ function ExerciseCard({
                   field="weight"
                   decimal
                   label={`Set ${labels[i]} weight in ${u}${loadSay}`}
-                  value={s.weight == null ? null : toDisplay(s.weight, u)}
-                  placeholder={ph.weight != null ? fmtNum(toDisplay(ph.weight, u)) : bodyweight && mode !== 'routine' ? 'BW' : '–'}
-                  onChange={(v) => setField(s.id, 'weight', v == null ? null : fromDisplay(v, u))}
+                  value={s.weight == null ? null : sw(s.weight)}
+                  placeholder={ph.weight != null ? fmtNum(sw(ph.weight)) : bodyweight && mode !== 'routine' ? 'BW' : '–'}
+                  onChange={(v) => setField(s.id, 'weight', v == null ? null : storedWeight(ex, v, u))}
                 />
               )}
               {ex.type !== 'duration' ? (
@@ -746,6 +740,8 @@ function LoadSheet({ exerciseId, onClose }: { exerciseId: string | null; onClose
   if (ex) last.current = ex
   const shown = ex || last.current
   const current = loadOf(shown || undefined)
+  const view = weightView()
+  const other = view === 'total' ? 'each' : 'total'
   return (
     <Sheet open={!!ex} onClose={onClose} label="How is the weight logged?">
       {shown && (
@@ -755,7 +751,7 @@ function LoadSheet({ exerciseId, onClose }: { exerciseId: string | null; onClose
             <div class="action-msg">{shown.name}{shown.load ? '' : ' · guessed from the name'}</div>
           </div>
           <div class="action-list load-list" role="radiogroup" aria-label="How is the weight logged?">
-            {LOADS.map(([v, label, line]) => (
+            {loads(view).map(([v, label, line]) => (
               <button
                 role="radio"
                 aria-checked={current === v}
@@ -772,6 +768,16 @@ function LoadSheet({ exerciseId, onClose }: { exerciseId: string | null; onClose
                 {current === v && <Icon name="check" class="action-check" />}
               </button>
             ))}
+          </div>
+          <div class="view-note">
+            <p>
+              {view === 'total'
+                ? 'You see totals: a pair counts both dumbbells, here and in your history. Saved per dumbbell, so switching never changes your numbers.'
+                : 'You see each dumbbell of a pair on its own. Single weights and totals are always the whole weight.'}
+            </p>
+            <button class="btn btn-secondary btn-block" onClick={() => void saveSettings({ weightView: other })}>
+              {other === 'each' ? 'Show each dumbbell instead' : 'Show totals instead'}
+            </button>
           </div>
           <button class="btn btn-quiet btn-block" onClick={onClose}>
             Cancel
@@ -807,14 +813,18 @@ export function placeholderFor(sets: WSet[], i: number, matched: (WSet | undefin
   }
   // A weight you typed earlier in this session beats last time's: if you went up on set 1, the later sets follow.
   let typedAbove: number | null = null
+  let typedDone = false
   for (let k = i - 1; k >= 0; k--) {
     if ((sets[k].kind === 'warmup') === (s.kind === 'warmup') && sets[k].weight != null) {
       typedAbove = sets[k].weight
+      typedDone = sets[k].done
       break
     }
   }
+  // ...unless the live coach set this one after that set was done (it already knows what you lifted)
+  const live = s.cl && typedDone ? s.cw : null
   return {
-    weight: typedAbove ?? s.cw ?? p?.weight ?? s.tw ?? above?.tw ?? null,
+    weight: live ?? typedAbove ?? s.cw ?? p?.weight ?? s.tw ?? above?.tw ?? null,
     reps: s.cr ?? p?.reps ?? s.tr ?? above?.reps ?? above?.tr ?? null,
     seconds: p?.seconds ?? s.ts ?? above?.seconds ?? above?.ts ?? null,
   }

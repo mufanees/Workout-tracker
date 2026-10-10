@@ -8635,3 +8635,936 @@ html[data-nav='back']::view-transition-old(screen) {
 .chat-end {
   scroll-margin-bottom: calc(var(--safe-bottom) + var(--tabbar-h) + 110px);
 }
+
+/* ---- coach status ---- */
+.coach-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-15);
+  color: var(--muted);
+  text-align: right;
+  flex: none;
+  max-width: 50%;
+}
+.coach-state .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.coach-state.good {
+  color: var(--accent-text);
+}
+.coach-state.bad {
+  color: var(--danger);
+}
+.coach-health .setting > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.coach-problem {
+  color: var(--danger);
+}
+.coach-banner {
+  border-style: solid;
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+.coach-banner b {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+}
+.coach-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.coach-banner-actions:empty {
+  display: none;
+}
+
+/* ---- body map and fatigue ---- */
+/* Muscle map (src/ui/BodyMap.tsx): fills are ramps mixed from the theme tokens, so they follow the
+   theme and the accent colour. Recovery: neutral → --warn → --danger. Volume and worked: neutral → --accent. */
+.bm-card,
+.bm-home,
+.bm-worked-card {
+  --bm-amber: var(--warn);
+  --bm-red: var(--danger);
+  --bm-body: color-mix(in oklab, var(--surface-3) 55%, var(--surface));
+  --bm-off: var(--surface-3);
+  --bm-gap: var(--surface);
+  --bm-f1: color-mix(in oklab, var(--bm-amber) 16%, var(--surface-3));
+  --bm-f2: color-mix(in oklab, var(--bm-amber) 80%, var(--surface-3));
+  --bm-f3: color-mix(in oklab, var(--bm-red) 55%, var(--bm-amber));
+  --bm-f4: var(--bm-red);
+  --bm-v1: color-mix(in oklab, var(--accent) 28%, var(--surface-3));
+  --bm-v2: color-mix(in oklab, var(--accent) 55%, var(--surface-3));
+  --bm-v3: color-mix(in oklab, var(--accent) 80%, var(--surface-3));
+  --bm-v4: var(--accent);
+}
+/* light theme: --warn and --danger are darkened for text, which turns fills muddy; use fill-weight hues */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) :is(.bm-card, .bm-home, .bm-worked-card) {
+    --bm-amber: #f5a83a;
+    --bm-red: #e5534b;
+  }
+}
+:root[data-theme='light'] :is(.bm-card, .bm-home, .bm-worked-card) {
+  --bm-amber: #f5a83a;
+  --bm-red: #e5534b;
+}
+.bm-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-in-card);
+}
+.bm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.bm-head .eyebrow {
+  color: var(--accent-text);
+}
+.bm-figure {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+  width: 100%;
+  max-width: 320px;
+  margin-inline: auto;
+}
+.bm-figure.compact {
+  gap: var(--sp-1);
+  width: 112px;
+  flex: none;
+  margin: 0;
+}
+.bm-view {
+  margin: 0;
+  min-width: 0;
+}
+.bm-view svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.bm-view figcaption {
+  margin-top: var(--sp-1);
+  text-align: center;
+  font-size: var(--fs-11);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.bm-body,
+.bm-m {
+  stroke: var(--bm-gap);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+}
+.bm-body {
+  fill: var(--bm-body);
+}
+.bm-m {
+  fill: var(--bm-off);
+  transition: fill 300ms var(--ease, ease), opacity 300ms var(--ease, ease);
+}
+.bm-figure.compact .bm-m,
+.bm-figure.compact .bm-body {
+  stroke-width: 1.4;
+}
+.bm-fatigue.lo {
+  --bm-fill: color-mix(in oklab, var(--bm-amber) calc(var(--bm-t, 0) * 1%), var(--bm-off));
+  fill: var(--bm-fill);
+  background: var(--bm-fill);
+}
+.bm-fatigue.hi {
+  --bm-fill: color-mix(in oklab, var(--bm-red) calc(var(--bm-t, 0) * 1%), var(--bm-amber));
+  fill: var(--bm-fill);
+  background: var(--bm-fill);
+}
+.bm-fatigue.l1 { fill: var(--bm-f1); background: var(--bm-f1); }
+.bm-fatigue.l2 { fill: var(--bm-f2); background: var(--bm-f2); }
+.bm-fatigue.l3 { fill: var(--bm-f3); background: var(--bm-f3); }
+.bm-fatigue.l4 { fill: var(--bm-f4); background: var(--bm-f4); }
+.bm-volume.l1, .bm-worked.l1 { fill: var(--bm-v1); background: var(--bm-v1); }
+.bm-volume.l2, .bm-worked.l2 { fill: var(--bm-v2); background: var(--bm-v2); }
+.bm-volume.l3, .bm-worked.l3 { fill: var(--bm-v3); background: var(--bm-v3); }
+.bm-volume.l4, .bm-worked.l4 { fill: var(--bm-v4); background: var(--bm-v4); }
+.bm-sw.l0, .bm-bar > span.l0 { background: var(--bm-off); }
+/* the fat invisible outline that widens small tap targets */
+.bm-hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 6;
+  pointer-events: all;
+}
+.bm-btn {
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bm-figure:has(.sel) .bm-m:not(.sel) {
+  opacity: 0.45;
+}
+.bm-m.sel {
+  stroke: var(--text);
+  stroke-width: 1.1;
+}
+.bm-btn:focus-visible .bm-m {
+  stroke: var(--accent);
+  stroke-width: 1.3;
+}
+.bm-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.bm-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+}
+.bm-sw {
+  display: inline-block;
+  width: var(--sp-3);
+  height: var(--sp-3);
+  border-radius: var(--r-xs);
+  background: var(--bm-off);
+  flex: none;
+}
+.bm-note {
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  color: var(--muted);
+  text-align: center;
+}
+.bm-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-3);
+}
+.bm-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 104px;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--h-md);
+  font-size: var(--fs-14);
+  text-align: left;
+  border-radius: var(--r-md);
+}
+.bm-row:active {
+  background: var(--surface-2);
+}
+.bm-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bm-row-val {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.bm-row-val small {
+  font-family: var(--font-read);
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.bm-bar {
+  position: relative;
+  display: block;
+  height: var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+}
+.bm-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width 300ms var(--ease, ease);
+}
+/* where the weekly target's low end sits on a volume bar */
+.bm-band {
+  position: absolute;
+  top: calc(-1 * var(--sp-1));
+  bottom: calc(-1 * var(--sp-1));
+  width: var(--sp-0-5);
+  margin-left: calc(-0.5 * var(--sp-0-5));
+  border-radius: var(--r-xs);
+  background: var(--muted);
+  opacity: 0.6;
+}
+.bm-list .bm-note {
+  margin-top: var(--sp-2);
+}
+.bm-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-in-card);
+  border-top: 1px solid var(--line);
+  padding-top: var(--sp-2);
+  animation: enter-up 300ms var(--ease, ease) both;
+}
+.bm-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-right: calc(-1 * var(--sp-3));
+}
+.bm-detail-head h3 {
+  font-size: var(--fs-20);
+  letter-spacing: -0.02em;
+}
+.bm-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+}
+.bm-detail-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  min-width: 0;
+}
+.bm-detail-stats b {
+  font-size: var(--fs-17);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bm-detail-stats b.bm-state {
+  font-size: var(--fs-28);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+.bm-detail-stats span {
+  font-family: var(--font-read);
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.bm-state.recovering {
+  color: var(--warn);
+}
+.bm-state.fatigued {
+  color: var(--danger);
+}
+.bm-vol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.bm-vol-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.bm-vol-label b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.bm-top {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.bm-top button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--h-md);
+  text-align: left;
+  font-family: var(--font-read);
+  font-size: var(--fs-15);
+  border-top: 1px solid var(--line);
+}
+.bm-top button span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bm-top small {
+  color: var(--muted);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+.bm-top .icon {
+  color: var(--faint);
+}
+/* Train home section */
+.bm-home {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  text-align: left;
+}
+.bm-home .bm-figure.compact {
+  width: 92px;
+}
+.bm-home-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.bm-home-text .eyebrow {
+  color: var(--accent-text);
+}
+.bm-home-text p {
+  font-family: var(--font-read);
+  font-size: var(--fs-15);
+  line-height: 1.4;
+}
+.bm-home-text small {
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.bm-home-go {
+  color: var(--faint);
+}
+/* workout detail */
+.bm-worked-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-in-card);
+}
+.bm-worked-card > .eyebrow {
+  color: var(--accent-text);
+}
+.bm-worked-body {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+}
+.bm-worked-body .bm-figure.compact {
+  width: 120px;
+}
+.bm-worked-list {
+  flex: 1;
+  min-width: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--fs-14);
+}
+.bm-worked-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.bm-worked-list span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bm-worked-list b {
+  font-variant-numeric: tabular-nums;
+}
+.bm-worked-list .bm-worked-unit {
+  font-family: var(--font-read);
+  font-size: var(--fs-12);
+  color: var(--faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bm-m,
+  .bm-bar > span {
+    transition: none;
+  }
+  .bm-detail {
+    animation: none;
+  }
+}
+.coach-banner-actions .btn {
+  white-space: normal;
+  text-align: left;
+  max-width: 100%;
+}
+
+/* ---- totals and time budget ---- */
+/* "How is the weight logged?": the view line and its switch */
+.view-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-1) var(--sp-2);
+}
+.view-note p {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  line-height: 1.45;
+}
+/* routine editor: does it fit, and Fit to budget */
+.budget-field {
+  gap: var(--sp-3);
+}
+.budget-line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  min-height: var(--h-lg);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.budget-line > svg {
+  flex: none;
+  color: var(--muted);
+}
+.budget-line.fits > svg {
+  color: var(--accent-text);
+}
+.budget-line.over > svg {
+  color: var(--warn);
+}
+.budget-line {
+  flex-wrap: wrap;
+}
+.budget-line > span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  flex: 1 1 0;
+  min-width: 60%;
+}
+.budget-line b {
+  font-size: var(--fs-15);
+  font-variant-numeric: tabular-nums;
+}
+.budget-line small {
+  color: var(--muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  line-height: 1.4;
+}
+.budget-line .btn {
+  flex: none;
+  min-height: var(--h-md);
+  margin-left: auto;
+}
+.budget-changes {
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+}
+.bc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.bc-head b {
+  font-size: var(--fs-15);
+  font-variant-numeric: tabular-nums;
+}
+.bc-head .btn {
+  min-height: var(--h-md);
+}
+.budget-changes ul {
+  margin: var(--sp-2) 0 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  line-height: 1.45;
+}
+.budget-own {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+}
+.budget-own > span {
+  font-size: var(--fs-13);
+  font-weight: 650;
+  color: var(--muted);
+}
+/* Settings → Training → Time budget */
+.budget-intro {
+  margin: 0;
+  padding: var(--sp-4) var(--pad-card) var(--sp-2);
+  color: var(--muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  line-height: 1.45;
+}
+.budget-settings .stepper .step {
+  min-width: var(--h-md);
+  min-height: var(--h-md);
+}
+.budget-settings .stepper .step:disabled {
+  opacity: 0.35;
+}
+.budget-settings .stepper b {
+  font-size: var(--fs-16);
+}
+/* Programs: each workout's minutes vs your budget */
+.catalog-time {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.catalog-time.fits {
+  color: var(--accent-text);
+}
+.catalog-time.over {
+  color: var(--warn);
+}
+
+/* ---------- live coach strip (src/liveCoach.ts, CoachStrip in Live.tsx) ---------- */
+/* The coach and the rest / set timer share one dock at the bottom of the workout screen. */
+.live-dock {
+  position: fixed;
+  z-index: 25;
+  left: var(--sp-2);
+  right: var(--sp-2);
+  bottom: calc(var(--safe-bottom) + var(--sp-2));
+  max-width: 620px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+  pointer-events: none;
+}
+.live-dock > * {
+  pointer-events: auto;
+}
+.live-dock .rest-bar {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  max-width: none;
+  margin: 0;
+}
+.live:has(.coach-strip) .live-body {
+  padding-bottom: calc(var(--safe-bottom) + var(--sp-12) * 5);
+}
+.coach-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  padding: var(--sp-1) var(--sp-3) var(--sp-1);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  animation: enter-up 300ms var(--ease, cubic-bezier(0.2, 0, 0, 1)) both;
+}
+.coach-strip.behind {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--line));
+}
+.cs-line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--h-md);
+  padding: var(--sp-1) 0 0;
+  text-align: left;
+  color: var(--text);
+  font-family: var(--font-read);
+  font-size: var(--fs-15);
+  line-height: 1.35;
+}
+.cs-line > .icon:first-child {
+  flex: none;
+  color: var(--accent-text);
+}
+.cs-line[data-kind='time'] > .icon:first-child,
+.cs-line[data-kind='hr'] > .icon:first-child {
+  color: var(--warn);
+}
+.cs-line .chev {
+  flex: none;
+  color: var(--muted);
+}
+.cs-text {
+  flex: 1;
+  min-width: 0;
+  animation: cs-in 300ms var(--ease, cubic-bezier(0.2, 0, 0, 1)) both;
+}
+@keyframes cs-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(4px);
+  }
+}
+.cs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: var(--h-md);
+}
+.cs-time {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex: none;
+  font-size: var(--fs-13);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cs-time.over,
+.cs-time.out {
+  color: var(--warn);
+}
+.cs-time.ahead {
+  color: var(--accent-text);
+}
+.cs-next {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.cs-next b {
+  color: var(--text);
+  font-weight: 650;
+}
+.cs-acts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.cs-btn {
+  height: var(--h-md);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text);
+  font-weight: 700;
+  font-size: var(--fs-15);
+  white-space: nowrap;
+  transition: scale 150ms ease-out;
+}
+.cs-btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.cs-btn:active,
+.cs-x:active {
+  scale: 0.96;
+}
+.cs-x {
+  width: var(--h-md);
+  height: var(--h-md);
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--muted);
+}
+.cs-hr {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-15);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cs-hr .icon {
+  color: var(--danger);
+}
+.cs-hr.high {
+  color: var(--danger);
+}
+.cs-hr small {
+  color: var(--accent-text);
+  font-size: var(--fs-13);
+}
+.cs-history {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-2) 0 var(--sp-1);
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+  border-bottom: 1px solid var(--line);
+}
+.cs-history li {
+  display: flex;
+  gap: var(--sp-2);
+  font-family: var(--font-read);
+  font-size: var(--fs-13);
+  line-height: 1.35;
+  color: var(--muted);
+}
+.cs-at {
+  flex: none;
+  min-width: 34px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+/* while typing, the keyboard needs the room (the header's pills keep the timers) */
+.live:has(input:focus) .coach-strip,
+.live:has(textarea:focus) .coach-strip {
+  display: none;
+}
+.coach-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  font-family: var(--font-read);
+  font-size: var(--fs-15);
+  line-height: 1.4;
+}
+.coach-verdict .icon {
+  flex: none;
+  margin-top: var(--sp-0-5);
+  color: var(--accent-text);
+}
+/* Train: the coach's plan for the next session */
+.plan-coach {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1-5);
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  font-weight: 550;
+  line-height: 1.35;
+}
+.plan-coach .icon {
+  flex: none;
+  margin-top: var(--sp-0-5);
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-strip,
+  .cs-text {
+    animation: none;
+  }
+}
+
+/* ---- settings fold (animation) ---- */
+.settings-fold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+.settings-fold-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 56px;
+  padding: var(--sp-2) var(--pad-card);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-align: left;
+  font-weight: 650;
+  font-size: var(--fs-16);
+}
+.settings-fold-head span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+}
+.settings-fold-head small {
+  font-family: var(--font-read);
+  font-weight: 400;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+@supports (corner-shape: squircle) {
+  .settings-fold-head {
+    corner-shape: squircle;
+  }
+}
+/* "Can't do this?" swap sheet (src/ui/SwapSheet.tsx) */
+.swap-list {
+  margin-top: var(--sp-3);
+}
+.swap-empty {
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  color: var(--muted);
+  padding: var(--sp-3) var(--sp-2);
+  text-align: center;
+}
+.swap-follow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+.swap-lack input {
+  flex: 1;
+  min-width: 0;
+}
+.cs-swap {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: var(--h-md);
+  padding: 0 var(--sp-2);
+  margin-right: calc(var(--sp-2) * -1);
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cs-swap:active {
+  scale: 0.96;
+}
+
+/* ---- live dock never hides the set you're on ---- */
+html:has(.live-dock) {
+  scroll-padding-top: 150px;
+  scroll-padding-bottom: calc(var(--safe-bottom) + 260px);
+}

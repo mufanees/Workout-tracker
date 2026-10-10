@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { createMcpHandler } from './mcp.mjs'
 import { createPush } from './push.mjs'
-import { coachEnabled, createCoach, friendlyError } from './coach.mjs'
+import { coachEnabled, coachProblem, coachStatus, createCoach, friendlyError, testCoach } from './coach.mjs'
 import { videoInfo } from './video.mjs'
 import { createAccounts } from './accounts.mjs'
 
@@ -248,7 +248,7 @@ if (BACKUP_DAYS > 0) {
   setInterval(backup, 3600000).unref() // checks hourly, writes once per day
 }
 
-const coachOff = () => ({ error: 'Set GEMINI_API_KEY on the server to turn on the coach.' })
+const coachOff = () => ({ error: coachProblem() || 'The coach is off on this server.', problem: true })
 const coachOut = (limit) => ({ error: `You’ve used today’s ${limit} coach messages. They reset at midnight (UTC).` })
 
 const server = http.createServer(async (req, res) => {
@@ -320,7 +320,9 @@ const server = http.createServer(async (req, res) => {
       }
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(ctx, await readBody(req)))
       if (pathname === '/api/video-info') return send(res, 200, await videoInfo(url.searchParams.get('url')))
-      if (pathname === '/api/coach/status') return send(res, 200, { enabled: coachEnabled() })
+      if (pathname === '/api/coach/status') return send(res, 200, coachStatus())
+      // One tiny real call ("Reply with OK", 20 s cap) so Settings can show whether the key and model work. Not counted toward the daily limit.
+      if (pathname === '/api/coach/test' && req.method === 'POST') return send(res, 200, await testCoach())
       if (pathname === '/api/coach' && req.method === 'POST') {
         if (!coachEnabled()) return send(res, 503, coachOff())
         if (!accounts.coachTake(user)) return send(res, 429, coachOut(accounts.people().coachLimit))
@@ -332,7 +334,7 @@ const server = http.createServer(async (req, res) => {
         try {
           return send(res, 200, await ctx.coach.quick(await readBody(req)))
         } catch (e) {
-          return send(res, e.status === 400 && !e.gemini ? 400 : 502, { error: friendlyError(e) })
+          return send(res, e.status === 400 && !e.api ? 400 : 502, { error: friendlyError(e) })
         }
       }
       if (pathname === '/api/push/key') return send(res, 200, { key: ctx.push.publicKey })

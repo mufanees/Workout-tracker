@@ -10,25 +10,99 @@ import type { CoachItem, Exercise, ExType, GoalSpec } from './types'
 import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
 import { describeDay, mobilityFrom } from './mobility'
-import { clone, startOfDay, uid } from './util'
+import { clone, fmtExWeight, startOfDay, uid } from './util'
 import { catalog, startCatalogProgram } from './programs'
+import { describeSwap, swapFromCoach, swapInRoutine } from './swap'
 
 /** null = still checking; false = no coach on this server (or no server). */
 export const coachOn = signal<boolean | null>(null)
 /** Where the coach runs: your server (Gemini), or Claude when the app is a Claude artifact. */
 export const coachMode = signal<'server' | 'claude' | null>(null)
 
+/** The server's coach health (GET /api/coach/status). `reach` says why there's none: no server, not signed in. */
+export interface CoachStatus {
+  enabled: boolean
+  provider?: string
+  label?: string
+  model?: string | null
+  planModel?: string | null
+  keyVar?: string
+  modelVar?: string
+  problem?: string | null
+  lastOk?: number | null
+  lastError?: { at: number; message: string; status: number; code?: string } | null
+  todayCalls?: number
+  reach: 'ok' | 'signed-out' | 'no-server'
+}
+export interface CoachTest {
+  ok: boolean
+  provider?: string
+  label?: string
+  model?: string | null
+  ms: number
+  reply?: string
+  error?: string
+  code?: string
+}
+export const coachStatus = signal<CoachStatus | null>(null)
+export const coachTest = signal<CoachTest | null>(null)
+
 let serverChecked = false
 export async function checkCoach() {
   let server = false
   try {
     const res = await fetch('/api/coach/status', { headers: { authorization: `Bearer ${getToken()}` } })
-    server = res.ok && (res.headers.get('content-type') || '').includes('json') ? !!(await res.json()).enabled : false
+    const json = res.ok && (res.headers.get('content-type') || '').includes('json') ? await res.json() : null
+    server = !!json?.enabled
+    coachStatus.value = json ? { ...json, reach: 'ok' } : { enabled: false, reach: res.status === 401 ? 'signed-out' : 'no-server' }
   } catch {
     server = false
+    coachStatus.value = { enabled: false, reach: 'no-server' }
   }
   serverChecked = true
   decide(server)
+}
+
+/** Settings → Coach → Test: one tiny real call through the server. */
+export async function runCoachTest(): Promise<CoachTest> {
+  let out: CoachTest
+  try {
+    const res = await fetch('/api/coach/test', { method: 'POST', headers: { authorization: `Bearer ${getToken()}` } })
+    const json = (res.headers.get('content-type') || '').includes('json') ? await res.json() : {}
+    out = res.ok ? json : { ok: false, ms: 0, error: res.status === 401 ? 'Not signed in to your server.' : json.error || `The server answered ${res.status}.` }
+  } catch {
+    out = { ok: false, ms: 0, error: 'Couldn’t reach your server.' }
+  }
+  coachTest.value = out
+  await checkCoach()
+  return out
+}
+
+/** Short names for what went wrong, by the server's error kind. */
+const KIND: Record<string, string> = {
+  key: 'Key rejected',
+  model: 'Model not found',
+  quota: 'Rate limit reached',
+  daily: 'Daily limit reached',
+  credits: 'Out of credits',
+  network: 'Server can’t reach the API',
+  timeout: 'No answer in time',
+  overloaded: 'Provider overloaded',
+  server: 'Provider error',
+}
+
+/** The coach's problem in plain words, or null when it's fine (or runs on Claude in the artifact). */
+export function coachProblemText(s: CoachStatus | null = coachStatus.value, mode = coachMode.value): { title: string; detail: string } | null {
+  if (mode === 'claude' || !s) return null
+  if (s.reach === 'no-server') return { title: 'No coach server', detail: 'This copy of Gloop isn’t connected to your server, so there’s no in-app coach. Questions can be copied to paste into Gemini or Claude.' }
+  if (s.reach === 'signed-out') return { title: 'Not signed in', detail: 'Sign in (or enter the sync key) in Settings so the coach can use your server.' }
+  if (!s.enabled) return { title: 'Coach not set up', detail: s.problem || 'No API key on the server: set GEMINI_API_KEY in Coolify and redeploy.' }
+  const e = s.lastError
+  if (e && e.at > (s.lastOk || 0)) {
+    const title = s.provider === 'gemini' && (e.code === 'quota' || e.code === 'daily') ? 'Free-tier limit reached' : KIND[e.code || ''] || 'Last call failed'
+    return { title, detail: e.message }
+  }
+  return null
 }
 
 function decide(server: boolean) {
@@ -76,7 +150,7 @@ export async function quick<T>(body: Record<string, unknown>, focusWorkoutId?: s
 
 export interface Proposal {
   id: string
-  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program' | 'propose_mobility_plan' | 'propose_catalog_program'
+  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program' | 'propose_mobility_plan' | 'propose_catalog_program' | 'swap_exercise'
   args: Record<string, unknown>
   state?: 'pending' | 'approved' | 'dismissed'
 }
@@ -88,7 +162,7 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
   const a = p.args as Record<string, any>
   if (p.tool === 'propose_routine_targets' || p.tool === 'propose_routine_changes') {
     const list = (x: unknown) => (Array.isArray(x) ? x : [])
-    const dose = (c: any) => [c.sets != null ? `${c.sets} sets` : '', c.weight_kg != null ? `${c.weight_kg} kg` : '', c.reps != null ? `× ${c.reps}` : ''].filter(Boolean).join(' ')
+    const dose = (c: any) => [c.sets != null ? `${c.sets} sets` : '', c.weight_kg != null ? fmtExWeight(findEx(String(c.exercise || c.to || '')), Number(c.weight_kg)) : '', c.reps != null ? `× ${c.reps}` : ''].filter(Boolean).join(' ')
     const lines = [
       ...list(a.swaps).map((c: any) => `Swap ${c.from} → ${c.to}${dose(c) ? ` (${dose(c)})` : ''}`),
       ...list(a.remove).map((n: any) => `Drop ${n}`),
@@ -97,6 +171,11 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
       ...(list(a.cooldown).length ? [`Cool-down, ${list(a.cooldown).length} moves: ${list(a.cooldown).join('; ')}`] : []),
     ]
     return { title: `Update “${a.routine}”`, lines }
+  }
+  if (p.tool === 'swap_exercise') {
+    const d = describeSwap(a)
+    const where = routines.value.filter((r) => r.exercises.some((e) => norm(exMap.value.get(e.exerciseId)?.name || '') === norm(d.from))).map((r) => r.name)
+    return { title: `Swap ${d.from} → ${d.to}`, lines: [where.length ? `In ${where.join(', ')}` : 'Not in any routine yet'] }
   }
   if (p.tool === 'propose_catalog_program') {
     const prog = catalog.find((x) => x.id === String(a.id || ''))
@@ -147,6 +226,18 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
 /** Apply an approved proposal locally (it syncs from there). Returns a confirmation message. */
 export async function applyProposal(p: Proposal): Promise<string> {
   const a = p.args as Record<string, any>
+  if (p.tool === 'swap_exercise') {
+    // during a workout it applies there (Coach.tsx does it as it arrives); this is the routine version
+    const live = swapFromCoach(p.id, a)
+    if (live) return live.text
+    const d = describeSwap(a)
+    const from = matchExercise(d.from, exercises.value as LibExercise[])
+    const to = matchExercise(d.to, exercises.value as LibExercise[])
+    if (!from || !to) throw new Error(`Couldn’t find ${!from ? d.from : d.to}`)
+    const hit = routines.value.filter((r) => r.exercises.some((e) => e.exerciseId === from.id))
+    for (const r of hit) await swapInRoutine(r.id, from.id, to.id)
+    return hit.length ? `Swapped in ${hit.length} routine${hit.length > 1 ? 's' : ''}` : `${from.name} isn’t in any routine`
+  }
   if (p.tool === 'propose_catalog_program') {
     const msg = await startCatalogProgram(String(a.id || ''))
     if (getToken()) void saveSnapshot(true)

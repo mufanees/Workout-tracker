@@ -6,6 +6,7 @@ import { startEmpty, startRoutine } from '../workout'
 import { CardioQuick } from '../ui/CardioSetup'
 import { planStatus } from '../plan'
 import { programStatus } from '../program'
+import { routineLine } from '../liveCoach'
 import { Icon } from '../ui/icons'
 import { actionSheet, confirmDialog, Sheet, toast } from '../ui/overlay'
 import { Toggle } from '../ui/inputs'
@@ -26,6 +27,7 @@ import { Elapsed } from './Live'
 import { TodayRings } from '../ui/Rings'
 import { BlockCard, GoalCard } from './Goal'
 import { CheckinCard } from '../ui/Checkin'
+import { MuscleHome } from '../ui/BodyMap'
 import { Lava } from '../ui/Goo'
 
 /** Sections of the home screen, in their default order. Settings → home holds your order and hidden ones. */
@@ -39,6 +41,7 @@ export const HOME_SECTIONS: { id: string; label: string; hint?: string }[] = [
   { id: 'quote', label: 'Quote' },
   { id: 'program', label: 'Program: next workout' },
   { id: 'win', label: 'Progress highlight' },
+  { id: 'muscles', label: 'Muscle recovery', hint: 'Shows after a workout in the last 10 days' },
   { id: 'quick', label: 'Quick starts', hint: 'Empty workout, Zone 2 cardio' },
   { id: 'routines', label: 'Routines and programs' },
 ]
@@ -82,6 +85,8 @@ export function Train() {
         return !active.value && routines.value.length ? programStatus.value ? <ProgramCard /> : <PlanCard /> : null
       case 'win':
         return <WinCard />
+      case 'muscles':
+        return <MuscleHome />
       case 'quick':
         return (
           <div class="quick-starts">
@@ -539,10 +544,22 @@ function ProgramCard() {
           {s.thisWeek} of {s.target} this week{s.program.minutes ? ` · about ${s.program.minutes} min` : ''}
         </p>
       </div>
+      <CoachLine routine={s.routine} />
       <button class="btn btn-block btn-lg" onClick={() => startRoutine(s.routine)}>
         <Icon name="play" size={18} /> Start {s.routine.name}
       </button>
     </section>
+  )
+}
+
+/** The coach's plan for this session in one line, worked out on the phone (time budget, today's numbers). */
+function CoachLine({ routine }: { routine: Routine }) {
+  const line = routineLine(routine)
+  if (!line) return null
+  return (
+    <p class="plan-coach">
+      <Icon name="sparkles" size={14} /> {line}
+    </p>
   )
 }
 
@@ -590,6 +607,7 @@ function PlanCard() {
         <p class={'plan-status' + (p.restDay ? ' rest' : '')}>{p.finished ? 'You’ve finished the 12 weeks. Keep running Phase 4 or start over.' : p.status}</p>
         <p class="plan-note">{(p.setsHint || p.phase.note).replace(/^Week \d+:\s*/, (m) => (p.setsHint ? '' : m)).replace(/^./, (c) => c.toUpperCase())}</p>
       </div>
+      <CoachLine routine={p.routine} />
       <button class="btn btn-block btn-lg" onClick={() => startRoutine(p.routine!)}>
         <Icon name="play" size={18} /> Start Workout {p.day}
       </button>

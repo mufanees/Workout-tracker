@@ -34,6 +34,8 @@ export interface WSet {
   // Today's targets from the coach (take priority over last time's numbers as placeholders).
   cw?: number | null
   cr?: number | null
+  /** cw/cr come from the live coach after the sets above were done, so they beat a weight typed above (live workout only). */
+  cl?: boolean
   /** Reps left in the tank on this set (0 = couldn't do another), from the effort tap after an exercise. */
   rir?: number | null
   /** Timing, from live ticks (see shared/timing.mjs): when it was ticked done (epoch ms), */
@@ -84,11 +86,33 @@ export interface Workout extends Rec {
   /** The coach's targets for this session (live workout only, not saved). */
   coachPlan?: { focus: string; targets: { exercise: string; weight_kg?: number; reps?: string; note?: string }[]; applied?: boolean } | null
   coachPlanAsked?: boolean
+  /** The live coach's lines and bookkeeping (live workout only, not saved; see liveCoach.ts). */
+  coachLive?: CoachLive | null
   routineId: string | null
   start: number
   end: number | null
   notes: string
   exercises: WExercise[]
+}
+
+/** One thing the live coach said. src: who wrote it (engine on the phone, the on-device model, or the server's coach). */
+export interface CoachLine {
+  id: string
+  at: number
+  kind: 'start' | 'set' | 'hr' | 'rest-end' | 'time' | 'last' | 'finish' | 'llm' | 'applied'
+  text: string
+  src: 'engine' | 'on-device' | 'server'
+  /** a one-tap action offered with the line */
+  action?: { id: string; label: string; kind: 'time' | 'extend' | 'fatigue' }
+}
+export interface CoachLive {
+  lines: CoachLine[]
+  /** what has been said already (so moments are announced once) */
+  seen: Record<string, string | number | boolean>
+  /** how to take back the last applied time action */
+  undo?: { label: string; kind: 'rest' | 'drop-sets' | 'superset' | 'skip' | 'lighter' | 'fit'; data: unknown } | null
+  /** time actions waved away ("Not now"), with the overshoot then */
+  dismissed?: Record<string, number>
 }
 
 export interface Routine extends Rec {
@@ -135,6 +159,10 @@ export interface Settings extends Rec {
   liveHRVisible?: boolean // ...and also while Gloop is on screen (default off)
   moveGoal?: number // daily Move ring, minutes of any workout
   showPace?: boolean // time budget and pace on the workout screen
+  /** The hard time budget every strength workout is planned and coached to (minutes). Missing = { total: 25, warmup: 5, cooldown: 5 }. */
+  timeBudget?: { total: number; warmup: number; cooldown: number }
+  /** How weights are shown and typed: 'total' (both dumbbells together; default) or 'each' (one dumbbell of a pair, as stored). Stored values are always per dumbbell for pairs. */
+  weightView?: 'total' | 'each'
   /** A program the coach built and the athlete approved: routines to rotate through. Replaces the Comeback plan card while set. */
   program?: {
     name: string
