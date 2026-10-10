@@ -200,6 +200,11 @@ function serveStatic(req, res, pathname) {
   let target = inside && fs.existsSync(file) && fs.statSync(file).isFile() ? file : null
   if (!target) {
     if (path.extname(rel)) return send(res, 404, { error: 'Not found' })
+    // a static page in its own folder (the /welcome/ landing page): /welcome → /welcome/
+    if (inside && fs.existsSync(path.join(file, 'index.html'))) {
+      res.writeHead(301, { location: pathname + '/' })
+      return res.end()
+    }
     target = path.join(DIST, 'index.html') // SPA fallback
     if (!fs.existsSync(target)) return send(res, 503, { error: 'App not built. Run npm run build.' })
   }

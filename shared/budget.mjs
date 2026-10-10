@@ -181,7 +181,7 @@ export function heavierFor(reps) {
   return { top, low, factor }
 }
 
-const roundKg = (kg) => Math.round(kg * 2) / 2 // adjustable dumbbells: 0.5 kg steps per dumbbell
+const roundKg = (kg) => Math.max(1, Math.round(kg)) // adjustable dumbbells: 1 kg steps per dumbbell (as the live coach assumes)
 
 // ---- warm-up and cool-down lines ----
 

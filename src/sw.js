@@ -23,6 +23,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   if (url.origin !== location.origin || url.pathname.startsWith('/api/')) return
+  // The landing page (/welcome/) is its own static page, not the app shell: leave it to the network.
+  if (url.pathname === '/welcome' || url.pathname.startsWith('/welcome/')) return
 
   // App shell: serve the cached page instantly, refresh it in the background.
   if (req.mode === 'navigate') {
