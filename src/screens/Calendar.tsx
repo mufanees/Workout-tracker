@@ -269,7 +269,7 @@ export function DayView({ id }: { id: string }) {
         {ws.length ? (
           ws.map((x) => (
             <button class="day-workout" onClick={() => navigate('/history/' + x.id)}>
-              <span class={'wc-icon ' + activityOf(x).kind} aria-hidden="true">
+              <span class={'wc-icon is-' + activityOf(x).kind} aria-hidden="true">
                 <Icon name={activityOf(x).icon} size={20} />
               </span>
               <span class="dw-text">

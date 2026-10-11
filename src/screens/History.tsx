@@ -158,7 +158,7 @@ function WorkoutCard({ w }: { w: Workout }) {
   return (
     <button class="workout-card" onClick={() => navigate('/history/' + w.id)}>
       <div class="wc-top">
-        <span class={'wc-icon ' + act.kind} title={act.label} aria-hidden="true">
+        <span class={'wc-icon is-' + act.kind} title={act.label} aria-hidden="true">
           <Icon name={act.icon} size={20} />
         </span>
         <span class="wc-name">{w.name}</span>

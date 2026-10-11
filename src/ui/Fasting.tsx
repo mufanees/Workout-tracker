@@ -36,7 +36,8 @@ export function StageRing({ elapsed, goal, idle, compact, children }: { elapsed:
   const c = 2 * Math.PI * r
   const pct = idle ? 0 : Math.min(1, elapsed / (goal * HOUR))
   const hours = elapsed / HOUR
-  const marks = STAGES.filter((s) => s.at < goal)
+  // the home widget keeps the ring plain: its stage shows as text beside it
+  const marks = compact ? [] : STAGES.filter((s) => s.at < goal)
   return (
     <div class={'stage-ring' + (idle ? ' idle' : '') + (compact ? ' compact' : '')}>
       <svg viewBox="0 0 240 240" aria-hidden="true">
@@ -55,7 +56,7 @@ export function StageRing({ elapsed, goal, idle, compact, children }: { elapsed:
             }}
             title={s.name}
           >
-            <Icon name={s.icon} size={compact ? 11 : 15} stroke={2.2} />
+            <Icon name={s.icon} size={15} stroke={2.2} />
           </span>
         )
       })}
@@ -501,9 +502,7 @@ export function FastWidget() {
             {hm(elapsed)}
             <small>{String(Math.floor(elapsed / 1000) % 60).padStart(2, '0')}s</small>
           </b>
-          <span class="fw-stage">
-            <Icon name={stage.icon} size={14} /> {stage.name}
-          </span>
+          <span class="fw-stage">{stage.name}</span>
         </div>
       </div>
       <div class="fw-meta">

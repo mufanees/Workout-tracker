@@ -2710,6 +2710,10 @@ label.setting:active {
   display: flex;
   gap: var(--sp-3);
 }
+.quick-starts > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .quick-starts .btn {
   padding: 0 var(--sp-3);
 }
@@ -6383,7 +6387,7 @@ html[data-nav='back']::view-transition-old(screen) {
   background: var(--surface-2);
   color: var(--accent-text);
 }
-.wc-icon.cardio {
+.wc-icon.is-cardio {
   color: var(--ring-z2);
 }
 .day-workout > .wc-icon {
@@ -8095,12 +8099,6 @@ html[data-nav='back']::view-transition-old(screen) {
   width: calc(var(--sp-12) * 2 + var(--sp-2)); /* 104 */
   margin: 0;
 }
-.stage-ring.compact .sr-mark {
-  width: var(--sp-5);
-  height: var(--sp-5);
-  margin: calc(var(--sp-5) / -2) 0 0 calc(var(--sp-5) / -2);
-  border: var(--sp-0-5) solid var(--surface);
-}
 .stage-ring.compact .sr-center {
   inset: 22%;
 }
@@ -8142,13 +8140,8 @@ html[data-nav='back']::view-transition-old(screen) {
   color: var(--muted);
 }
 .fw-stage {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1-5);
   font-size: var(--fs-14);
   font-weight: 650;
-}
-.fw-stage svg {
   color: var(--accent-text);
 }
 .fw-meta {

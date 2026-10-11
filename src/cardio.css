@@ -134,7 +134,7 @@
   color: #ff5a5a;
 }
 .quick-starts .cardio-quick .cq-main {
-  padding: 0 var(--sp-4);
+  justify-content: center;
 }
 .cardio-quick .cq-edit {
   width: var(--h-md);
