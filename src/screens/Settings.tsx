@@ -845,7 +845,7 @@ function CoachSpendSettings() {
     <div class="settings-group">
       <div class="setting">
         <span>
-          API spend in {month}
+          {spend.scope === 'mine' ? `Your coach use in ${month}` : `API spend in ${month}`}
           <small>{m.calls ? line(m) : 'No coach calls yet this month'}</small>
         </span>
         <span class="setting-value spend-value">{usd(m.cost)}</span>
@@ -884,7 +884,8 @@ function CoachSpendSettings() {
         <span class="setting-value">{usd(spend.total.cost)}</span>
       </div>
       <p class="setting-note">
-        Worked out from list prices for every call this server makes{spend.month.unpriced ? '; calls on models without a known price count tokens only' : ''}. Your provider’s console has the actual bill.
+        {spend.scope === 'mine' ? 'Your own coach calls only, ' : 'Every call this server makes, for everyone, '}
+        at list prices{spend.month.unpriced ? '; calls on models without a known price count tokens only' : ''}. The provider’s console has the actual bill.
       </p>
     </div>
   )

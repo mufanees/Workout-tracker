@@ -49,6 +49,8 @@ export interface SpendLine {
   unpriced: number
 }
 export interface CoachSpend {
+  /** 'server' for the admin (everyone's calls), 'mine' for anyone else (only their own). */
+  scope?: 'server' | 'mine'
   today: SpendLine
   month: SpendLine
   monthMine: SpendLine

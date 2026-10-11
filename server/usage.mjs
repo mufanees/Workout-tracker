@@ -80,25 +80,33 @@ export function recordUsage({ who = '', model = '', kind = 'chat', usage, inputI
   }
 }
 
-/** Spend for Settings: today, this month (all people and just `who`), by model and by kind, and the last 30 days. */
-export function spendReport(who = '') {
+/**
+ * Spend for Settings. A person sees only their own calls; the admin (`all`) sees the whole server, with their
+ * own share and how many people used the coach. Today, this month, by model and by kind, and the last 30 days.
+ */
+export function spendReport(who = '', all = false) {
   try {
     const d = open()
     const today = new Date().toISOString().slice(0, 10)
     const month = today.slice(0, 7)
-    const sum = (where, ...args) =>
-      d.prepare(`SELECT COALESCE(SUM(cost),0) cost, COALESCE(SUM(calls),0) calls, COALESCE(SUM(input+cache_read+cache_write),0) input, COALESCE(SUM(output),0) output, COALESCE(SUM(unpriced),0) unpriced FROM usage WHERE ${where}`).get(...args)
+    // a person's view is filtered to their own rows; the admin's isn't
+    const scope = all ? '' : ' AND who = ?'
+    const args = all ? [] : [String(who)]
+    const sum = (where, ...a) =>
+      d.prepare(`SELECT COALESCE(SUM(cost),0) cost, COALESCE(SUM(calls),0) calls, COALESCE(SUM(input+cache_read+cache_write),0) input, COALESCE(SUM(output),0) output, COALESCE(SUM(unpriced),0) unpriced FROM usage WHERE ${where}${scope}`).get(...a, ...args)
     const group = (col) =>
-      d.prepare(`SELECT ${col} name, SUM(cost) cost, SUM(calls) calls, SUM(input+cache_read+cache_write) input, SUM(output) output, SUM(unpriced) unpriced FROM usage WHERE day LIKE ? GROUP BY ${col} ORDER BY SUM(cost) DESC, SUM(calls) DESC`).all(`${month}%`)
+      d.prepare(`SELECT ${col} name, SUM(cost) cost, SUM(calls) calls, SUM(input+cache_read+cache_write) input, SUM(output) output, SUM(unpriced) unpriced FROM usage WHERE day LIKE ?${scope} GROUP BY ${col} ORDER BY SUM(cost) DESC, SUM(calls) DESC`).all(`${month}%`, ...args)
+    const mineMonth = d.prepare(`SELECT COALESCE(SUM(cost),0) cost, COALESCE(SUM(calls),0) calls, COALESCE(SUM(input+cache_read+cache_write),0) input, COALESCE(SUM(output),0) output, COALESCE(SUM(unpriced),0) unpriced FROM usage WHERE day LIKE ? AND who = ?`).get(`${month}%`, String(who))
     return {
+      scope: all ? 'server' : 'mine',
       today: sum('day = ?', today),
       month: sum('day LIKE ?', `${month}%`),
-      monthMine: sum('day LIKE ? AND who = ?', `${month}%`, String(who)),
+      monthMine: mineMonth,
       total: sum('1 = 1'),
       byModel: group('model'),
       byKind: group('kind'),
-      days: d.prepare(`SELECT day, SUM(cost) cost, SUM(calls) calls FROM usage WHERE day >= ? GROUP BY day ORDER BY day`).all(new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10)),
-      people: d.prepare(`SELECT COUNT(DISTINCT who) n FROM usage WHERE day LIKE ?`).get(`${month}%`).n,
+      days: d.prepare(`SELECT day, SUM(cost) cost, SUM(calls) calls FROM usage WHERE day >= ?${scope} GROUP BY day ORDER BY day`).all(new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10), ...args),
+      people: all ? d.prepare(`SELECT COUNT(DISTINCT who) n FROM usage WHERE day LIKE ?`).get(`${month}%`).n : 1,
     }
   } catch (e) {
     return { error: String(e?.message || e) }

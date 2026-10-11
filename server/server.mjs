@@ -334,9 +334,9 @@ const server = http.createServer(async (req, res) => {
       }
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(ctx, await readBody(req)))
       if (pathname === '/api/video-info') return send(res, 200, await videoInfo(url.searchParams.get('url')))
-      if (pathname === '/api/coach/status') return send(res, 200, coachStatus())
-      // what the coach has cost at list prices: the whole server, and this person's share
-      if (pathname === '/api/coach/spend') return send(res, 200, coachSpend(ctx.id))
+      if (pathname === '/api/coach/status') return send(res, 200, coachStatus(ctx.id))
+      // what the coach has cost at list prices: your own, or the whole server's for the admin
+      if (pathname === '/api/coach/spend') return send(res, 200, coachSpend(ctx.id, user.role === 'admin'))
       // One tiny real call ("Reply with OK", 20 s cap) so Settings can show whether the key and model work. Not counted toward the daily limit.
       if (pathname === '/api/coach/test' && req.method === 'POST') return send(res, 200, await testCoach())
       if (pathname === '/api/coach' && req.method === 'POST') {

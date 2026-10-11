@@ -103,11 +103,20 @@ export function coachProblem() {
 }
 
 // ---- health, for Settings → Coach ----
-const stats = { lastOk: 0, lastError: null, day: '', todayCalls: 0, lastUsage: null }
+// Whether the API works (last success, last error) is the server's: one key and model for everyone. Call
+// counts and the last call's tokens are each person's own (keyed by who the request is for).
+const stats = { lastOk: 0, lastError: null }
+const perWho = new Map() // who → { day, calls, lastUsage }
+const mine = () => {
+  const who = callCtx.getStore()?.who || ''
+  if (!perWho.has(who)) perWho.set(who, { day: '', calls: 0, lastUsage: null })
+  return perWho.get(who)
+}
 function countCall() {
+  const m = mine()
   const d = new Date().toISOString().slice(0, 10)
-  if (stats.day !== d) Object.assign(stats, { day: d, todayCalls: 0 })
-  stats.todayCalls++
+  if (m.day !== d) Object.assign(m, { day: d, calls: 0 })
+  m.calls++
 }
 const noteOk = () => (stats.lastOk = Date.now())
 function noteError(e) {
@@ -119,11 +128,12 @@ const callCtx = new AsyncLocalStorage()
 /** One API call's tokens: into the spend ledger, and the last one for Settings. */
 function noteUsage(u, model) {
   if (!u) return
-  stats.lastUsage = { ...u, model, at: Date.now() }
+  mine().lastUsage = { ...u, model, at: Date.now() }
   const c = callCtx.getStore() || {}
   recordUsage({ who: c.who || '', kind: c.kind || 'other', model, usage: u, inputIncludesCache: PROVIDER !== 'anthropic' })
 }
-export function coachStatus() {
+export function coachStatus(who = '') {
+  const m = perWho.get(who)
   return {
     enabled: coachEnabled(),
     provider: PROVIDER,
@@ -136,8 +146,8 @@ export function coachStatus() {
     problem: coachProblem(),
     lastOk: stats.lastOk || null,
     lastError: stats.lastError,
-    todayCalls: stats.day === new Date().toISOString().slice(0, 10) ? stats.todayCalls : 0,
-    lastUsage: stats.lastUsage,
+    todayCalls: m && m.day === new Date().toISOString().slice(0, 10) ? m.calls : 0,
+    lastUsage: m?.lastUsage || null,
     // what each reasoning level runs on, with list prices per million tokens ([input, output, cache read]) when known
     levels: Object.fromEntries(
       [
@@ -150,8 +160,8 @@ export function coachStatus() {
   }
 }
 
-/** What the coach has cost (list prices), for Settings. */
-export const coachSpend = (who) => spendReport(who)
+/** What the coach has cost (list prices), for Settings: a person's own, or the whole server's for the admin. */
+export const coachSpend = (who, all = false) => spendReport(who, all)
 
 // ---- HTTP with retries (shared by every provider) ----------------------------------
 
@@ -1153,7 +1163,7 @@ export function createCoach({ db, q, mcp, push, who = '' }) {
         API.addTurn(history, turn, results)
       }
       noteOk()
-      stats.lastUsage = { ...usage, model, at: Date.now() }
+      mine().lastUsage = { ...usage, model, at: Date.now() }
       console.log(`coach: ${PROVIDER} ${model} · ${usage.rounds} round(s) · in ${usage.input}${usage.cacheRead ? ` (cached ${usage.cacheRead})` : ''} · out ${usage.output}`)
       if (!ended && !said && !proposed) send({ t: 'That took too many steps without an answer. Ask again more narrowly, e.g. one phase or one routine.' })
       send({ done: true })
