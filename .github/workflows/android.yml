@@ -1,5 +1,7 @@
 # Builds the Gloop Android app (Capacitor wrapper around https://gloop.novas.my plus native
-# plugins) into an installable APK, uploaded as the `gloop-android` artifact.
+# plugins) into an installable APK, uploaded as the `gloop-android` artifact and published as
+# gloop.apk on the `android-latest` release, so a phone can download it from a fixed link:
+# https://github.com/mufanees/Workout-tracker/releases/latest/download/gloop.apk
 # Debug builds are signed with the committed android/app/debug.keystore so each one installs over
 # the last. A release APK is built too when the signing secrets exist:
 # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
@@ -16,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # the android-latest release
 
 concurrency:
   group: android-${{ github.ref }}
@@ -106,3 +108,22 @@ jobs:
           path: out/
           if-no-files-found: error
           retention-days: 30
+
+      # A fixed place to download from on a phone (artifacts are zipped and need the desktop site).
+      - name: Publish to the android-latest release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f out/gloop-${{ github.run_number }}-release.apk ]; then
+            cp out/gloop-${{ github.run_number }}-release.apk out/gloop.apk
+          else
+            cp out/gloop-${{ github.run_number }}-debug.apk out/gloop.apk
+          fi
+          notes="Build #${{ github.run_number }} from ${GITHUB_SHA::7}. On-device AI: ${{ steps.debug.outputs.genai }}. Download gloop.apk below, open it, and allow installs from your browser if Android asks."
+          if gh release view android-latest > /dev/null 2>&1; then
+            gh release edit android-latest --title "Gloop for Android" --notes "$notes" --latest
+          else
+            gh release create android-latest --title "Gloop for Android" --notes "$notes" --target "$GITHUB_SHA" --latest
+          fi
+          gh release upload android-latest out/gloop.apk --clobber
