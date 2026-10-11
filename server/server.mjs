@@ -253,6 +253,15 @@ if (BACKUP_DAYS > 0) {
   setInterval(backup, 3600000).unref() // checks hourly, writes once per day
 }
 
+// which web build this server is serving (written by vite.config.js), so the app can tell it's out of date
+const BUILD = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(DIST, 'build.json'), 'utf8'))
+  } catch {
+    return null
+  }
+})()
+
 const coachOff = () => ({ error: coachProblem() || 'The coach is off on this server.', problem: true })
 const coachOut = (limit) => ({ error: `You’ve used today’s ${limit} coach messages. They reset at midnight (UTC).` })
 
@@ -260,7 +269,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
   const { pathname } = url
   try {
-    if (pathname === '/api/health') return send(res, 200, { ok: true, auth: !!TOKEN || accounts.enabled(), accounts: accounts.enabled() })
+    if (pathname === '/api/health') return send(res, 200, { ok: true, auth: !!TOKEN || accounts.enabled(), accounts: accounts.enabled(), build: BUILD })
     // The service worker asks for its notification text; the unguessable endpoint URL says whose it is.
     if (pathname === '/api/push/inbox' && req.method === 'POST') {
       const { endpoint } = await readBody(req)

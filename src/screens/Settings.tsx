@@ -22,6 +22,7 @@ import { NativeLiveSettings, PhoneSettings } from './PhoneSettings'
 import { sanitize } from '../validate'
 import { googleClientId } from '../account'
 import { AccountSection, ConnectorLink, PeopleSection } from './Account'
+import { BUILD, buildState, checkBuild, updateApp, versionLabel } from '../version'
 import { checkCoach, coachMode, coachProblemText, coachStatus, coachTest, runCoachTest } from '../coach'
 
 const STATUS: Record<string, [string, string]> = {
@@ -431,6 +432,8 @@ export function Settings() {
           <textarea id="paste-backup" rows={8} value={pasted} onInput={(e) => setPasted(e.currentTarget.value)} placeholder='{"app":"reps", ...}' />
         </label>
       </Sheet>
+      <h2 class="section-title">About</h2>
+      <VersionGroup />
       <p class="about">Gloop · your data lives on this device{sync.status === 'synced' ? ' and your server' : ''}.</p>
     </div>
   )
@@ -742,5 +745,41 @@ function AnimationSettings() {
         <GooSettings />
       </Collapse>
     </section>
+  )
+}
+
+/** Which build is running, and a reload when the server has a newer one. */
+function VersionGroup() {
+  useEffect(() => void checkBuild(), [])
+  const st = buildState.value
+  const built = new Date(BUILD.time).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return (
+    <div class="settings-group">
+      <div class="setting">
+        <span>
+          Version
+          <small>Built {built}</small>
+        </span>
+        <span class="setting-value version-id">{versionLabel}</span>
+      </div>
+      {st === 'update' ? (
+        <button class="setting" onClick={() => void updateApp()}>
+          <span>
+            Update available
+            <small>Reload to get the latest build</small>
+          </span>
+          <span class="sync-status warn">
+            <Icon name="refresh" size={18} />
+          </span>
+        </button>
+      ) : (
+        <button class="setting" onClick={() => void checkBuild()}>
+          <span>{st === 'latest' ? 'Up to date' : st === 'checking' ? 'Checking…' : 'Couldn’t check for updates'}</span>
+          <span class={'sync-status ' + (st === 'latest' ? 'good' : 'muted')}>
+            <span class="dot" /> {st === 'latest' ? 'Latest' : 'Check'}
+          </span>
+        </button>
+      )}
+    </div>
   )
 }

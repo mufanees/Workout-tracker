@@ -284,11 +284,43 @@ function currentFolder(program: string): string | null {
   return null
 }
 
+/** "Phase 1 · Full Body (weeks 1–3)" → chip "Phase 1", title "Full Body (weeks 1–3)". */
+function phaseLabel(folder: string): { chip: string; title: string } {
+  const m = folder.match(/^(.+?)\s+·\s+(.+)$/)
+  return m ? { chip: m[1], title: m[2] } : { chip: folder, title: '' }
+}
+
+/** A folder's menu: add a routine, rename, move between programs. */
+function folderMenu(name: string, list: Routine[], ask: Ask, program?: string) {
+  const programs = [...new Set(routines.value.map((r) => r.program || '').filter((p) => p && p !== program))]
+  actionSheet({
+    title: name,
+    actions: [
+      { label: 'Add a routine here', icon: 'plus', onSelect: () => navigate(`/routine/new?folder=${encodeURIComponent(name)}${program ? `&program=${encodeURIComponent(program)}` : ''}`) },
+      { label: 'Rename folder', icon: 'pencil', onSelect: () => ask('Rename folder', name, (v) => void retag(list, { folder: v })) },
+      ...programs.map((p) => ({ label: `Move into ${p}`, icon: 'program', onSelect: () => void retag(list, { program: p }) })),
+      { label: 'Move into a new program', icon: 'program', onSelect: () => ask('New program', '', (p) => void retag(list, { program: p }), `“${name}” becomes its first folder.`) },
+      ...(program ? [{ label: `Take out of ${program}`, icon: 'unlink', onSelect: () => void retag(list, { program: undefined }) }] : []),
+    ],
+  })
+}
+
+/**
+ * A program: its phases (folders) as chips, and the picked phase's routines right below. One level:
+ * the program you follow is always open on its current phase; others fold to their header.
+ */
 function ProgramGroup({ name, list, ask }: { name: string; list: Routine[]; ask: Ask }) {
   const followed = settings.value.program?.name === name || (!settings.value.program && name === PLAN_FOLDER && !!planStatus.value)
   const [open, setOpen] = useState(followed)
   const folders = groupBy([...list].sort((a, b) => a.order - b.order), (r) => r.folder || '')
+  const keys = [...folders.keys()]
   const cur = currentFolder(name)
+  const [pick, setPick] = useState<string | null>(cur)
+  // a new phase starting moves the chips to it
+  useEffect(() => {
+    if (cur) setPick(cur)
+  }, [cur])
+  const sel = pick && folders.has(pick) ? pick : cur && folders.has(cur) ? cur : keys[0]
   const fromCatalog = catalog.find((p) => p.name === name)
   const menu = () =>
     actionSheet({
@@ -338,75 +370,88 @@ function ProgramGroup({ name, list, ask }: { name: string; list: Routine[]; ask:
         },
       ],
     })
+  const shown = followed || open
+  // the followed program doesn't fold, so its header isn't a button
+  const Head = followed ? 'div' : 'button'
+  const label = phaseLabel(sel)
+  const selList = folders.get(sel) || []
   return (
     <section class={'program-group' + (followed ? ' followed' : '')}>
       <div class="program-head">
-        <button class="program-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <Head class="program-toggle" {...(followed ? {} : { onClick: () => setOpen(!open), 'aria-expanded': open })}>
           <Icon name="program" size={18} />
           <span class="program-name">
             {name}
             <small>
-              {folders.size} folder{folders.size === 1 ? '' : 's'} · {list.length} routine{list.length === 1 ? '' : 's'}
+              {keys.length} phase{keys.length === 1 ? '' : 's'} · {list.length} routine{list.length === 1 ? '' : 's'}
               {followed ? ' · Following' : ''}
             </small>
           </span>
-          <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
-        </button>
+        </Head>
+        {!followed && (
+          <button class="icon-btn" onClick={() => setOpen(!open)} aria-label={open ? `Hide ${name}` : `Show ${name}`} aria-expanded={open}>
+            <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
+          </button>
+        )}
         <button class="icon-btn" onClick={menu} aria-label={`Options for ${name}`}>
           <Icon name="more" />
         </button>
       </div>
-      <Collapse open={open} gap>
+      <Collapse open={shown} gap>
         <div class="program-body">
-          {[...folders.keys()].map((f) => (
-            <Folder key={f} name={f} list={folders.get(f)!} program={name} current={f === cur} ask={ask} />
-          ))}
+          {keys.length > 1 && (
+            <div class="phase-chips" role="tablist" aria-label={`${name} phases`}>
+              {keys.map((f) => (
+                <button key={f} role="tab" aria-selected={f === sel} class={'phase-chip' + (f === sel ? ' on' : '') + (f === cur ? ' now' : '')} onClick={() => setPick(f)}>
+                  {phaseLabel(f).chip}
+                  {f === cur && <span class="phase-dot" aria-label="current phase" />}
+                </button>
+              ))}
+            </div>
+          )}
+          {sel && (
+            <div class="phase-head">
+              <span class="phase-title">
+                <b>{label.title || label.chip}</b>
+                {sel === cur && <span class="folder-now">Now</span>}
+              </span>
+              <span class="folder-count">{selList.length}</span>
+              <button class="icon-btn sm" onClick={() => folderMenu(sel, selList, ask, name)} aria-label={`Options for folder ${sel}`}>
+                <Icon name="more" size={18} />
+              </button>
+            </div>
+          )}
+          <div class="routine-list phase-list" key={sel}>
+            {selList.map((r) => (
+              <RoutineCard key={r.id} r={r} />
+            ))}
+          </div>
         </div>
       </Collapse>
     </section>
   )
 }
 
-function Folder({ name, list, program, current, ask }: { name: string; list: Routine[]; program?: string; current?: boolean; ask: Ask }) {
-  const [open, setOpen] = useState(program ? !!current : true)
-  // A new phase starting opens its folder.
-  useEffect(() => {
-    if (current) setOpen(true)
-  }, [current])
-  if (!name) return <div class="routine-list">{list.map((r) => <RoutineCard r={r} />)}</div>
-  const programs = [...new Set(routines.value.map((r) => r.program || '').filter((p) => p && p !== program))]
-  const menu = () =>
-    actionSheet({
-      title: name,
-      actions: [
-        { label: 'Add a routine here', icon: 'plus', onSelect: () => navigate(`/routine/new?folder=${encodeURIComponent(name)}${program ? `&program=${encodeURIComponent(program)}` : ''}`) },
-        { label: 'Rename folder', icon: 'pencil', onSelect: () => ask('Rename folder', name, (v) => void retag(list, { folder: v })) },
-        ...programs.map((p) => ({ label: `Move into ${p}`, icon: 'program', onSelect: () => void retag(list, { program: p }) })),
-        { label: 'Move into a new program', icon: 'program', onSelect: () => ask('New program', '', (p) => void retag(list, { program: p }), `“${name}” becomes its first folder.`) },
-        ...(program ? [{ label: `Take out of ${program}`, icon: 'unlink', onSelect: () => void retag(list, { program: undefined }) }] : []),
-      ],
-    })
+/** A folder outside any program: a plain heading over its routines (unfiled routines have no heading). */
+function Folder({ name, list, ask }: { name: string; list: Routine[]; ask: Ask }) {
+  if (!name) return <div class="routine-list">{list.map((r) => <RoutineCard key={r.id} r={r} />)}</div>
   return (
-    <section class={'folder' + (current ? ' current' : '')}>
-      <div class="folder-row">
-        <button class="folder-head" onClick={() => setOpen(!open)} aria-expanded={open}>
-          <Icon name="folder" size={18} />
-          <span>{name}</span>
-          <span class="folder-count">{list.length}</span>
-          {current && <span class="folder-now">Now</span>}
-          <Icon name="down" size={18} class={'chev' + (open ? ' open' : '')} />
-        </button>
-        <button class="icon-btn sm" onClick={menu} aria-label={`Options for folder ${name}`}>
+    <section class="folder">
+      <div class="phase-head">
+        <span class="phase-title">
+          <Icon name="folder" size={16} />
+          <b>{name}</b>
+        </span>
+        <span class="folder-count">{list.length}</span>
+        <button class="icon-btn sm" onClick={() => folderMenu(name, list, ask)} aria-label={`Options for folder ${name}`}>
           <Icon name="more" size={18} />
         </button>
       </div>
-      <Collapse open={open} gap>
-        <div class="routine-list">
-          {list.map((r) => (
-            <RoutineCard r={r} />
-          ))}
-        </div>
-      </Collapse>
+      <div class="routine-list">
+        {list.map((r) => (
+          <RoutineCard key={r.id} r={r} />
+        ))}
+      </div>
     </section>
   )
 }

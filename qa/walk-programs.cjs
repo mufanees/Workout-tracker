@@ -36,8 +36,8 @@ require('fs').mkdirSync(OUT, { recursive: true })
 
   await page.locator('.program-group').first().scrollIntoViewIfNeeded()
   check((await page.locator('.program-group').count()) === 1, 'one program group')
-  check((await page.locator('.program-body .folder').count()) === 4, 'four phase folders inside')
-  check((await page.locator('.folder.current .routine-card').count()) === 3, 'current phase open with 3 routines')
+  check((await page.locator('.program-body .phase-chip').count()) === 4, 'four phase chips')
+  check((await page.locator('.phase-chip.on.now').count()) === 1 && (await page.locator('.phase-list .routine-card').count()) === 3, 'current phase picked with 3 routines')
   await shot('04-program-group')
 
   // change week → phase 2
@@ -47,7 +47,7 @@ require('fs').mkdirSync(OUT, { recursive: true })
   await page.locator('button', { hasText: /^Week 5/ }).first().tap()
   await page.waitForTimeout(700)
   check(/Phase 2/.test(await page.locator('.plan-eyebrow').textContent()), 'week 5 → phase 2')
-  check((await page.locator('.folder.current .routine-card').count()) === 4, 'phase 2 has 4 routines')
+  check(/Phase 2/.test(await page.locator('.phase-chip.on').textContent()) && (await page.locator('.phase-list .routine-card').count()) === 4, 'phase 2 picked, 4 routines')
   await shot('05-phase2', true)
 
   // folder menu → move a folder? Add Comeback from the library too

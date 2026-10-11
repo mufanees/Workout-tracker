@@ -667,27 +667,16 @@ textarea {
 .folder {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-list);
-}
-.folder-head {
-  display: flex;
-  align-items: center;
   gap: var(--sp-2);
-  min-height: 40px;
-  color: var(--muted);
-  font-weight: 650;
-  font-size: var(--fs-15);
-  text-align: left;
-}
-.folder-head span:first-of-type {
-  flex: 0 1 auto;
 }
 .folder-count {
+  flex: none;
   font-size: var(--fs-12);
+  font-weight: 650;
+  color: var(--muted);
   background: var(--surface-2);
-  border-radius: 99px;
+  border-radius: var(--r-pill);
   padding: 1px var(--sp-2);
-  margin-right: auto;
 }
 .chev {
   transition: transform 0.2s ease;
@@ -8491,33 +8480,90 @@ html[data-nav='back']::view-transition-old(screen) {
 .program-body {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  padding-left: var(--sp-3);
-  border-left: 2px solid var(--line);
-  margin-left: var(--sp-2);
+  gap: var(--sp-2);
 }
-.folder-row {
+/* phases of a program: one row of chips instead of folders inside folders */
+.phase-chips {
+  display: flex;
+  gap: var(--sp-1-5);
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(var(--gutter) * -1);
+  padding: var(--sp-0-5) var(--gutter);
+}
+.phase-chips::-webkit-scrollbar {
+  display: none;
+}
+.phase-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+  min-height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--fs-14);
+  font-weight: 650;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.phase-chip.on {
+  background: var(--text);
+  color: var(--bg);
+}
+.phase-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* a folder's (or phase's) heading over its routines */
+.phase-head {
   display: flex;
   align-items: center;
-  gap: var(--sp-1);
-}
-.folder-row .folder-head {
-  flex: 1;
-  min-width: 0;
+  gap: var(--sp-2);
   min-height: 44px;
 }
-.folder-row .folder-head > span:first-of-type {
+.phase-title {
+  flex: 1;
   min-width: 0;
-  line-height: 1.3;
-  padding: var(--sp-1) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--muted);
 }
-.folder-count {
-  margin-right: 0;
+.phase-title b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-15);
+  font-weight: 650;
+  color: var(--text);
 }
-.folder-row .chev {
-  margin-left: auto;
+.phase-head .icon-btn {
+  width: 44px;
+  height: 44px;
+}
+.phase-list {
+  animation: phase-in 0.24s ease both;
+}
+@keyframes phase-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phase-list {
+    animation: none;
+  }
 }
 .folder-now {
+  flex: none;
   font-size: var(--fs-11);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -8526,9 +8572,6 @@ html[data-nav='back']::view-transition-old(screen) {
   background: var(--accent);
   border-radius: var(--r-pill);
   padding: 2px var(--sp-2);
-}
-.folder.current .folder-head {
-  color: var(--text);
 }
 
 .catalog-card.on {

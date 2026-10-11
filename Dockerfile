@@ -4,6 +4,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Coolify passes the commit being deployed; Settings shows it as the version
+ARG SOURCE_COMMIT=""
+ENV SOURCE_COMMIT=$SOURCE_COMMIT
 RUN npm run build
 
 # ---- runtime: tiny Node server + SQLite (built into Node 22) ----

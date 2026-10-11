@@ -1,5 +1,6 @@
 // All icons come from Lucide (lucide.dev). Names here are the short aliases used across the app.
 import {
+  RefreshCw,
   Layers,
   LibraryBig,
   Eye,
@@ -147,6 +148,7 @@ const ICONS = {
   eyeOff: EyeOff,
   pause: Pause,
   switchSides: ArrowRightLeft,
+  refresh: RefreshCw,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS
