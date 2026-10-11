@@ -5,7 +5,7 @@ import { openGoals } from '../goals'
 import { GooDots } from '../ui/Goo'
 import { route, navigate } from '../router'
 import { getToken, syncNow } from '../sync'
-import { exMap, workouts } from '../store'
+import { exMap, settings, workouts } from '../store'
 import { sessionsByExercise } from '../stats'
 import { buildCoachContext, coachPasteText, routinesText } from '../coachContext'
 import { claudeChat } from '../coachClaude'
@@ -88,7 +88,8 @@ async function coachStream(payload: Record<string, unknown>, stop: AbortSignal, 
         method: 'POST',
         signal: inner.signal,
         headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify(payload),
+        // the reasoning level from Settings → Coach (a resume or cancel ignores it)
+        body: JSON.stringify({ ...payload, level: settings.value.coachLevel }),
       })
     } catch (e) {
       throw broke(e)

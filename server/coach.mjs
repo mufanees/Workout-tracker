@@ -7,6 +7,8 @@
 // - Short JSON calls produce pre-workout targets, a post-workout takeaway and chat condensing.
 // - A background job writes a weekly review on Sunday evening and sends a notification.
 import crypto from 'node:crypto'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { priceOf, recordUsage, spendReport } from './usage.mjs'
 import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise } from '../shared/planImport.mjs'
@@ -50,6 +52,21 @@ const MODEL = env.COACH_MODEL || (IS_GEMINI ? env.GEMINI_MODEL : '') || defaultM
 const PLAN_VAR = env.COACH_PLAN_MODEL ? 'COACH_PLAN_MODEL' : IS_GEMINI ? 'GEMINI_PLAN_MODEL' : 'COACH_PLAN_MODEL'
 // Optional stronger model for planning questions and weekly reviews; defaults to MODEL.
 const PLAN_MODEL = env.COACH_PLAN_MODEL || (IS_GEMINI ? env.GEMINI_PLAN_MODEL : '') || MODEL
+// The coach's reasoning level, picked per person in Settings → Coach:
+//   fast     – MODEL for everything, least thinking
+//   balanced – MODEL for chat, PLAN_MODEL for planning (the default, as before)
+//   deep     – DEEP_MODEL (Claude Opus 5.5 on Claude, else PLAN_MODEL) for chat and planning, more thinking
+// Live in-workout lines always use MODEL: they have to be quick.
+const DEEP_MODEL = env.COACH_DEEP_MODEL || (PROVIDER === 'anthropic' ? 'claude-opus-5-5' : PLAN_MODEL)
+export const COACH_LEVELS = ['fast', 'balanced', 'deep']
+const levelOf = (v) => (COACH_LEVELS.includes(v) ? v : 'balanced')
+/** Which model and how much thinking a request gets. `effort` only reaches Claude. */
+function pick(level, planning) {
+  if (level === 'fast') return { model: MODEL, effort: planning ? 'medium' : 'low' }
+  if (level === 'deep') return { model: DEEP_MODEL, effort: planning ? 'high' : 'medium' }
+  return { model: planning ? PLAN_MODEL : MODEL, effort: planning ? 'medium' : 'low' }
+}
+
 /** What the athlete calls the service in messages. */
 const LABEL = IS_GEMINI
   ? 'Gemini'
@@ -97,8 +114,14 @@ function noteError(e) {
   if (e?.name === 'AbortError' && !e.code) return // stopped by the athlete
   stats.lastError = { at: Date.now(), message: friendlyError(e), status: e?.status || 0, code: errorKind(e) }
 }
-function noteUsage(u) {
-  if (u) stats.lastUsage = { ...u, at: Date.now() }
+// Who a call is for and what kind it is, so the ledger can split spend (set around each request).
+const callCtx = new AsyncLocalStorage()
+/** One API call's tokens: into the spend ledger, and the last one for Settings. */
+function noteUsage(u, model) {
+  if (!u) return
+  stats.lastUsage = { ...u, model, at: Date.now() }
+  const c = callCtx.getStore() || {}
+  recordUsage({ who: c.who || '', kind: c.kind || 'other', model, usage: u, inputIncludesCache: PROVIDER !== 'anthropic' })
 }
 export function coachStatus() {
   return {
@@ -115,8 +138,20 @@ export function coachStatus() {
     lastError: stats.lastError,
     todayCalls: stats.day === new Date().toISOString().slice(0, 10) ? stats.todayCalls : 0,
     lastUsage: stats.lastUsage,
+    // what each reasoning level runs on, with list prices per million tokens ([input, output, cache read]) when known
+    levels: Object.fromEntries(
+      [
+        ['fast', MODEL, MODEL],
+        ['balanced', MODEL, PLAN_MODEL],
+        ['deep', DEEP_MODEL, DEEP_MODEL],
+      ].map(([k, chat, plan]) => [k, { chat, plan, price: priceOf(chat), planPrice: priceOf(plan) }]),
+    ),
+    thinking: PROVIDER === 'anthropic',
   }
 }
+
+/** What the coach has cost (list prices), for Settings. */
+export const coachSpend = (who) => spendReport(who)
 
 // ---- HTTP with retries (shared by every provider) ----------------------------------
 
@@ -408,7 +443,7 @@ const gemini = {
     )
     const json = await res.json()
     const u = json.usageMetadata
-    if (u) noteUsage({ input: u.promptTokenCount || 0, output: u.candidatesTokenCount || 0, cacheRead: u.cachedContentTokenCount || 0 })
+    if (u) noteUsage({ input: u.promptTokenCount || 0, output: u.candidatesTokenCount || 0, cacheRead: u.cachedContentTokenCount || 0 }, model)
     const text = (json.candidates?.[0]?.content?.parts || []).filter((p) => p.text && !p.thought).map((p) => p.text).join('')
     return extractJson(text)
   },
@@ -550,7 +585,7 @@ const openai = {
       }
     }
     const json = await res.json()
-    if (json.usage) noteUsage({ input: json.usage.prompt_tokens || 0, output: json.usage.completion_tokens || 0, cacheRead: json.usage.prompt_tokens_details?.cached_tokens || 0 })
+    if (json.usage) noteUsage({ input: json.usage.prompt_tokens || 0, output: json.usage.completion_tokens || 0, cacheRead: json.usage.prompt_tokens_details?.cached_tokens || 0 }, model)
     return extractJson(json.choices?.[0]?.message?.content || '')
   },
   async ping(model, signal) {
@@ -560,11 +595,15 @@ const openai = {
   },
 }
 
-/** Claude's system prompt as two blocks: the static coach instructions (cached) and today's memory and data. */
+/**
+ * Claude's system prompt as two cached blocks: the static coach instructions, then today's memory and training
+ * data. The data block is the bulk of every request; cached, each further tool round (and the next message
+ * within 5 minutes, if the data hasn't changed) reads it at a tenth of the price instead of paying for it again.
+ */
 function claudeSystem(system) {
   if (system.startsWith(COACH_SYSTEM)) {
     const rest = system.slice(COACH_SYSTEM.length).trim()
-    return [{ type: 'text', text: COACH_SYSTEM, cache_control: { type: 'ephemeral' } }, ...(rest ? [{ type: 'text', text: rest }] : [])]
+    return [{ type: 'text', text: COACH_SYSTEM, cache_control: { type: 'ephemeral' } }, ...(rest ? [{ type: 'text', text: rest, cache_control: { type: 'ephemeral' } }] : [])]
   }
   return [{ type: 'text', text: system }]
 }
@@ -613,16 +652,19 @@ const anthropic = {
     while (out.length && out[out.length - 1].role !== 'user') out.pop()
     return out
   },
-  async turn({ system, history, textOnly, planning, model, onText, onWait, signal }) {
+  async turn({ system, history, textOnly, planning, model, effort, onText, onWait, signal }) {
     const payload = {
       model,
       max_tokens: 16000,
       stream: true,
+      // the fourth cache breakpoint (tools and the two system blocks hold the others): the conversation so
+      // far, so each tool round reads the earlier rounds from the cache
+      cache_control: { type: 'ephemeral' },
       system: claudeSystem(system),
       messages: history,
       tools: ANTHROPIC_TOOLS,
       ...(textOnly ? { tool_choice: { type: 'none' } } : {}),
-      output_config: { effort: planning ? 'medium' : 'low' },
+      output_config: { effort: effort || (planning ? 'medium' : 'low') },
     }
     const blocks = []
     let finish = ''
@@ -724,7 +766,7 @@ const anthropic = {
       res = await ask(false)
     }
     const json = await res.json()
-    if (json.usage) noteUsage({ input: json.usage.input_tokens || 0, output: json.usage.output_tokens || 0, cacheRead: json.usage.cache_read_input_tokens || 0, cacheWrite: json.usage.cache_creation_input_tokens || 0 })
+    if (json.usage) noteUsage({ input: json.usage.input_tokens || 0, output: json.usage.output_tokens || 0, cacheRead: json.usage.cache_read_input_tokens || 0, cacheWrite: json.usage.cache_creation_input_tokens || 0 }, model)
     if (json.stop_reason === 'refusal') throw Object.assign(new Error('Claude declined'), { code: 'refusal' })
     return extractJson((json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join(''))
   },
@@ -821,7 +863,7 @@ export async function testCoach() {
 
 // ---- tools ----------------------------------------------------------------------
 
-export function createCoach({ db, q, mcp, push }) {
+export function createCoach({ db, q, mcp, push, who = '' }) {
   const items = () => mcp.rows('coach')
   const write = (rec) => {
     const seq = q.maxSeq.get().seq + 1
@@ -994,7 +1036,7 @@ export function createCoach({ db, q, mcp, push }) {
   async function streamChat(body, res) {
     // Never reject: the server doesn't await this, so an escaped error would take the process down.
     try {
-      await chat(body || {}, res)
+      await callCtx.run({ who, kind: 'chat' }, () => chat(body || {}, res))
     } catch (e) {
       console.error('coach chat failed', e)
       if (!res.headersSent) res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' })
@@ -1042,7 +1084,7 @@ export function createCoach({ db, q, mcp, push }) {
     let ended = false
     const lastUser = messages[messages.length - 1]?.content || ''
     const planning = isPlanning(lastUser)
-    const model = planning ? PLAN_MODEL : MODEL
+    const { model, effort } = pick(levelOf(body.level), planning)
     const history = API.start(messages)
     const system = systemText({ context: typeof body.context === 'string' ? body.context.slice(0, 300000) : '', tz })
     const appRoutines = typeof body.routines === 'string' ? body.routines.slice(0, 50000) : ''
@@ -1058,6 +1100,7 @@ export function createCoach({ db, q, mcp, push }) {
           textOnly,
           planning,
           model,
+          effort,
           onText: (t) => ((said = true), send({ t })),
           onWait: (ms) => send({ status: `${IS_GEMINI ? 'Gemini’s free tier' : LABEL} asked to wait ${Math.round(ms / 1000)} s` }),
           signal: run.ctrl.signal,
@@ -1065,6 +1108,7 @@ export function createCoach({ db, q, mcp, push }) {
         const { calls, wrote, finish, blocked } = turn
         usage.rounds++
         for (const k of ['input', 'output', 'cacheRead', 'cacheWrite']) usage[k] += turn.usage?.[k] || 0
+        noteUsage(turn.usage, model)
         ended = true // until this round asks for tools
         if (blocked || ['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII'].includes(finish)) {
           send({ t: finishText('SAFETY', said, planning) })
@@ -1109,7 +1153,7 @@ export function createCoach({ db, q, mcp, push }) {
         API.addTurn(history, turn, results)
       }
       noteOk()
-      noteUsage(usage)
+      stats.lastUsage = { ...usage, model, at: Date.now() }
       console.log(`coach: ${PROVIDER} ${model} · ${usage.rounds} round(s) · in ${usage.input}${usage.cacheRead ? ` (cached ${usage.cacheRead})` : ''} · out ${usage.output}`)
       if (!ended && !said && !proposed) send({ t: 'That took too many steps without an answer. Ask again more narrowly, e.g. one phase or one routine.' })
       send({ done: true })
@@ -1130,7 +1174,12 @@ export function createCoach({ db, q, mcp, push }) {
   }
 
   /** Short structured answers: pre-workout targets, post-workout takeaway, condensing old chat. */
-  async function quick(body) {
+  function quick(body) {
+    return callCtx.run({ who, kind: String(body?.kind || 'quick').slice(0, 20) }, () => quickRun(body || {}))
+  }
+  async function quickRun(body) {
+    // the athlete's reasoning level; live lines stay on the quick model whatever it is
+    const { model, effort } = pick(levelOf(body.level), false)
     const tz = typeof body.tz === 'string' ? body.tz : undefined
     const context = typeof body.context === 'string' ? body.context.slice(0, 300000) : ''
     const system = systemText({ context, tz })
@@ -1141,6 +1190,8 @@ export function createCoach({ db, q, mcp, push }) {
         system,
         QUICK.pre.prompt(routine, exercises),
         toGemini(QUICK.pre.schema),
+        model,
+        { effort },
       )
       return { focus: String(out.focus || ''), targets: Array.isArray(out.targets) ? out.targets : [] }
     }
@@ -1149,6 +1200,8 @@ export function createCoach({ db, q, mcp, push }) {
         system,
         QUICK.workout.prompt(),
         toGemini(QUICK.workout.schema),
+        model,
+        { effort },
       )
       const text = String(out.takeaway || '').trim()
       if (text && typeof body.workoutId === 'string') write({ id: `insight-w-${body.workoutId}`, kind: 'insight', type: 'workout', ref: body.workoutId, text, created: Date.now(), source: 'coach' })
@@ -1171,6 +1224,8 @@ export function createCoach({ db, q, mcp, push }) {
         system,
         QUICK.condense.prompt(transcript),
         toGemini(QUICK.condense.schema),
+        model,
+        { effort },
       )
       const notes = (Array.isArray(out.notes) ? out.notes : []).map((n) => String(n).trim()).filter(Boolean).slice(0, 5)
       for (const text of notes) write({ id: newId('note'), kind: 'note', text: text.slice(0, 300), created: Date.now(), source: 'coach' })
@@ -1190,7 +1245,10 @@ export function createCoach({ db, q, mcp, push }) {
   }
 
   // ---- weekly review: Sunday from 18:00 in the athlete's time zone ----
-  async function weeklyTick() {
+  function weeklyTick() {
+    return callCtx.run({ who, kind: 'weekly' }, weeklyRun)
+  }
+  async function weeklyRun() {
     if (!coachEnabled()) return
     try {
       const p = profileOf()
@@ -1210,7 +1268,9 @@ export function createCoach({ db, q, mcp, push }) {
         `THIS WEEK'S WORKOUTS\n${await mcp.callTool('recent_workouts', { from: weekKey, limit: 20 })}`,
         ...(fresh ? [] : [`EARLIER WORKOUTS\n${await mcp.callTool('recent_workouts', { to: ymd(Date.now() - 7 * DAY, tz), limit: 12 })}`, await mcp.callTool('body_stats', {})]),
       ].join('\n\n')
-      const out = await generateJson(systemText({ context, tz }), QUICK.weekly.prompt(), toGemini(QUICK.weekly.schema), PLAN_MODEL, { effort: 'medium' })
+      const level = levelOf(mcp.rows('settings').find((x) => x.id === 'settings')?.coachLevel)
+      const plan = pick(level, true)
+      const out = await generateJson(systemText({ context, tz }), QUICK.weekly.prompt(), toGemini(QUICK.weekly.schema), plan.model, { effort: plan.effort })
       const text = String(out.review || '').trim()
       if (!text) return
       write({ id, kind: 'insight', type: 'weekly', ref: weekKey, text, created: Date.now(), source: 'coach' })

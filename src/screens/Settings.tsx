@@ -23,6 +23,7 @@ import { sanitize } from '../validate'
 import { googleClientId } from '../account'
 import { AccountSection, ConnectorLink, PeopleSection } from './Account'
 import { BUILD, buildState, checkBuild, updateApp, versionLabel } from '../version'
+import { fetchCoachSpend, type CoachSpend, type SpendLine } from '../coach'
 import { checkCoach, coachMode, coachProblemText, coachStatus, coachTest, runCoachTest } from '../coach'
 
 const STATUS: Record<string, [string, string]> = {
@@ -247,6 +248,8 @@ export function Settings() {
 
       <h2 class="section-title">Coach</h2>
       <CoachSettings />
+      <CoachLevelSettings />
+      <CoachSpendSettings />
 
       <h2 class="section-title">Notifications</h2>
       <div class="settings-group">
@@ -653,9 +656,8 @@ function CoachSettings() {
       <div class="setting">
         <span>
           {s?.label || 'Coach'}
-          {s?.model ? ` · ${s.model}` : ''}
           <small>
-            {s?.planModel && s.planModel !== s.model ? `Planning and weekly review: ${s.planModel}` : s?.reach === 'ok' ? 'Chat, targets, takeaways and weekly review' : ''}
+            {s?.levels ? `Runs on ${modelName(s.levels[settings.value.coachLevel ?? 'balanced'].chat)}` : s?.model ? `Runs on ${modelName(s.model)}` : s?.reach === 'ok' ? 'Chat, targets, takeaways and weekly review' : ''}
             {s?.todayCalls ? ` · ${s.todayCalls} API call${s.todayCalls === 1 ? '' : 's'} today` : ''}
           </small>
         </span>
@@ -780,6 +782,110 @@ function VersionGroup() {
           </span>
         </button>
       )}
+    </div>
+  )
+}
+
+const LEVELS: { id: 'fast' | 'balanced' | 'deep'; label: string; what: string }[] = [
+  { id: 'fast', label: 'Fast', what: 'Quickest and cheapest. Fine for logging chat and quick questions.' },
+  { id: 'balanced', label: 'Balanced', what: 'Quick for chat, a stronger model for planning and the weekly review.' },
+  { id: 'deep', label: 'Deep', what: 'The strongest model, thinking longer on every answer. Slower; best for planning, rehab and stalls.' },
+]
+
+/** "claude-sonnet-5-5" → "Sonnet 5.5"; other ids stay as they are. */
+const modelName = (id: string) => {
+  const m = id.match(/^claude-([a-z]+)-(\d+)(?:-(\d+))?$/)
+  return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id
+}
+
+/** Settings → Coach → Reasoning: which model and how much thinking the coach uses. */
+function CoachLevelSettings() {
+  const s = coachStatus.value
+  if (coachMode.value === 'claude' || s?.reach !== 'ok' || !s.enabled || !s.levels) return null
+  const level = settings.value.coachLevel ?? 'balanced'
+  const info = s.levels[level]
+  const cur = LEVELS.find((l) => l.id === level)!
+  const runs = info.chat === info.plan ? `${modelName(info.chat)} for everything` : `${modelName(info.chat)} for chat, ${modelName(info.plan)} for planning`
+  const base = s.levels.fast.price?.[0]
+  const ratio = base && info.price ? Math.round(Math.max(info.price[0], info.planPrice?.[0] ?? 0) / base) : 0
+  return (
+    <div class="settings-group">
+      <div class="setting setting-stack">
+        <span>
+          Reasoning
+          <small>How hard the coach thinks before it answers</small>
+        </span>
+        <Segmented label="Coach reasoning" value={level} options={LEVELS.map((l) => [l.id, l.label] as ['fast' | 'balanced' | 'deep', string])} onChange={(v) => saveSettings({ coachLevel: v })} />
+      </div>
+      <p class="setting-note">
+        {cur.what} Runs on {runs}
+        {ratio > 1 ? `, up to about ${ratio}× the price per word of Fast` : ''}. Live cues during a workout always use the quick model.
+      </p>
+    </div>
+  )
+}
+
+const usd = (n: number) => (n <= 0 ? '$0' : n < 0.01 ? '<$0.01' : n < 0.1 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`)
+const tokens = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n))
+const KIND_LABEL: Record<string, string> = { chat: 'Chat', pre: 'Pre-workout targets', workout: 'Workout takeaways', live: 'Live cues', condense: 'Memory upkeep', weekly: 'Weekly review', other: 'Other' }
+
+/** Settings → Coach → Spend: what the coach has cost at list prices. */
+function CoachSpendSettings() {
+  const [spend, setSpend] = useState<CoachSpend | null>(null)
+  const s = coachStatus.value
+  const show = coachMode.value !== 'claude' && s?.reach === 'ok' && !!s.enabled
+  useEffect(() => {
+    if (show) void fetchCoachSpend().then(setSpend)
+  }, [show])
+  if (!show || !spend || spend.error) return null
+  const m = spend.month
+  const line = (x: SpendLine) => `${x.calls} call${x.calls === 1 ? '' : 's'} · ${tokens(x.input)} tokens in, ${tokens(x.output)} out`
+  const month = new Date().toLocaleDateString([], { month: 'long' })
+  return (
+    <div class="settings-group">
+      <div class="setting">
+        <span>
+          API spend in {month}
+          <small>{m.calls ? line(m) : 'No coach calls yet this month'}</small>
+        </span>
+        <span class="setting-value spend-value">{usd(m.cost)}</span>
+      </div>
+      {spend.people > 1 && (
+        <div class="setting">
+          <span>
+            Yours in {month}
+            <small>The rest is the other {spend.people - 1 === 1 ? 'person' : `${spend.people - 1} people`} on this server</small>
+          </span>
+          <span class="setting-value">{usd(spend.monthMine.cost)}</span>
+        </div>
+      )}
+      <div class="setting">
+        <span>Today</span>
+        <span class="setting-value">{usd(spend.today.cost)}</span>
+      </div>
+      {spend.byModel.length > 0 && (
+        <div class="setting">
+          <span>
+            By model
+            <small>{spend.byModel.map((x) => `${modelName(x.name || '?')} ${x.unpriced ? `${tokens(x.input + x.output)} tokens` : usd(x.cost)}`).join(' · ')}</small>
+          </span>
+        </div>
+      )}
+      {spend.byKind.length > 0 && (
+        <div class="setting">
+          <span>
+            By use
+            <small>{spend.byKind.map((x) => `${KIND_LABEL[x.name || 'other'] || x.name} ${usd(x.cost)}`).join(' · ')}</small>
+          </span>
+        </div>
+      )}
+      <div class="setting">
+        <span>Since the coach started</span>
+        <span class="setting-value">{usd(spend.total.cost)}</span>
+      </div>
+      <p class="setting-note">
+        Worked out from list prices for every call this server makes{spend.month.unpriced ? '; calls on models without a known price count tokens only' : ''}. Your provider’s console has the actual bill.
+      </p>
     </div>
   )
 }

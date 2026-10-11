@@ -3,7 +3,7 @@ import { signal, computed, effect } from '@preact/signals'
 import { sampleFn } from './cloud'
 import { claudeQuick } from './coachClaude'
 import { afterServerSync, getToken, syncNow } from './sync'
-import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, workouts } from './store'
+import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, settings, workouts } from './store'
 import { matchExercise, resolvePlan, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
 import type { CoachItem, Exercise, ExType, GoalSpec } from './types'
@@ -32,7 +32,41 @@ export interface CoachStatus {
   lastOk?: number | null
   lastError?: { at: number; message: string; status: number; code?: string } | null
   todayCalls?: number
+  /** What each reasoning level runs on; prices are list USD per million tokens [input, output, cache read]. */
+  levels?: Record<'fast' | 'balanced' | 'deep', { chat: string; plan: string; price: number[] | null; planPrice: number[] | null }>
+  /** Whether the provider takes a thinking effort (Claude does). */
+  thinking?: boolean
   reach: 'ok' | 'signed-out' | 'no-server'
+}
+
+/** One line of the spend ledger (GET /api/coach/spend): list-price dollars, calls and tokens. */
+export interface SpendLine {
+  name?: string
+  cost: number
+  calls: number
+  input: number
+  output: number
+  unpriced: number
+}
+export interface CoachSpend {
+  today: SpendLine
+  month: SpendLine
+  monthMine: SpendLine
+  total: SpendLine
+  byModel: SpendLine[]
+  byKind: SpendLine[]
+  days: { day: string; cost: number; calls: number }[]
+  people: number
+  error?: string
+}
+
+export async function fetchCoachSpend(): Promise<CoachSpend | null> {
+  try {
+    const res = await fetch('/api/coach/spend', { headers: { authorization: `Bearer ${getToken()}` } })
+    return res.ok && (res.headers.get('content-type') || '').includes('json') ? ((await res.json()) as CoachSpend) : null
+  } catch {
+    return null
+  }
 }
 export interface CoachTest {
   ok: boolean
@@ -138,7 +172,7 @@ export async function quick<T>(body: Record<string, unknown>, focusWorkoutId?: s
   const res = await fetch('/api/coach/quick', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` },
-    body: JSON.stringify({ ...body, tz: tz(), context: buildCoachContext({ focusWorkoutId }), routines: routinesText() }),
+    body: JSON.stringify({ ...body, level: settings.value.coachLevel, tz: tz(), context: buildCoachContext({ focusWorkoutId }), routines: routinesText() }),
   })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.error || 'The coach is unavailable right now.')

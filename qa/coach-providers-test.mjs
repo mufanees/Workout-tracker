@@ -332,6 +332,22 @@ try {
   const acred = await chat(AN, say('[CREDITS] hi'))
   check('anthropic: credit balance too low → out of credits', /out of credits/.test(acred.error), acred.error)
 
+  // reasoning levels, caching and the spend ledger
+  const a0c = seen.anthropic.PLAIN[0]
+  check('anthropic: data block cached too, plus a conversation breakpoint', a0c.system.length === 2 && a0c.system.every((b) => b.cache_control?.type === 'ephemeral') && a0c.cache_control?.type === 'ephemeral')
+  await chat(AN, say('[DEEP] hi'), { level: 'deep' })
+  check('level deep → Opus 5.5, medium effort', seen.anthropic.DEEP?.[0]?.model === 'claude-opus-5-5' && seen.anthropic.DEEP[0].output_config.effort === 'medium', JSON.stringify({ m: seen.anthropic.DEEP?.[0]?.model, e: seen.anthropic.DEEP?.[0]?.output_config }))
+  await chat(AN, say('[FAST] Build me a new program for 4 days a week'), { level: 'fast' })
+  check('level fast → planning stays on the quick model', seen.anthropic.FAST?.[0]?.model === 'claude-haiku-5-5', seen.anthropic.FAST?.[0]?.model)
+  await chat(AN, say('[ODD] hi'), { level: 'nonsense' })
+  check('unknown level → balanced', seen.anthropic.ODD?.[0]?.model === 'claude-haiku-5-5' && seen.anthropic.ODD[0].output_config.effort === 'low')
+  const ast = await status(AN)
+  check('status lists levels with prices', ast.levels?.deep?.chat === 'claude-opus-5-5' && ast.levels.fast.price?.[0] === 0.1 && ast.levels.balanced.plan === 'claude-sonnet-5-5', JSON.stringify(ast.levels || {}).slice(0, 160))
+  const sp = await (await fetch(AN + '/api/coach/spend', { headers: H })).json()
+  const opus = sp.byModel?.find((x) => x.name === 'claude-opus-5-5')
+  // the stand-in reports 50 in, 20 out, 4000 cache reads per streamed round: Opus 5.5 = (50×4 + 20×20 + 4000×0.2) / 1e6
+  check('spend: ledger prices each call by model', opus && Math.abs(opus.cost - 0.0014) < 1e-9 && sp.month.calls > 5 && sp.byKind.some((x) => x.name === 'chat'), JSON.stringify(opus || sp).slice(0, 160))
+
   const apre = await quick(AN, { kind: 'pre', routine: 'A', exercises: ['Goblet Squat'] })
   const aq = seen.anthropic.PLAIN.at(-1)
   check('anthropic quick pre: structured output (json_schema, closed objects), no tool_choice/prefill', apre.json.targets?.[0]?.weight_kg === 20 && aq.output_config?.format?.type === 'json_schema' && aq.output_config.format.schema.additionalProperties === false && aq.output_config.format.schema.properties.targets.items.additionalProperties === false && !aq.tool_choice && aq.messages.length === 1 && aq.max_tokens === 4096, JSON.stringify(aq.output_config || {}).slice(0, 120))

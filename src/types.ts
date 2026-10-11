@@ -166,6 +166,8 @@ export interface Settings extends Rec {
   timeBudget?: { total: number; warmup: number; cooldown: number }
   /** How weights are shown and typed: 'total' (both dumbbells together; default) or 'each' (one dumbbell of a pair, as stored). Stored values are always per dumbbell for pairs. */
   weightView?: 'total' | 'each'
+  /** How hard the coach thinks: 'fast', 'balanced' (default) or 'deep'. The server maps each to a model and effort. */
+  coachLevel?: 'fast' | 'balanced' | 'deep'
   /** A program the coach built and the athlete approved: routines to rotate through. Replaces the Comeback plan card while set. */
   program?: {
     name: string

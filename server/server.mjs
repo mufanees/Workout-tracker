@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { createMcpHandler } from './mcp.mjs'
 import { createPush } from './push.mjs'
-import { coachEnabled, coachProblem, coachStatus, createCoach, friendlyError, testCoach } from './coach.mjs'
+import { coachEnabled, coachProblem, coachSpend, coachStatus, createCoach, friendlyError, testCoach } from './coach.mjs'
 import { videoInfo } from './video.mjs'
 import { createAccounts } from './accounts.mjs'
 
@@ -89,7 +89,7 @@ function openContext(userId) {
   }
   const mcp = createMcpHandler({ db, q, rootDir: ROOT })
   const push = createPush(db, { subject: process.env.PUSH_CONTACT || 'mailto:gloop@localhost' })
-  const coach = createCoach({ db, q, mcp, push })
+  const coach = createCoach({ db, q, mcp, push, who: userId })
   const ctx = { id: userId, db, q, dbId, mcp, push, coach }
   contexts.set(userId, ctx)
   return ctx
@@ -335,6 +335,8 @@ const server = http.createServer(async (req, res) => {
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(ctx, await readBody(req)))
       if (pathname === '/api/video-info') return send(res, 200, await videoInfo(url.searchParams.get('url')))
       if (pathname === '/api/coach/status') return send(res, 200, coachStatus())
+      // what the coach has cost at list prices: the whole server, and this person's share
+      if (pathname === '/api/coach/spend') return send(res, 200, coachSpend(ctx.id))
       // One tiny real call ("Reply with OK", 20 s cap) so Settings can show whether the key and model work. Not counted toward the daily limit.
       if (pathname === '/api/coach/test' && req.method === 'POST') return send(res, 200, await testCoach())
       if (pathname === '/api/coach' && req.method === 'POST') {
