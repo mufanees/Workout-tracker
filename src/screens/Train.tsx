@@ -3,7 +3,8 @@ import { Collapse } from '../ui/Collapse'
 import { useEffect, useState } from 'preact/hooks'
 import { active, routines, saveRoutine, remove, saveSettings, exMap, settings } from '../store'
 import { navigate } from '../router'
-import { startEmpty, startRoutine } from '../workout'
+import { startEmpty } from '../workout'
+import { askStart } from '../ui/StartSheet'
 import { CardioQuick } from '../ui/CardioSetup'
 import { planStatus } from '../plan'
 import { programStatus } from '../program'
@@ -528,7 +529,7 @@ function RoutineCard({ r }: { r: Routine }) {
         <button class="icon-btn" onClick={menu} aria-label={`Options for ${r.name}`}>
           <Icon name="more" />
         </button>
-        <button class="btn btn-primary btn-sm" onClick={() => startRoutine(r)} aria-label={`Start ${r.name}`}>
+        <button class="btn btn-primary btn-sm" onClick={() => askStart(r)} aria-label={`Start ${r.name}`}>
           Start
         </button>
       </div>
@@ -594,7 +595,7 @@ function ProgramCard() {
         </p>
       </div>
       <CoachLine routine={s.routine} />
-      <button class="btn btn-block btn-lg" onClick={() => startRoutine(s.routine)}>
+      <button class="btn btn-block btn-lg" onClick={() => askStart(s.routine)}>
         <Icon name="play" size={18} /> Start {s.routine.name}
       </button>
     </section>
@@ -657,7 +658,7 @@ function PlanCard() {
         <p class="plan-note">{(p.setsHint || p.phase.note).replace(/^Week \d+:\s*/, (m) => (p.setsHint ? '' : m)).replace(/^./, (c) => c.toUpperCase())}</p>
       </div>
       <CoachLine routine={p.routine} />
-      <button class="btn btn-block btn-lg" onClick={() => startRoutine(p.routine!)}>
+      <button class="btn btn-block btn-lg" onClick={() => askStart(p.routine!)}>
         <Icon name="play" size={18} /> Start Workout {p.day}
       </button>
     </section>

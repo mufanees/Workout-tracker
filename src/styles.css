@@ -9740,3 +9740,106 @@ html:has(.live-dock) {
     corner-shape: squircle;
   }
 }
+
+/* ---- start sheet: target time before a routine starts ---- */
+.start-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.start-label {
+  font-size: var(--fs-12);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+.start-target {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+}
+.start-step {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--surface-2);
+}
+.start-step:disabled {
+  opacity: 0.4;
+}
+.start-num {
+  min-width: 4ch;
+  text-align: center;
+  font-size: calc(var(--fs-34) * 1.6);
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.start-num small {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-14);
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.start-chips {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1-5);
+}
+.start-chips .phase-chip {
+  min-width: 48px;
+  justify-content: center;
+}
+.start-split {
+  text-align: center;
+  font-size: var(--fs-13);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.start-fit {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  font-size: var(--fs-14);
+  line-height: 1.4;
+}
+.start-fit > .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent-text);
+}
+.start-fit.over > .icon {
+  color: #e0902a;
+}
+.start-fit small {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.start-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.start-toggle > span {
+  flex: 1;
+  font-weight: 650;
+}
+.start-toggle small {
+  display: block;
+  margin-top: 2px;
+  font-weight: 400;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}

@@ -1,5 +1,5 @@
 // Starting, finishing and timing workouts.
-import { planFor } from './timeplan'
+import { fitWorkout, planFor } from './timeplan'
 import { signal } from '@preact/signals'
 import { active, routines, setActive, saveWorkout, saveRoutine, settings, flushActive, exMap, workouts, exercises, updateActive } from './store'
 import { lineTick, restEndMark, tickTiming, untickAnchor, untickSet, workoutTiming } from './timing'
@@ -61,15 +61,24 @@ function fromTemplate(exercises: WExercise[]): WExercise[] {
   }))
 }
 
-export async function startRoutine(r: Routine) {
+/** What a routine looks like today: the coach's mobility add-ons for today join this session only. */
+export function routineToday(r: Routine): Pick<Routine, 'exercises' | 'warmup' | 'cooldown' | 'budget'> {
+  const day = mobilityDay()
+  return { exercises: planSets(r, r.exercises), warmup: mergeLines(r.warmup, day?.warmup), cooldown: mergeLines(r.cooldown, day?.cooldown), budget: r.budget }
+}
+
+/**
+ * Start a routine. `target` is the most minutes this session may take, warm-up and cool-down included
+ * (from the start sheet; else the routine's or your budget). With `fit`, a session that runs over is fitted
+ * to it before it starts: heavier sets of fewer reps, supersets, shorter rests (see fitWorkout).
+ */
+export async function startRoutine(r: Routine, opts: { target?: number; fit?: boolean } = {}): Promise<string[] | void> {
   if (!(await okToReplace())) return
   restTimer.value = null
   cancelSetTimer()
-  // the coach's mobility add-ons for today join this session only; the routine stays as it is
-  const day = mobilityDay()
-  const warmup = mergeLines(r.warmup, day?.warmup)
-  const cooldown = mergeLines(r.cooldown, day?.cooldown)
-  setActive({
+  const today = routineToday(r)
+  const budget = opts.target && opts.target > 0 ? opts.target : r.budget
+  const w: Workout = {
     id: uid('w'),
     name: r.name,
     routineId: r.id,
@@ -77,14 +86,27 @@ export async function startRoutine(r: Routine) {
     end: null,
     notes: '',
     exercises: planSets(r, fromTemplate(r.exercises)),
-    warmup,
-    cooldown,
+    warmup: today.warmup,
+    cooldown: today.cooldown,
     checks: {},
-    timePlan: planFor({ ...r, warmup, cooldown, exercises: planSets(r, r.exercises) }),
+    timePlan: planFor({ ...today, budget }),
     ...roughTag(),
     updatedAt: 0,
-  })
+  }
+  let changes: string[] = []
+  if (opts.fit && budget && w.timePlan && w.timePlan.warmup + w.timePlan.main + w.timePlan.cooldown > budget) {
+    const fit = fitWorkout(w, budget)
+    if (fit.changes.length) {
+      w.exercises = fit.routine.exercises
+      w.warmup = fit.routine.warmup
+      w.cooldown = fit.routine.cooldown
+      w.timePlan = planFor({ ...fit.routine, budget })
+      changes = fit.changes
+    }
+  }
+  setActive(w)
   navigate('/live')
+  return changes
 }
 
 /** Week 1 of the Comeback plan is 2 sets per exercise. */

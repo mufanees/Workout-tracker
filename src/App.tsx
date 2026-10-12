@@ -1,3 +1,4 @@
+import { StartSheetHost } from './ui/StartSheet'
 import { useEffect, useState } from 'preact/hooks'
 import { route, navigate } from './router'
 import { active, ready, settings } from './store'
@@ -132,6 +133,7 @@ export function App() {
         </nav>
       )}
       <OverlayHost />
+      <StartSheetHost />
       <VideoSheetHost />
       <GooDefs />
     </div>

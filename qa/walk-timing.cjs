@@ -24,6 +24,18 @@ require('fs').mkdirSync(OUT, { recursive: true })
     await page.screenshot({ path: OUT + tag + n + '.png', fullPage: !!full })
   }
   let failed = 0
+  // Start opens the target-time sheet: keep the routine's budget, fitting off, so the plan is as written
+  const throughStartSheet = async () => {
+    const sh = page.locator('.start-sheet')
+    try {
+      await sh.waitFor({ timeout: 3000 })
+    } catch {
+      return
+    }
+    const t = page.locator('.start-toggle [role="switch"]')
+    if ((await t.count()) && (await t.first().getAttribute('aria-checked')) === 'true') await t.first().tap()
+    await page.locator('.sheet .btn-primary', { hasText: 'Start ·' }).tap()
+  }
   const check = (ok, what) => {
     if (!ok) failed++
     console.log((ok ? 'PASS ' : 'FAIL ') + what)
@@ -87,6 +99,7 @@ require('fs').mkdirSync(OUT, { recursive: true })
   await page.waitForSelector('.plan-card')
   await page.waitForTimeout(600)
   await page.locator('.plan-card .btn-block').tap()
+  await throughStartSheet()
   await page.waitForSelector('.live')
   await page.waitForTimeout(800)
   const start = (await idb('meta', 'active')).start

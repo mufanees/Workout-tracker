@@ -90,7 +90,9 @@ function fatigueNow(): Record<string, { fatigue: number; name: string }> {
 /** Words for a stored weight, the way this person reads weights (a pair shows as the total by default). */
 const fmt = { w: (kg: number, ex: LCExercise) => fmtExWeight(exMap.value.get(ex.exerciseId), kg) }
 
+/** The session's budget: the target set when it started, else its routine's, else yours. */
 function budgetOfWorkout(w: Workout) {
+  if (w.timePlan?.budget) return budgetFor({ budget: w.timePlan.budget })
   const r = w.routineId ? routines.value.find((x) => x.id === w.routineId) : undefined
   return budgetFor({ budget: r?.budget ?? null })
 }

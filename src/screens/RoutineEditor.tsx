@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { routines, saveRoutine, remove } from '../store'
 import { back, route } from '../router'
-import { startRoutine } from '../workout'
+import { askStart } from '../ui/StartSheet'
 import { WorkoutEditor } from '../ui/WorkoutEditor'
 import { Icon } from '../ui/icons'
 import { AutoText, confirmDialog, toast } from '../ui/overlay'
@@ -38,7 +38,7 @@ export function RoutineEditor({ id }: { id: string }) {
     }
     const clean = (l?: string[]) => (l || []).map((x) => x.trim()).filter(Boolean)
     const saved = await saveRoutine({ ...draft, name: draft.name.trim(), program: draft.program?.trim() || undefined, folder: draft.folder.trim(), warmup: clean(draft.warmup), cooldown: clean(draft.cooldown) })
-    if (andStart) return startRoutine(saved)
+    if (andStart) return askStart(saved)
     toast(isNew ? 'Routine created' : 'Routine saved')
     back('/train')
   }

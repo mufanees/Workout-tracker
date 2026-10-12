@@ -22,6 +22,18 @@ require('fs').mkdirSync(OUT, { recursive: true })
     await page.screenshot({ path: OUT + tag + n + '.png', fullPage: !!full })
   }
   let failed = 0
+  // Start opens the target-time sheet: keep the routine's budget, fitting off, so the plan is as written
+  const throughStartSheet = async () => {
+    const sh = page.locator('.start-sheet')
+    try {
+      await sh.waitFor({ timeout: 3000 })
+    } catch {
+      return
+    }
+    const t = page.locator('.start-toggle [role="switch"]')
+    if ((await t.count()) && (await t.first().getAttribute('aria-checked')) === 'true') await t.first().tap()
+    await page.locator('.sheet .btn-primary', { hasText: 'Start ·' }).tap()
+  }
   const check = (ok, what) => {
     if (!ok) failed++
     console.log((ok ? 'PASS ' : 'FAIL ') + what)
@@ -61,6 +73,7 @@ require('fs').mkdirSync(OUT, { recursive: true })
 
   // 3. today's workout: KG over TOTAL, bent-over row 12 total → 6 stored
   await page.locator('.plan-card .btn-block').tap()
+  await throughStartSheet()
   await page.waitForSelector('.live')
   await page.waitForTimeout(1500)
   const heads = await page.locator('.load-head small').allTextContents()
@@ -161,6 +174,7 @@ require('fs').mkdirSync(OUT, { recursive: true })
   await page.waitForTimeout(500)
   await day1.scrollIntoViewIfNeeded()
   await day1.locator('.routine-actions .btn-primary').tap()
+  await throughStartSheet()
   await page.waitForTimeout(600)
   const replace = page.getByRole('button', { name: /Discard & start/ })
   if (await replace.count()) await replace.first().tap()

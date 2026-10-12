@@ -625,7 +625,7 @@ export function sessionLine(ctx) {
   const up = ups.length ? `, go ${fmtW(ctx, ups[0].weight, ex(ups[0]))} on ${ex(ups[0]).name.toLowerCase()} today` : ''
   const fa = fatigueAdvice(ctx)
   const tired = ctx.rough ? `${cap(ctx.rough.short)}. ` : fa ? `${cap(fa.short)}. ` : ''
-  if (r.time.state === 'over') return `${tired}${b.total} min: plan runs ~${mins(r.time.projected)}, so ${ctx.canFit ? 'tap Fit it when you start' : r.best ? r.best.short : 'trim as we go'}${fa ? '' : up}`
+  if (r.time.state === 'over') return `${tired}${b.total} min: plan runs ~${mins(r.time.projected)}, so ${ctx.canFit ? 'fit it as you start' : r.best ? r.best.short : 'trim as we go'}${fa ? '' : up}`
   return `${tired}${b.total} min: ${shape}${fa ? '' : up}`
 }
 
