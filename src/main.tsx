@@ -1,3 +1,4 @@
+import './handoff'
 import { render } from 'preact'
 import { App } from './App'
 import { init } from './store'

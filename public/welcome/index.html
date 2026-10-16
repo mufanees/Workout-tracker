@@ -2,6 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>
+// Served on the main domain (the server sets window.GLOOP_APP), this page is the front door, and the app lives
+// on its own host. Someone who already uses the app here (an install, a saved sign-in, or an app link such as
+// /#/join/…) goes straight on to it, carrying their sign-in over once; the "Open Gloop" buttons point there too.
+(function () {
+  var app = window.GLOOP_APP
+  if (!app) return
+  try {
+    var hash = location.hash
+    var route = hash.indexOf('#/') === 0 ? hash : ''
+    var token = localStorage.getItem('reps-token')
+    var installed = matchMedia('(display-mode: standalone)').matches
+    if (route || token || installed) {
+      if (token) localStorage.removeItem('reps-token')
+      var to = route || '#/train'
+      location.replace(app + '/' + (token ? '#handoff=' + encodeURIComponent(token) + '&to=' + encodeURIComponent(to) : to))
+    }
+  } catch (e) {}
+  document.addEventListener('DOMContentLoaded', function () {
+    var links = document.querySelectorAll('a[data-app]')
+    for (var i = 0; i < links.length; i++) links[i].href = app + '/'
+  })
+})()
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gloop</title>
 <meta name="description" content="Strict 25-minute strength sessions, fasting, body tracking and a coach that keeps you on the clock. Built for parents and anyone short on time.">
@@ -11,7 +35,7 @@
 <meta property="og:site_name" content="Gloop">
 <meta property="og:title" content="Gloop: your workout fits the time you have">
 <meta property="og:description" content="Strict 25-minute strength sessions, fasting, body tracking and a coach that keeps you on the clock. Built for parents and anyone short on time.">
-<meta property="og:url" content="https://gloop.novas.my/welcome/">
+<meta property="og:url" content="https://gloop.novas.my/">
 <meta property="og:image" content="https://gloop.novas.my/icon-512.png">
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -723,11 +747,11 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 </svg>
 
 <header class="wrap top">
-  <a class="brand" href="https://gloop.novas.my" target="_blank" rel="noopener" aria-label="Gloop, open the app">
+  <a class="brand" href="/" data-app target="_blank" rel="noopener" aria-label="Gloop, open the app">
     <svg viewBox="0 0 512 512" aria-hidden="true"><g fill="#c6f432" filter="url(#g-icon)"><circle cx="248" cy="258" r="146"/><circle cx="166" cy="200" r="72"/><circle cx="352" cy="236" r="74"/><circle cx="184" cy="348" r="68"/><circle cx="318" cy="384" r="34"/><circle cx="330" cy="424" r="30"/><circle cx="350" cy="150" r="12"/><circle cx="382" cy="118" r="26"/></g><g transform="translate(146.8 158.8) scale(8.6)" fill="none" stroke="#0b0c0f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" data-icon="dumbbell-raw"></g></svg>
     Gloop
   </a>
-  <a class="btn btn-primary" href="https://gloop.novas.my" target="_blank" rel="noopener">Open Gloop</a>
+  <a class="btn btn-primary" href="/" data-app target="_blank" rel="noopener">Open Gloop</a>
 </header>
 
 <main>
@@ -740,7 +764,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
     <div class="hero-bottom">
       <p class="lede">Strict 25-minute strength sessions with a coach that keeps you on the clock. <b>Built for parents and anyone short on time.</b></p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="https://gloop.novas.my" target="_blank" rel="noopener">Open Gloop <i class="ico" data-i="arrow-right"></i></a>
+        <a class="btn btn-primary" href="/" data-app target="_blank" rel="noopener">Open Gloop <i class="ico" data-i="arrow-right"></i></a>
         <a class="btn btn-quiet" href="https://github.com/mufanees/Workout-tracker/actions/workflows/android.yml" target="_blank" rel="noopener">Get the Android app <small>Beta</small></a>
         <p class="cta-note"><i class="ico" data-i="smartphone"></i>iPhone app coming. Gloop also runs in any phone browser.</p>
       </div>
@@ -1151,7 +1175,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
       <h2 id="end-title">Start with the time you have today</h2>
       <p>Open Gloop, pick a program and set your minutes. The first session ends when it says it will.</p>
       <div class="cta-row">
-        <a class="btn btn-primary" href="https://gloop.novas.my" target="_blank" rel="noopener">Open Gloop <i class="ico" data-i="arrow-right"></i></a>
+        <a class="btn btn-primary" href="/" data-app target="_blank" rel="noopener">Open Gloop <i class="ico" data-i="arrow-right"></i></a>
         <a class="btn btn-quiet" href="https://github.com/mufanees/Workout-tracker/actions/workflows/android.yml" target="_blank" rel="noopener">Get the Android app <small>Beta</small></a>
         <p class="cta-note">iPhone app coming.</p>
       </div>
@@ -1162,7 +1186,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(
 <footer class="wrap foot">
   <span>Gloop · strength training on a hard clock</span>
   <nav aria-label="Links">
-    <a href="https://gloop.novas.my" target="_blank" rel="noopener">gloop.novas.my</a>
+    <a href="/" data-app target="_blank" rel="noopener">Open the app</a>
     <a href="https://github.com/mufanees/Workout-tracker" target="_blank" rel="noopener">Source on GitHub</a>
   </nav>
 </footer>

@@ -10,9 +10,9 @@ const config: CapacitorConfig = {
   appName: 'Gloop',
   webDir: 'dist',
   server: {
-    url: 'https://gloop.novas.my',
+    url: 'https://app.gloop.novas.my',
     androidScheme: 'https',
-    allowNavigation: ['gloop.novas.my'],
+    allowNavigation: ['app.gloop.novas.my', 'gloop.novas.my'],
   },
   // Gloop's dark background behind the WebView, so nothing flashes white while the site loads
   backgroundColor: '#0b0c0f',

@@ -11,6 +11,7 @@ import { createMcpHandler } from './mcp.mjs'
 import { createPush } from './push.mjs'
 import { coachEnabled, coachProblem, coachSpend, coachStatus, createCoach, friendlyError, testCoach } from './coach.mjs'
 import { videoInfo } from './video.mjs'
+import { createSite } from './site.mjs'
 import { createAccounts } from './accounts.mjs'
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url))
@@ -265,6 +266,9 @@ const BUILD = (() => {
 const coachOff = () => ({ error: coachProblem() || 'The coach is off on this server.', problem: true })
 const coachOut = (limit) => ({ error: `You’ve used today’s ${limit} coach messages. They reset at midnight (UTC).` })
 
+// SITE_HOST / APP_HOST: the landing page on the main domain, the app on its own (server/site.mjs)
+const siteRoute = createSite({ dist: DIST, siteHost: process.env.SITE_HOST, appHost: process.env.APP_HOST })
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
   const { pathname } = url
@@ -367,6 +371,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 404, { error: 'Not found' })
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'Method not allowed' })
+    if (siteRoute(req, res, url)) return
     return serveStatic(req, res, pathname)
   } catch (e) {
     console.error(e)
