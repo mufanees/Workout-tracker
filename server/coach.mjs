@@ -52,18 +52,18 @@ const MODEL = env.COACH_MODEL || (IS_GEMINI ? env.GEMINI_MODEL : '') || defaultM
 const PLAN_VAR = env.COACH_PLAN_MODEL ? 'COACH_PLAN_MODEL' : IS_GEMINI ? 'GEMINI_PLAN_MODEL' : 'COACH_PLAN_MODEL'
 // Optional stronger model for planning questions and weekly reviews; defaults to MODEL.
 const PLAN_MODEL = env.COACH_PLAN_MODEL || (IS_GEMINI ? env.GEMINI_PLAN_MODEL : '') || MODEL
-// The coach's reasoning level, picked per person in Settings → Coach:
-//   fast     – MODEL for everything, least thinking
-//   balanced – MODEL for chat, PLAN_MODEL for planning (the default, as before)
-//   deep     – DEEP_MODEL (Claude Opus 5.5 on Claude, else PLAN_MODEL) for chat and planning, more thinking
+// The coach's model, picked per person in Settings → Coach (on Claude: Haiku, Sonnet or Opus):
+//   fast     – MODEL for chat, PLAN_MODEL for planning and the weekly review (the default, as before)
+//   balanced – PLAN_MODEL for everything
+//   deep     – DEEP_MODEL (Claude Opus 5.5 on Claude, else PLAN_MODEL) for everything, more thinking
 // Live in-workout lines always use MODEL: they have to be quick.
 const DEEP_MODEL = env.COACH_DEEP_MODEL || (PROVIDER === 'anthropic' ? 'claude-opus-5-5' : PLAN_MODEL)
 export const COACH_LEVELS = ['fast', 'balanced', 'deep']
-const levelOf = (v) => (COACH_LEVELS.includes(v) ? v : 'balanced')
+const levelOf = (v) => (COACH_LEVELS.includes(v) ? v : 'fast')
 /** Which model and how much thinking a request gets. `effort` only reaches Claude. */
 function pick(level, planning) {
-  if (level === 'fast') return { model: MODEL, effort: planning ? 'medium' : 'low' }
   if (level === 'deep') return { model: DEEP_MODEL, effort: planning ? 'high' : 'medium' }
+  if (level === 'balanced') return { model: PLAN_MODEL, effort: planning ? 'medium' : 'low' }
   return { model: planning ? PLAN_MODEL : MODEL, effort: planning ? 'medium' : 'low' }
 }
 
@@ -151,8 +151,8 @@ export function coachStatus(who = '') {
     // what each reasoning level runs on, with list prices per million tokens ([input, output, cache read]) when known
     levels: Object.fromEntries(
       [
-        ['fast', MODEL, MODEL],
-        ['balanced', MODEL, PLAN_MODEL],
+        ['fast', MODEL, PLAN_MODEL],
+        ['balanced', PLAN_MODEL, PLAN_MODEL],
         ['deep', DEEP_MODEL, DEEP_MODEL],
       ].map(([k, chat, plan]) => [k, { chat, plan, price: priceOf(chat), planPrice: priceOf(plan) }]),
     ),

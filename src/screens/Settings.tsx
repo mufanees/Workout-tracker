@@ -657,7 +657,7 @@ function CoachSettings() {
         <span>
           {s?.label || 'Coach'}
           <small>
-            {s?.levels ? `Runs on ${modelName(s.levels[settings.value.coachLevel ?? 'balanced'].chat)}` : s?.model ? `Runs on ${modelName(s.model)}` : s?.reach === 'ok' ? 'Chat, targets, takeaways and weekly review' : ''}
+            {s?.levels ? `Runs on ${modelName(s.levels[settings.value.coachLevel ?? 'fast'].chat)}` : s?.model ? `Runs on ${modelName(s.model)}` : s?.reach === 'ok' ? 'Chat, targets, takeaways and weekly review' : ''}
             {s?.todayCalls ? ` · ${s.todayCalls} API call${s.todayCalls === 1 ? '' : 's'} today` : ''}
           </small>
         </span>
@@ -787,8 +787,8 @@ function VersionGroup() {
 }
 
 const LEVELS: { id: 'fast' | 'balanced' | 'deep'; label: string; what: string }[] = [
-  { id: 'fast', label: 'Fast', what: 'Quickest and cheapest. Fine for logging chat and quick questions.' },
-  { id: 'balanced', label: 'Balanced', what: 'Quick for chat, a stronger model for planning and the weekly review.' },
+  { id: 'fast', label: 'Fast', what: 'Quickest and cheapest for chat, the stronger model for planning and the weekly review.' },
+  { id: 'balanced', label: 'Balanced', what: 'The stronger model for everything: better answers in chat, a little slower.' },
   { id: 'deep', label: 'Deep', what: 'The strongest model, thinking longer on every answer. Slower; best for planning, rehab and stalls.' },
 ]
 
@@ -802,24 +802,27 @@ const modelName = (id: string) => {
 function CoachLevelSettings() {
   const s = coachStatus.value
   if (coachMode.value === 'claude' || s?.reach !== 'ok' || !s.enabled || !s.levels) return null
-  const level = settings.value.coachLevel ?? 'balanced'
+  const level = settings.value.coachLevel ?? 'fast'
   const info = s.levels[level]
+  // on Claude the three are plainly Haiku, Sonnet and Opus: name the buttons after them
+  const named = new Set(LEVELS.map((l) => s.levels![l.id].chat)).size === 3
+  const label = (l: (typeof LEVELS)[number]) => (named ? modelName(s.levels![l.id].chat).replace(/ [\d.]+$/, '') : l.label)
   const cur = LEVELS.find((l) => l.id === level)!
   const runs = info.chat === info.plan ? `${modelName(info.chat)} for everything` : `${modelName(info.chat)} for chat, ${modelName(info.plan)} for planning`
   const base = s.levels.fast.price?.[0]
-  const ratio = base && info.price ? Math.round(Math.max(info.price[0], info.planPrice?.[0] ?? 0) / base) : 0
+  const ratio = base && info.price ? Math.round(info.price[0] / base) : 0
   return (
     <div class="settings-group">
       <div class="setting setting-stack">
         <span>
-          Reasoning
-          <small>How hard the coach thinks before it answers</small>
+          {named ? 'Model' : 'Reasoning'}
+          <small>{named ? 'Which Claude the coach runs on' : 'How hard the coach thinks before it answers'}</small>
         </span>
-        <Segmented label="Coach reasoning" value={level} options={LEVELS.map((l) => [l.id, l.label] as ['fast' | 'balanced' | 'deep', string])} onChange={(v) => saveSettings({ coachLevel: v })} />
+        <Segmented label="Coach model" value={level} options={LEVELS.map((l) => [l.id, label(l)] as ['fast' | 'balanced' | 'deep', string])} onChange={(v) => saveSettings({ coachLevel: v })} />
       </div>
       <p class="setting-note">
         {cur.what} Runs on {runs}
-        {ratio > 1 ? `, up to about ${ratio}× the price per word of Fast` : ''}. Live cues during a workout always use the quick model.
+        {ratio > 1 && level !== 'fast' ? `, about ${ratio}× the price per word of ${named ? modelName(s.levels.fast.chat) : 'Fast'}` : ''}. Live cues during a workout always use {modelName(s.levels.fast.chat)}, the quick one.
       </p>
     </div>
   )
