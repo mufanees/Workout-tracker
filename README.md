@@ -89,7 +89,7 @@ Each person's data lives in its own SQLite file (`/data/users/<id>.db`; yours st
 Optional. Set `SITE_HOST=gloop.novas.my` and `APP_HOST=gloopapp.novas.my` and one server answers both: the main domain shows the landing page at `/`, the app runs on the subdomain (`server/site.mjs`). Without them the app is at `/` and the landing page at `/welcome/`, as before.
 
 1. DNS: an `A` (or `CNAME`) record for `gloopapp.novas.my` pointing where `gloop.novas.my` does.
-2. Coolify → the app → **Domains**: `https://gloop.novas.my,https://gloopapp.novas.my` (both, comma-separated), then the two env vars, then **Redeploy**.
+2. Coolify → the app → **Domains**: both names, comma-separated, written the same way as the one that already works. Behind a Cloudflare Tunnel that's `http://gloop.novas.my,http://gloopapp.novas.my`: Cloudflare does https, and an `https://` domain in Coolify makes Traefik redirect the tunnel's plain-http requests to https forever (ERR_TOO_MANY_REDIRECTS). Then the two env vars, then **Redeploy**.
 3. Google sign-in: add `https://gloopapp.novas.my` to the OAuth client's **Authorized JavaScript origins**.
 
 What happens to people already using the app on the main domain: the old cached app retires itself on their next visit, and the landing page sends anyone signed in there (or opening an old app or invite link) on to the app host, carrying their sign-in over once. Their data comes back by sync. Notifications are per site, so turn them on again in Settings on the new host, and re-add the app to the home screen from there. `/api` and `/mcp` answer on both hosts, so Claude connector links keep working. Android: builds from before the move keep working on the old host; the next build opens the app host.

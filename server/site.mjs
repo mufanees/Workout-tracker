@@ -27,8 +27,10 @@ export function createSite({ dist, siteHost, appHost }) {
   const site = String(siteHost || '').toLowerCase()
   const app = String(appHost || '').toLowerCase()
   const on = !!(site && app && site !== app)
-  // https behind Coolify's proxy (it says so); plain http when run locally
-  const scheme = (req) => (String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || (req.socket?.encrypted ? 'https' : 'http'))
+  // Links between the two hosts are https: behind a Cloudflare Tunnel the request reaches us as plain http even
+  // though the visitor is on https, so the request can't be trusted for this. SITE_SCHEME=http for local tests.
+  const proto = process.env.SITE_SCHEME === 'http' ? 'http' : 'https'
+  const scheme = () => proto
 
   function landing(res, req, appUrl) {
     let html
