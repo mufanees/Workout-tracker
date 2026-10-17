@@ -137,6 +137,11 @@ async function plugin<T>(name: string): Promise<{ p: T } | null> {
   }
 }
 
+interface GoogleSignInPlugin {
+  /** Android's Google account sheet; resolves Google's ID token for the website's OAuth client. Rejects with code cancelled / no-account / failed. */
+  signIn(o: { clientId: string }): Promise<{ credential: string }>
+}
+export const nativeGoogle = () => plugin<GoogleSignInPlugin>('GoogleSignIn')
 export const nativeHR = () => plugin<HeartRatePlugin>('HeartRate')
 const live = () => plugin<LiveNotificationPlugin>('LiveNotification')
 const timers = () => plugin<TimersPlugin>('Timers')

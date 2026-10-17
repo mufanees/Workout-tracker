@@ -8,6 +8,7 @@ import { syncState } from '../sync'
 import { Icon } from '../ui/icons'
 import { Toggle } from '../ui/inputs'
 import { confirmDialog, toast } from '../ui/overlay'
+import { isNative, nativeGoogle } from '../native'
 
 const isDark = () => settings.value.theme === 'dark' || (settings.value.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
 const firstName = (n: string) => n.split(' ')[0] || n
@@ -30,29 +31,55 @@ export function GoogleButton({ invite, onDone }: { invite?: string; onDone?: () 
   const ref = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const finish = async (credential: string) => {
+    setBusy(true)
+    setError('')
+    try {
+      const u = await signIn(credential, invite)
+      toast(`Signed in as ${firstName(u.name) || u.email}`)
+      onDone?.()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  // In the Android app Google's web button can't work (Google blocks its sign-in in app WebViews): ask
+  // Android's account sheet for the same ID token instead.
+  const native = async () => {
+    const clientId = googleClientId.value
+    const g = clientId ? await nativeGoogle() : null
+    if (!g) return
+    setError('')
+    try {
+      const { credential } = await g.p.signIn({ clientId: clientId! })
+      await finish(credential)
+    } catch (e) {
+      const err = e as { code?: string; message?: string }
+      if (err.code === 'cancelled') return
+      if (err.code === 'no-account') return setError('Add a Google account to this phone (Settings → Passwords & accounts), then try again.')
+      if (err.code === 'UNIMPLEMENTED' || /not implemented/i.test(err.message || '')) return setError('Update the Gloop app to sign in with Google here, or sign in from Chrome.')
+      if (/28444|developer/i.test(err.message || '')) return setError('Google isn’t set up for the Android app yet: it needs an Android OAuth client for my.novas.gloop (see the README).')
+      setError(err.message || 'Google sign-in failed')
+    }
+  }
   useEffect(() => {
-    if (!ref.current) return
+    if (!ref.current || isNative) return
     renderGoogleButton(
       ref.current,
-      async (credential) => {
-        setBusy(true)
-        setError('')
-        try {
-          const u = await signIn(credential, invite)
-          toast(`Signed in as ${firstName(u.name) || u.email}`)
-          onDone?.()
-        } catch (e) {
-          setError((e as Error).message)
-        } finally {
-          setBusy(false)
-        }
-      },
+      (credential) => void finish(credential),
       isDark(),
     ).catch((e) => setError((e as Error).message))
   }, [googleClientId.value, invite])
   return (
     <div class="google-signin">
-      <div ref={ref} class={'google-btn' + (busy ? ' busy' : '')} />
+      {isNative ? (
+        <button class="btn btn-secondary btn-lg btn-block google-native" onClick={() => void native()} disabled={busy}>
+          Continue with Google
+        </button>
+      ) : (
+        <div ref={ref} class={'google-btn' + (busy ? ' busy' : '')} />
+      )}
       {busy && <p class="muted small">Signing you in…</p>}
       {error && <p class="signin-error">{error}</p>}
     </div>

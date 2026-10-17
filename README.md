@@ -145,6 +145,10 @@ Local build (needs JDK 21 and the Android SDK): `npm run build && npx cap sync a
 
 **iPhone (next phase, not built)**: Capacitor iOS around the same site, with native plugins for Bluetooth heart rate in the background, a **Live Activity** (lock screen and Dynamic Island) for the fast, rest timer and heart rate, local notifications for timers, and **Apple Foundation Models** for the on-device coach line. Testers would install through **TestFlight**, which needs an Apple Developer account (99 USD a year) and a Mac with Xcode (or a cloud Mac in CI).
 
+### Google sign-in in the Android app
+
+Google doesn't allow its web sign-in inside an app's WebView, so the app uses Android's own Google account sheet (`GoogleSignInPlugin`), which returns the same ID token the website gets; the server checks it as before. Google needs to know the app once: in Google Cloud Console → APIs & Services → Credentials → **Create credentials → OAuth client ID → Android**, with package name `my.novas.gloop` and SHA-1 `1A:FC:B4:A8:15:4B:7D:E8:E4:B7:06:67:93:E7:A7:3E:68:60:5A:EC` (the committed `android/app/debug.keystore` that CI signs with; a release keystore needs its own Android client). Same project as the website's client. Nothing goes in env: the app still asks for the website's client id.
+
 ## Warm-ups and videos
 
 **Warm-ups and cool-downs** are free text, one move per line, written however you like: `Cat–cow × 8`, `Doorway pec stretch · 30 s / side`, `World's greatest stretch x4 each side (slow)`, even a video link on the line. Underneath the box, each line shows how Gloop read it (move, dose, note) and whether it's linked to a library exercise (the link icon). Linked lines get that exercise's video and accurate timing. Tap a line to link it to a different exercise or keep it as plain text; the link is remembered by name, so it holds in every routine. **Add from library** writes the line for you.

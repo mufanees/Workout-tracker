@@ -12,6 +12,7 @@ class MainActivity : BridgeActivity() {
         registerPlugin(TimersPlugin::class.java)
         registerPlugin(PhonePlugin::class.java)
         registerPlugin(OnDeviceAIPlugin::class.java)
+        registerPlugin(GoogleSignInPlugin::class.java)
         super.onCreate(savedInstanceState)
     }
 
