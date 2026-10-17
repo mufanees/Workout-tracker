@@ -23,6 +23,9 @@ export const getToken = () => {
     return ''
   }
 }
+/** Bumped whenever the key changes (sign-in, sign-out, a new sync key), so things that asked the server as
+ *  someone else, like the coach's status, ask again. */
+export const tokenVersion = signal(0)
 export function setToken(t: string) {
   try {
     if (t) localStorage.setItem(TOKEN_KEY, t)
@@ -30,6 +33,7 @@ export function setToken(t: string) {
   } catch {
     /* storage blocked */
   }
+  tokenVersion.value++
 }
 
 let running: Promise<void> | null = null

@@ -2,7 +2,7 @@
 import { signal, computed, effect } from '@preact/signals'
 import { sampleFn } from './cloud'
 import { claudeQuick } from './coachClaude'
-import { afterServerSync, getToken, syncNow } from './sync'
+import { afterServerSync, getToken, syncNow, tokenVersion } from './sync'
 import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, settings, workouts } from './store'
 import { matchExercise, resolvePlan, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
@@ -140,6 +140,21 @@ export function coachProblemText(s: CoachStatus | null = coachStatus.value, mode
   }
   return null
 }
+
+// Signed in or out since the last check: the coach's "Not signed in" (or its access) may have changed.
+// (The installed app has no pull-to-refresh, so it can't be left to a reload.)
+let seenToken = tokenVersion.peek()
+effect(() => {
+  const v = tokenVersion.value
+  if (v === seenToken) return
+  seenToken = v
+  void checkCoach()
+})
+// Back in the app after a while: re-check a coach that was off or unreachable.
+if (typeof document !== 'undefined')
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && serverChecked && coachStatus.peek()?.reach !== 'ok') void checkCoach()
+  })
 
 function decide(server: boolean) {
   coachMode.value = server ? 'server' : sampleFn.value ? 'claude' : null

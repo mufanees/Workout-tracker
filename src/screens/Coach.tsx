@@ -215,7 +215,8 @@ export function Coach() {
   const abort = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (coachOn.value == null) void checkCoach()
+    // never checked, or last time it was off / unreachable / signed out: ask again on the way in
+    if (coachOn.value == null || coachStatus.peek()?.reach !== 'ok' || coachProblemText()) void checkCoach()
   }, [])
   useEffect(() => {
     if (coachOn.value) void ensureTz()
