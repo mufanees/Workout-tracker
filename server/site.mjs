@@ -1,6 +1,6 @@
 // Two hostnames on one server: the main site shows the landing page, the app lives on its own subdomain.
 //   SITE_HOST=gloop.novas.my       → / is the landing page (dist/welcome/index.html)
-//   APP_HOST=app.gloop.novas.my    → the app, as before
+//   APP_HOST=gloopapp.novas.my    → the app, as before
 // Unset (the default), nothing changes: the app is at / and the landing page at /welcome/.
 // /api and /mcp answer on both hosts, so connectors, old links and older Android builds keep working.
 import fs from 'node:fs'

@@ -86,11 +86,11 @@ Each person's data lives in its own SQLite file (`/data/users/<id>.db`; yours st
 
 ### Landing page on the main domain, app on a subdomain
 
-Optional. Set `SITE_HOST=gloop.novas.my` and `APP_HOST=app.gloop.novas.my` and one server answers both: the main domain shows the landing page at `/`, the app runs on the subdomain (`server/site.mjs`). Without them the app is at `/` and the landing page at `/welcome/`, as before.
+Optional. Set `SITE_HOST=gloop.novas.my` and `APP_HOST=gloopapp.novas.my` and one server answers both: the main domain shows the landing page at `/`, the app runs on the subdomain (`server/site.mjs`). Without them the app is at `/` and the landing page at `/welcome/`, as before.
 
-1. DNS: an `A` (or `CNAME`) record for `app.gloop.novas.my` pointing where `gloop.novas.my` does.
-2. Coolify → the app → **Domains**: `https://gloop.novas.my,https://app.gloop.novas.my` (both, comma-separated), then the two env vars, then **Redeploy**.
-3. Google sign-in: add `https://app.gloop.novas.my` to the OAuth client's **Authorized JavaScript origins**.
+1. DNS: an `A` (or `CNAME`) record for `gloopapp.novas.my` pointing where `gloop.novas.my` does.
+2. Coolify → the app → **Domains**: `https://gloop.novas.my,https://gloopapp.novas.my` (both, comma-separated), then the two env vars, then **Redeploy**.
+3. Google sign-in: add `https://gloopapp.novas.my` to the OAuth client's **Authorized JavaScript origins**.
 
 What happens to people already using the app on the main domain: the old cached app retires itself on their next visit, and the landing page sends anyone signed in there (or opening an old app or invite link) on to the app host, carrying their sign-in over once. Their data comes back by sync. Notifications are per site, so turn them on again in Settings on the new host, and re-add the app to the home screen from there. `/api` and `/mcp` answer on both hosts, so Claude connector links keep working. Android: builds from before the move keep working on the old host; the next build opens the app host.
 
@@ -108,7 +108,7 @@ Tap **Connect heart rate** at the top of a workout (or in Settings → Heart rat
 
 ## Android app
 
-An Android app (Capacitor 8) wraps the same site: it opens https://app.gloop.novas.my in a WebView, so every web deploy updates the app too, and adds native plugins for the things a web app can't do well on Android. The source is in `android/` and `capacitor.config.ts`; the bridge on the web side is `src/native.ts`. In a normal browser nothing changes.
+An Android app (Capacitor 8) wraps the same site: it opens https://gloopapp.novas.my in a WebView, so every web deploy updates the app too, and adds native plugins for the things a web app can't do well on Android. The source is in `android/` and `capacitor.config.ts`; the bridge on the web side is `src/native.ts`. In a normal browser nothing changes.
 
 **What's native, what's web**
 
@@ -310,7 +310,7 @@ src/data/                exercise library (curated + free-exercise-db, public do
 src/hr.ts                Bluetooth heart rate, zones, recording
 src/native.ts            the Android app's native plugins (no-op in a browser)
 android/                 Capacitor Android project; Kotlin plugins in app/src/main/java/my/novas/gloop/
-capacitor.config.ts      the app loads https://app.gloop.novas.my
+capacitor.config.ts      the app loads https://gloopapp.novas.my
 src/store.ts             in-memory state (signals) + IndexedDB writes
 src/sync.ts              push/pull sync with the server
 src/seed.ts              exercise library and the Comeback plan routines

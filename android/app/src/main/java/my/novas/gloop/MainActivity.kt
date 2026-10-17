@@ -3,7 +3,7 @@ package my.novas.gloop
 import android.os.Bundle
 import com.getcapacitor.BridgeActivity
 
-/** The Capacitor WebView showing https://app.gloop.novas.my, plus Gloop's local plugins. */
+/** The Capacitor WebView showing https://gloopapp.novas.my, plus Gloop's local plugins. */
 class MainActivity : BridgeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // local plugins must be registered before the bridge starts
