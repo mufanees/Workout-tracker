@@ -6,13 +6,14 @@ import { afterServerSync, getToken, syncNow, tokenVersion } from './sync'
 import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, settings, workouts } from './store'
 import { matchExercise, resolvePlan, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
-import type { CoachItem, Exercise, ExType, GoalSpec } from './types'
+import type { CoachItem, Exercise, ExType, GoalSpec, Routine } from './types'
 import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
 import { describeDay, mobilityFrom } from './mobility'
 import { clone, fmtExWeight, startOfDay, uid } from './util'
 import { catalog, startCatalogProgram } from './programs'
 import { describeSwap, swapFromCoach, swapInRoutine } from './swap'
+import { pickRoutine } from './routineMatch'
 
 /** null = still checking; false = no coach on this server (or no server). */
 export const coachOn = signal<boolean | null>(null)
@@ -208,6 +209,9 @@ export interface Proposal {
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 
+/** The routine a proposal means (see pickRoutine): full path first, then the followed program's. */
+export const findRoutine = (label: string): Routine | undefined => pickRoutine(routines.value, label, settings.value.program?.name)
+
 /** A one-line description of what approving will do. */
 export function describeProposal(p: Proposal): { title: string; lines: string[] } {
   const a = p.args as Record<string, any>
@@ -338,7 +342,7 @@ export async function applyProposal(p: Proposal): Promise<string> {
     await saveCoachItem({ ...profile.value, [field]: value, tz: tz() })
     return 'Profile updated'
   }
-  const r = routines.value.find((x) => norm(x.name) === norm(String(a.routine || ''))) || routines.value.find((x) => norm(x.name).includes(norm(String(a.routine || ''))))
+  const r = findRoutine(String(a.routine || ''))
   if (!r) throw new Error(`Couldn’t find the routine “${a.routine}”`)
   const next = clone(r)
   const missed: string[] = []
@@ -359,7 +363,9 @@ export async function applyProposal(p: Proposal): Promise<string> {
       if (c.reps != null && Number.isFinite(Number(c.reps))) s.reps = Math.round(Number(c.reps))
     }
   }
+  const swapped = new Set<string>()
   for (const c of Array.isArray(a.swaps) ? a.swaps : []) {
+    swapped.add(norm(String(c.from || '')))
     const we = findIn(c.from)
     const to = matchExercise(String(c.to || ''), exercises.value as LibExercise[])
     if (!we || !to) {
@@ -373,6 +379,8 @@ export async function applyProposal(p: Proposal): Promise<string> {
     setDose(we, c)
   }
   for (const n of Array.isArray(a.remove) ? a.remove : []) {
+    // the coach sometimes lists a swapped exercise under remove too: the swap already replaced it
+    if (swapped.has(norm(String(n || '')))) continue
     const we = findIn(n)
     if (we) next.exercises = next.exercises.filter((e) => e !== we)
     else missed.push(String(n))

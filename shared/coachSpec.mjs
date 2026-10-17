@@ -168,7 +168,7 @@ export const COACH_TOOLS = [
       'Propose changes to one routine for the athlete to approve: new targets, swapping exercises for alternatives, removing exercises, and replacing the warm-up or cool-down list. Only include what changes.',
     parameters: obj(
       {
-        routine: str('Routine name exactly as in list_routines'),
+        routine: str('The routine exactly as list_routines shows it, with its program and folder ("Program / Folder / Name"): day names repeat in every phase, so the path says which one'),
         reason: str('One line: why'),
         changes: arr(obj({ exercise: str(), weight_kg: num(), reps: int(), sets: int() }, ['exercise']), 'New targets for exercises that stay'),
         swaps: arr(obj({ from: str('Exercise to replace'), to: str('Exact library name of the replacement'), weight_kg: num(), reps: int(), sets: int() }, ['from', 'to'])),
