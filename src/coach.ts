@@ -3,10 +3,10 @@ import { signal, computed, effect } from '@preact/signals'
 import { sampleFn } from './cloud'
 import { claudeQuick } from './coachClaude'
 import { afterServerSync, getToken, syncNow } from './sync'
-import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, workouts } from './store'
+import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, settings, workouts } from './store'
 import { matchExercise, resolvePlan, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
-import type { CoachItem, Exercise, ExType, GoalSpec } from './types'
+import type { CoachItem, Exercise, ExType, GoalSpec, Routine } from './types'
 import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
 import { describeDay, mobilityFrom } from './mobility'
@@ -82,8 +82,61 @@ export interface Proposal {
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 
-/** A one-line description of what approving will do. */
-export function describeProposal(p: Proposal): { title: string; lines: string[] } {
+/** One exercise in a proposed program day, split so the card can lay it out. */
+export interface ProposalMove {
+  name: string
+  dose: string // "2 × 8–10"
+  load: string | null // "12 kg per hand"
+  note: string | null
+  optional: string | null // "35-min days" when it only runs on longer days
+}
+export interface ProposalDay {
+  name: string
+  groups: { label: string | null; moves: ProposalMove[] }[]
+}
+export interface ProposalView {
+  title: string
+  lines: string[]
+  chips?: string[]
+  summary?: string
+  days?: ProposalDay[]
+}
+
+const ONLY = /\s*\b(\d+[- ]?min(?:ute)?s? days?) only\b[.;,]?\s*/i
+const LOAD = /^\s*(~?\d+(?:\.\d+)?\s*(?:kg|lb)s?(?:\s+per\s+hand|\s+each)?|no weight|bodyweight)\b[.;,]?\s*/i
+
+function programMove(e: any): ProposalMove {
+  let note = String(e?.notes || '').trim()
+  let optional: string | null = null
+  const only = note.match(ONLY)
+  if (only) {
+    optional = only[1].replace(/\s+/g, '-').replace(/-days?$/i, ' days')
+    note = note.replace(ONLY, ' ').trim()
+  }
+  let load: string | null = null
+  const l = note.match(LOAD)
+  if (l) {
+    load = l[1].replace(/^no weight$/i, 'No weight')
+    note = note.slice(l[0].length).trim()
+  }
+  note = note.replace(/^[.;,–-]\s*/, '').replace(/[.;,]\s*$/, '')
+  const reps = String(e?.reps ?? '').replace(/(\d)-(\d)/g, '$1–$2')
+  return { name: String(e?.name || ''), dose: [e?.sets, reps].filter((x) => x != null && x !== '').join(' × '), load, note: note ? note[0].toUpperCase() + note.slice(1) : null, optional }
+}
+
+function programDay(r: any): ProposalDay {
+  const groups: ProposalDay['groups'] = []
+  for (const e of Array.isArray(r?.exercises) ? r.exercises : []) {
+    const label = e?.superset != null && e.superset !== '' ? `Superset ${e.superset}` : null
+    const last = groups[groups.length - 1]
+    if (last && last.label === label && label) last.moves.push(programMove(e))
+    else groups.push({ label, moves: [programMove(e)] })
+  }
+  return { name: String(r?.name || 'Day'), groups }
+}
+
+/** What approving will do: a title and plain lines, plus structure for the richer cards. */
+export function describeProposal(p: Proposal): ProposalView {
   const a = p.args as Record<string, any>
   if (p.tool === 'propose_routine_targets' || p.tool === 'propose_routine_changes') {
     const list = (x: unknown) => (Array.isArray(x) ? x : [])
@@ -99,12 +152,15 @@ export function describeProposal(p: Proposal): { title: string; lines: string[] 
   }
   if (p.tool === 'propose_program') {
     const list = Array.isArray(a.routines) ? a.routines : []
-    const lines = [[a.days_per_week ? `${a.days_per_week} days a week` : '', a.minutes ? `~${a.minutes} min` : ''].filter(Boolean).join(' · ') + (a.summary ? `. ${a.summary}` : '')]
+    const chips = [a.days_per_week ? `${a.days_per_week} days a week` : '', a.minutes ? `~${a.minutes} min` : '', list.length ? `${list.length} routines` : ''].filter(Boolean)
+    const lines = [chips.join(' · ') + (a.summary ? `. ${a.summary}` : '')]
     for (const r of list) {
       const ex = (Array.isArray(r?.exercises) ? r.exercises : []).map((e: any) => `${e.name} ${e.sets}×${e.reps}${e.superset ? ` (${e.superset})` : ''}${e.notes ? ` – ${e.notes}` : ''}`)
       lines.push(`${r?.name}: ${ex.join('; ')}`)
     }
-    return { title: `New program: ${String(a.name || 'Program')}`, lines }
+    const name = String(a.name || 'Program')
+    const adjusting = !!settings.value.program && list.some((r: any) => (settings.value.program?.routineIds || []).some((id) => norm(routines.value.find((x) => x.id === id)?.name || '') === norm(String(r?.name || ''))))
+    return { title: `${adjusting ? 'Updated program' : 'New program'}: ${name}`, lines, chips, summary: a.summary ? String(a.summary) : undefined, days: list.map(programDay) }
   }
   if (p.tool === 'propose_mobility_plan') {
     const m = mobilityFrom(a)
@@ -141,9 +197,20 @@ export async function applyProposal(p: Proposal): Promise<string> {
     const plan = { folder: name, routines: (Array.isArray(a.routines) ? a.routines : []).map((r: any) => ({ ...r, exercises: (Array.isArray(r?.exercises) ? r.exercises : []).map((e: any) => ({ ...e, superset: e?.superset ?? undefined })) })) }
     const result = resolvePlan(plan, exercises.value, () => uid())
     for (const e of result.newExercises) await saveExercise({ id: e.id, name: e.name, muscle: e.muscle, equipment: e.equipment, type: e.type as ExType, custom: true, updatedAt: 0 } as Exercise)
+    // An adjustment to the running program updates its routines in place (same ids), so your
+    // history stays linked and the rotation and week carry on instead of restarting at Day 1.
+    const cur = settings.value.program
+    const prev = new Map((cur?.routineIds || []).map((id) => routines.value.find((r) => r.id === id)).filter((r): r is Routine => !!r).map((r) => [norm(r.name), r]))
     const ids: string[] = []
-    for (const r of result.routines) ids.push((await saveRoutine({ ...r, updatedAt: 0 })).id)
-    await saveSettings({ program: { name, routineIds: ids, daysPerWeek: Math.max(1, Math.min(7, Math.round(Number(a.days_per_week) || 3))), minutes: Number(a.minutes) || undefined, summary: a.summary ? String(a.summary).slice(0, 400) : undefined, start: startOfDay(new Date()) } })
+    let carried = 0
+    for (const r of result.routines) {
+      const old = prev.get(norm(r.name))
+      prev.delete(norm(r.name))
+      if (old) carried++
+      ids.push((await saveRoutine(old ? { ...r, id: old.id, order: old.order, updatedAt: old.updatedAt } : { ...r, updatedAt: 0 })).id)
+    }
+    const start = cur && carried ? cur.start : startOfDay(new Date())
+    await saveSettings({ program: { name, routineIds: ids, daysPerWeek: Math.max(1, Math.min(7, Math.round(Number(a.days_per_week) || 3))), minutes: Number(a.minutes) || undefined, summary: a.summary ? String(a.summary).slice(0, 400) : undefined, start } })
     if (getToken()) void saveSnapshot(true)
     return `Program “${name}” is set: ${ids.length} routines`
   }

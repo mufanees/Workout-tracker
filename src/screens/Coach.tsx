@@ -8,7 +8,7 @@ import { exMap, workouts } from '../store'
 import { sessionsByExercise } from '../stats'
 import { buildCoachContext, coachPasteText, routinesText } from '../coachContext'
 import { claudeChat } from '../coachClaude'
-import { applyProposal, checkCoach, coachMode, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal } from '../coach'
+import { applyProposal, checkCoach, coachMode, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal, type ProposalDay } from '../coach'
 import { Icon } from '../ui/icons'
 import { confirmDialog, toast } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
@@ -328,14 +328,30 @@ export function Coach() {
                 const d = describeProposal(p)
                 const reason = (p.args as { reason?: string }).reason
                 return (
-                  <div class={'proposal ' + (p.state || 'pending')}>
-                    <b>{d.title}</b>
+                  <div class={'proposal ' + (p.state || 'pending') + (d.days ? ' rich' : '')}>
+                    <b class="proposal-title">{d.title}</b>
+                    {d.chips && d.chips.length > 0 && (
+                      <div class="proposal-chips">
+                        {d.chips.map((c) => (
+                          <span>{c}</span>
+                        ))}
+                      </div>
+                    )}
                     {reason && <span class="muted small">{reason}</span>}
-                    <ul>
-                      {d.lines.map((l) => (
-                        <li>{l}</li>
-                      ))}
-                    </ul>
+                    {d.days ? (
+                      <>
+                        {d.summary && <p class="proposal-summary">{d.summary}</p>}
+                        {d.days.map((day, di) => (
+                          <ProposalDayCard day={day} open={di === 0} />
+                        ))}
+                      </>
+                    ) : (
+                      <ul class="proposal-lines">
+                        {d.lines.map((l) => (
+                          <li>{l}</li>
+                        ))}
+                      </ul>
+                    )}
                     {p.state === 'pending' || !p.state ? (
                       <div class="row gap">
                         <button class="btn btn-secondary btn-sm grow" onClick={() => decide(i, p.id, false)}>
@@ -423,35 +439,114 @@ function WeeklyCard({ text, date }: { text: string; date: number }) {
   )
 }
 
-/** Just enough Markdown for coach replies: paragraphs, lists, headings, bold. No HTML is injected. */
+/**
+ * Just enough Markdown for coach replies, laid out to scan: the opening answer, then each
+ * heading as its own section, "**Label:** detail" items as labelled rows, numbers as pills.
+ * No HTML is injected.
+ */
 export function Markdown({ text }: { text: string }) {
-  const blocks: ComponentChildren[] = []
-  let list: { ordered: boolean; items: string[] } | null = null
-  const flush = () => {
-    if (!list) return
-    const items = list.items.map((it) => <li>{inline(it)}</li>)
-    blocks.push(list.ordered ? <ol>{items}</ol> : <ul>{items}</ul>)
-    list = null
-  }
+  type Block = { kind: 'p'; text: string } | { kind: 'quote'; text: string } | { kind: 'list'; ordered: boolean; items: string[] }
+  const sections: { title: string | null; blocks: Block[] }[] = [{ title: null, blocks: [] }]
+  const cur = () => sections[sections.length - 1].blocks
   for (const raw of text.split('\n')) {
     const line = raw.trimEnd()
     const ul = line.match(/^\s*[-*•]\s+(.*)/)
     const ol = line.match(/^\s*\d+[.)]\s+(.*)/)
     if (ul || ol) {
       const ordered = !!ol
-      if (!list || list.ordered !== ordered) (flush(), (list = { ordered, items: [] }))
-      list.items.push((ul || ol)![1])
+      const last = cur()[cur().length - 1]
+      if (last?.kind === 'list' && last.ordered === ordered) last.items.push((ul || ol)![1])
+      else cur().push({ kind: 'list', ordered, items: [(ul || ol)![1]] })
       continue
     }
-    flush()
     if (!line.trim()) continue
-    const h = line.match(/^#{1,4}\s+(.*)/)
-    blocks.push(h ? <h3>{inline(h[1])}</h3> : <p>{inline(line)}</p>)
+    // "### Days", or a line that is only "**Days:**" / "Days:", starts a section.
+    const h = line.match(/^#{1,4}\s+(.*)/) || line.match(/^\*\*([^*]{1,40}?):?\*\*:?$/) || line.match(/^([A-Z][^.!?*]{0,30}):$/)
+    if (h) {
+      sections.push({ title: h[1].replace(/\*\*/g, '').replace(/:$/, ''), blocks: [] })
+      continue
+    }
+    const q = line.match(/^>\s?(.*)/)
+    cur().push(q ? { kind: 'quote', text: q[1] } : { kind: 'p', text: line })
   }
-  flush()
-  return <>{blocks}</>
+  const kv = (it: string) => it.match(/^\*\*(.+?):?\*\*:?\s*(.*)$/)
+  const render = (bl: Block, lead: boolean) => {
+    if (bl.kind === 'p') return <p class={lead ? 'md-lead' : undefined}>{inline(bl.text)}</p>
+    if (bl.kind === 'quote') return <p class="md-callout">{inline(bl.text)}</p>
+    if (bl.items.every((it) => kv(it))) {
+      const rows = bl.items.map((it) => {
+        const m = kv(it)!
+        return (
+          <li class="md-row">
+            <span class="md-key">{m[1]}</span>
+            {m[2] && <span class="md-val">{inline(m[2])}</span>}
+          </li>
+        )
+      })
+      return bl.ordered ? <ol class="md-rows">{rows}</ol> : <ul class="md-rows">{rows}</ul>
+    }
+    const items = bl.items.map((it) => <li>{inline(it)}</li>)
+    return bl.ordered ? <ol>{items}</ol> : <ul>{items}</ul>
+  }
+  const structured = sections.length > 1
+  return (
+    <>
+      {sections.map((sec, si) =>
+        sec.title == null ? (
+          sec.blocks.map((bl, bi) => render(bl, structured && si === 0 && bi === 0))
+        ) : (
+          <section class="md-sec">
+            <h3 class="md-h">{sec.title}</h3>
+            {sec.blocks.map((bl) => render(bl, false))}
+          </section>
+        ),
+      )}
+    </>
+  )
 }
 
 function inline(s: string): ComponentChildren[] {
-  return s.split(/(\*\*[^*]+\*\*)/g).map((part) => (part.startsWith('**') && part.endsWith('**') ? <b>{part.slice(2, -2)}</b> : part))
+  return s.split(/(\*\*[^*]+\*\*)/g).map((part) => {
+    if (!(part.startsWith('**') && part.endsWith('**') && part.length > 4)) return part
+    const t = part.slice(2, -2)
+    // Short numbers ("12 kg", "2 × 12", "~30 min") read best as pills.
+    return /^[~≈+]?\d[\d.,:]*(\s?[×x–-]\s?\d+)?\s?(kg|lb|min|s|sec|reps?|sets?|bpm|%|km|days?)?$/i.test(t) ? <b class="md-num">{t}</b> : <b>{t}</b>
+  })
+}
+
+/** One day of a proposed program: a collapsible card, exercises grouped by superset. */
+function ProposalDayCard({ day, open }: { day: ProposalDay; open: boolean }) {
+  const moves = day.groups.reduce((n, g) => n + g.moves.length, 0)
+  const supersets = day.groups.filter((g) => g.label).length
+  return (
+    <details class="pday" open={open}>
+      <summary>
+        <span class="pday-name">{day.name}</span>
+        <span class="pday-meta">
+          {moves} moves{supersets ? ` · ${supersets} supersets` : ''}
+        </span>
+        <Icon name="down" size={16} />
+      </summary>
+      {day.groups.map((g) => (
+        <div class="pday-group">
+          {g.label && <span class="pday-label">{g.label}</span>}
+          {g.moves.map((m) => (
+            <div class={'pmove' + (m.optional ? ' optional' : '')}>
+              <div class="pmove-top">
+                <span class="pmove-name">{m.name}</span>
+                <span class="pmove-dose">{m.dose}</span>
+              </div>
+              {(m.load || m.optional || m.note) && (
+                <div class="pmove-sub">
+                  {m.load && <span class="pmove-load">{m.load}</span>}
+                  {m.optional && <span class="pmove-tag">{m.optional}</span>}
+                  {m.note && <span class="pmove-note">{m.note}</span>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </details>
+  )
 }
