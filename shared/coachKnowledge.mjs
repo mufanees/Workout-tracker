@@ -41,7 +41,7 @@ export const KNOWLEDGE = {
 - Myo-reps: an activation set of 12–20 reps near failure, rest 3–5 breaths, then mini-sets of 3–5 reps with the same weight and short breaths until reps drop off. Equivalent to several sets in a fraction of the time.
 - Sensible supersets: pair exercises that don't compete (press + row, squat + curl, RDL + lateral raise). Don't superset two exercises for the same muscle if both matter.
 - Rest: 1–3 min is standard for growth; shorter rest costs reps unless it's reduced gradually (e.g. 15 s less each week) as conditioning improves. Supersets give each muscle its rest while you keep working.
-- Warm-up: 3–5 min general (brisk movement, joint circles, the athlete's shoulder prep), then 1–2 ramp-up sets of the first exercise only. Later exercises are warm already.
+- Warm-up: 3–5 min general (brisk movement, joint circles, any joint prep their profile calls for), then 1–2 ramp-up sets of the first exercise only. Later exercises are warm already.
 - Session template for 30 hard minutes: 4 min warm-up; 2–3 supersets of 2 exercises × 2 sets each; finisher drop set or myo-reps. That's 10–14 hard sets per session; 3 sessions ≈ 6–10 sets per major muscle per week, which captures most of the possible gains.`,
 
   progression: `PROGRESSION
@@ -69,9 +69,9 @@ export const KNOWLEDGE = {
 - Each session: one main compound per pattern in a rotation so each muscle gets 2+ exposures a week; heavy rep ranges (4–8) on the first lift, moderate (8–12) on the rest, high (12–20) on isolation.
 - Fit the time: estimate ~2–2.5 min per straight set including rest, ~1.5 min per set when supersetted, plus warm-up. A 30-minute session holds about 10–14 hard sets.
 - Keep exercises stable for 4–8 weeks so progress is measurable; change variations at block boundaries or for pain.
-- Build around constraints: equipment caps, injuries (shoulder-friendly pressing), schedule (missed sessions just continue the rotation; never "make up" by doubling).
+- Build around constraints: equipment caps, injuries (e.g. shoulder-friendly pressing for a sore shoulder), schedule (missed sessions just continue the rotation; never "make up" by doubling).
 - Weekly check per muscle: chest, back, quads, hamstrings/glutes, shoulders, arms, calves each ≥4–6 hard sets for a minimalist plan, ≥10 for a standard one.
-- Blending a structured plan into a minimalist one: keep its phase logic, shoulder prep and the lifts that serve the goal; cut sets to 2 per exercise near failure, superset non-competing pairs, add a drop set or myo-reps finisher, and drop the low-value extras.`,
+- Blending a structured plan into a minimalist one: keep its phase logic, any joint prep and the lifts that serve the goal; cut sets to 2 per exercise near failure, superset non-competing pairs, add a drop set or myo-reps finisher, and drop the low-value extras.`,
 
   deload: `DELOADS AND BLOCKS
 - Deload every 6–8 weeks, or early when performance drops for 2+ sessions alongside poor sleep/energy or achy joints: keep the weights, cut sets about in half, stop 3+ reps short of failure, one week.

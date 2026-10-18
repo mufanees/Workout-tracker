@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   weightGoal: null,
   fastRemind: true,
   moveGoal: 30,
-  askShoulder: true,
+  askShoulder: false,
   zone2Goal: 150,
   reminderTime: null,
   quotes: QUOTES as Quote[],

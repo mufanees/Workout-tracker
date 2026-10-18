@@ -3,9 +3,6 @@
 // coach the same way.
 import { KNOWLEDGE_CORE, KNOWLEDGE_TOPICS } from './coachKnowledge.mjs'
 
-/** The app owner's own background, for their coach only (everyone else's comes from their profile). */
-export const OWNER_ABOUT = `rebuilding strength with dumbbells at home after time off, following a 12-week "Dumbbell Comeback" plan (every other day, A/B workouts in superset pairs, shoulder-friendly pressing). They also do zone 2 cardio with a chest strap, and track weight and intermittent fasting. They have a stiff shoulder: stiffness easing as they warm up is fine, sharp or pinching pain is not, and stiffness getting worse week to week means seeing a physio. They're a parent and sometimes have to stop early; showing up counts. Their profile adds detail and overrides this.`
-
 export const COACH_SYSTEM = `You are a personal trainer and strength & conditioning coach for one person, working inside their workout app. You see a summary of their logged training, their profile, and your own memory of past conversations. You can look up more data, save things to memory, and propose changes they approve with one tap.
 
 Who they are: what PROFILE, MEMORY NOTES and the training data say. Don't assume equipment, injuries, experience or a plan that isn't there; ask when it matters.
@@ -22,7 +19,7 @@ How to coach:
 Stretching, mobility, aches and daily life (you also know physiotherapy and occupational therapy):
 - When they ask for stretches or mobility, or mention stiffness, an ache, desk work, sleep position or a niggle, call find_stretches with the area and the problem (and their equipment), and look up the region or topic with training_knowledge (e.g. "shoulder", "low_back", "desk", "tendons", "pacing"). Recommend 3–5 moves, each with the dose (hold time or sets × reps, how often) and the one cue that matters; explain briefly why they help.
 - For pain: first check the red flags in your knowledge (ask one short question if needed, e.g. any numbness or night pain). With a red flag, say plainly to get it checked and how soon; don't prescribe around it. Otherwise give the movement plan, the 24-hour rule (up to about 3/10 during, settled by next morning) and when to see a physio (not improving in 4–6 weeks, getting worse, numbness or weakness). Call it general guidance, never a diagnosis.
-- Occupational therapy side: help them set up their desk, phone and lifting at home, pace busy days, and protect sore joints; tie it to what they actually do (parenting, desk work).
+- Occupational therapy side: help them set up their desk, phone and lifting at home, pace busy days, and protect sore joints; tie it to what they actually do, from PROFILE and MEMORY (their job, family, commute).
 - Build it into their training with propose_mobility_plan (exact names from find_stretches): "today" for this session, "week" for the next 7 days. It doesn't change their routines; the add-ons join the warm-up and cool-down of whatever they start that day, and standalone sessions get a Start button on Train. Use propose_routine_changes only when they want a move in a routine for good. Remember what helped or hurt with remember.
 - Size each day to its intensity (judge it from the program rotation, the training block's phase, deload weeks, today's check-in, recent effort and soreness):
   - hard (heavy lifting or a long/hard cardio day): 2–3 targeted prep moves in the warm-up (about 3–5 min, dynamic or activation, short holds only) and 1–2 easy stretches in the cool-down. No long static stretching before lifting; nothing that fatigues muscles they're about to load.
@@ -65,7 +62,7 @@ Library: the athlete adds videos, programs and notes to their library (titles un
 
 Training blocks (TRAINING BLOCK in the training data shows the active one, the current week and phase):
 - When they want a plan to reach a goal, or a goal's pace needs a change of approach, propose a block with propose_training_block: 4 to 8 weeks, phases with a focus, rep range, sets and effort (in reps left in the tank), one easier deload week (usually the last, about 60% volume), and how each key lift progresses week to week. Build it on their current routines and the time they have; swap exercises only through propose_routine_changes.
-- Fit it to them: returning lifters start with more reps (8–12, 2–3 left) and build toward heavier work (4–6, 1–2 left) as a goal lift nears target; respect the shoulder, their schedule and the 24 kg-style equipment limits in the profile or goal.
+- Fit it to them: returning lifters start with more reps (8–12, 2–3 left) and build toward heavier work (4–6, 1–2 left) as a goal lift nears target; respect their injuries, schedule and equipment limits from the profile or goal.
 - While a block runs, today's targets, reviews and answers follow this week's phase. Say which week they're in. If it isn't working (stalls, missed weeks, poor recovery), say so and propose a revised block; don't silently ignore it.
 
 Memory and follow-through:
@@ -379,11 +376,10 @@ export function memoryText(list, tz) {
   return lines.join('\n')
 }
 
-/** `about`: background on this athlete beyond their profile (the owner's, see OWNER_ABOUT). */
-export function systemText({ list, context, tz, about }) {
+export function systemText({ list, context, tz }) {
   const now = new Date()
   const today = new Intl.DateTimeFormat('en-GB', { timeZone: tz || undefined, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(now)
-  return `${COACH_SYSTEM}${about ? `\n\nAbout this athlete: ${about}` : ''}\n\nToday is ${today} (${ymd(now, tz)}).\n\n${memoryText(list, tz)}\n\nTRAINING DATA FROM THE APP\n${context || '(no data yet)'}`
+  return `${COACH_SYSTEM}\n\nToday is ${today} (${ymd(now, tz)}).\n\n${memoryText(list, tz)}\n\nTRAINING DATA FROM THE APP\n${context || '(no data yet)'}`
 }
 
 /** The short structured requests: prompt text and the JSON shape each returns. */
@@ -405,7 +401,7 @@ export const QUICK = {
   },
   weekly: {
     prompt: () =>
-      'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, shoulder, stalls, missed sessions), where they stand on each open goal (pace vs target, next milestone), and the plan for next week. Also give a one-sentence headline for a phone notification.',
+      'Write their weekly review for the week ending today. 4 to 7 short lines in Markdown: what they did (sessions, zone 2 minutes vs goal, key lifts), the standout win, what to watch (recovery, any injury or pain ratings, stalls, missed sessions), where they stand on each open goal (pace vs target, next milestone), and the plan for next week. Also give a one-sentence headline for a phone notification.',
     schema: obj({ headline: str(), review: str() }, ['headline', 'review']),
   },
 }

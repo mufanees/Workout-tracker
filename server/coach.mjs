@@ -11,7 +11,7 @@ import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise } from '../shared/planImport.mjs'
 import { videoInfo } from './video.mjs'
-import { COACH_TOOLS, OWNER_ABOUT, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
+import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
 import { MODELS, claudeChat, claudeEnabled, claudeError, claudeJson } from './claude.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
@@ -135,11 +135,8 @@ async function generateJson(system, prompt, schema, model = MODEL) {
 
 const DECLARATIONS = COACH_TOOLS.map(({ name, description, parameters }) => ({ name, description, parameters: toGemini(parameters) }))
 
-/**
- * `route(kind, body)` picks the model and records the cost (see coachRoute.mjs); without it everything is Gemini.
- * `owner`: this is the app owner's coach, which also knows their background (OWNER_ABOUT).
- */
-export function createCoach({ db, q, mcp, push, owner = false, route = () => ({ provider: 'gemini', charge() {} }) }) {
+/** `route(kind, body)` picks the model and records the cost (see coachRoute.mjs); without it everything is Gemini. */
+export function createCoach({ db, q, mcp, push, route = () => ({ provider: 'gemini', charge() {} }) }) {
   const items = () => mcp.rows('coach')
   const write = (rec) => {
     const seq = q.maxSeq.get().seq + 1
@@ -157,7 +154,7 @@ export function createCoach({ db, q, mcp, push, owner = false, route = () => ({ 
     return list.find((x) => x.kind === 'profile') || { id: 'profile', kind: 'profile' }
   }
 
-  const systemText = ({ context, tz }) => buildSystem({ list: items(), context, tz, about: owner ? OWNER_ABOUT : '' })
+  const systemText = ({ context, tz }) => buildSystem({ list: items(), context, tz })
 
 
   const same = (a, b) => String(a || '').toLowerCase().replace(/[^a-z0-9]/g, '') === String(b || '').toLowerCase().replace(/[^a-z0-9]/g, '')

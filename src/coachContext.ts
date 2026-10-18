@@ -108,6 +108,7 @@ export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): strin
 
   const p = planStatus.value
   if (programStatus.value) out.push(`PROGRAM (coach-built, active)\n${programText()}`)
+  else if (p && !p.started) out.push('Program: none yet. The app offers its built-in 12-week Dumbbell Comeback plan on the Train screen, but they haven’t done a session of it. Don’t assume it suits them; ask, or build one with propose_program.')
   else if (p) out.push(`Program: 12-week Dumbbell Comeback plan (every other day, A/B alternating, superset pairs, shoulder-friendly). Currently week ${Math.min(p.week, 12)} of 12, Phase ${p.phase.n} ${p.phase.name} (${p.phase.note}). Next session: Workout ${p.day}. ${p.status}`)
   out.push(`Heart rate zones (bpm): ${[1, 2, 3, 4, 5].map((z) => `Z${z} ${zoneRange(z)}`).join(', ')}. Weekly zone 2 goal: ${st.zone2Goal} min.`)
 

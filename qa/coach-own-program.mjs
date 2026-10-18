@@ -1,7 +1,8 @@
 // A new member builds their own program with the coach: "Build my own program" on Train opens the
 // coach, which asks its questions first; their answers go to their profile (save_profile) and a
 // program comes back as a card; approving it puts Day 1 on Train. The owner's background (stiff
-// shoulder, dumbbells at home) only goes to the owner's coach. A stand-in Claude API scripts the turns.
+// shoulder, dumbbells at home) is in nobody's instructions: each coach knows only its own person's
+// profile, memory and logs. A stand-in Claude API scripts the turns.
 // npm run build && node qa/coach-own-program.mjs
 import http from 'node:http'
 import fs from 'node:fs'
@@ -101,7 +102,8 @@ try {
   await p.click('.plan-own')
   await p.waitForFunction(() => /Main goal\?/.test(document.body.innerText), null, { timeout: 15000 })
   check('the coach asks its questions first', !(await p.$('.proposal')))
-  check('a member’s coach isn’t told about the owner', !/stiff shoulder|About this athlete/.test(systems.at(-1)) && /Who they are: what PROFILE/.test(systems.at(-1)))
+  check('a member’s coach isn’t told about the owner', !/stiff shoulder|dumbbells at home|parent|About this athlete/i.test(systems.at(-1)) && /Who they are: what PROFILE/.test(systems.at(-1)))
+  check('a new member isn’t assumed to be on the Comeback plan', /Program: none yet/.test(systems.at(-1)) && !/Currently week/.test(systems.at(-1)))
   await wait(500)
   await p.screenshot({ path: `${shots}/2-questions.png` })
   await p.fill('#coach-input', 'Build muscle. 3 days, 45 min. Gym. 1 year. Left knee, no deep lunges.')
@@ -126,9 +128,11 @@ try {
 
   await fetch(base + '/api/coach', { method: 'POST', headers: { authorization: `Bearer ${MEMBER}`, 'content-type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Thanks!' }], context: 'Today: test' }) }).then((r) => r.text())
   check('their next message comes with the saved profile', /Goals: Build muscle/.test(systems.at(-1)) && /Injuries and limits: Left knee/.test(systems.at(-1)))
-  // the owner's coach does know their background
+  // nobody's coach is told about anyone else, the owner included
   await fetch(base + '/api/coach', { method: 'POST', headers: { authorization: 'Bearer k', 'content-type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Build me a program of my own.' }], context: 'Today: test' }) }).then((r) => r.text())
-  check('the owner’s coach knows their background', /About this athlete: rebuilding strength with dumbbells at home/.test(systems.at(-1)) && /stiff shoulder/.test(systems.at(-1)))
+  const ownerSys = systems.at(-1)
+  check('the owner’s coach has no built-in description either', !/stiff shoulder|dumbbells at home|parent|About this athlete/i.test(ownerSys) && /PROFILE\n\(not filled in yet\)/.test(ownerSys))
+  check('and it doesn’t see the member’s profile', !/Left knee|Build muscle/.test(ownerSys))
 } catch (e) {
   results.push('ERROR ' + e.message.split('\n')[0])
 }

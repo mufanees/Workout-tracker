@@ -43,7 +43,7 @@ export const programStatus = computed(() => {
 /** For the coach. */
 export function programText(): string {
   const s = programStatus.value
-  if (!s) return 'None: they follow the built-in Dumbbell Comeback plan (see Program line at the top). Propose one with propose_program when a restructure would serve them better.'
+  if (!s) return 'None: see the Program line at the top. Propose one with propose_program when it would serve them better.'
   const p = s.program
   return [
     `"${p.name}" — ${s.target} days a week${p.minutes ? `, ~${p.minutes} min` : ''}, started ${new Date(p.start).toISOString().slice(0, 10)} (week ${s.week}).${p.summary ? ` ${p.summary}` : ''}`,
