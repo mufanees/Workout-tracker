@@ -19,7 +19,16 @@ const INVITE_DAYS = 14
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex')
 const rand = (n) => crypto.randomBytes(n).toString('base64url')
 
-export function createAccounts({ dataDir, appToken = '', clientId = '', adminEmail = '', coachDailyLimit = 60, jwksUrl = 'https://www.googleapis.com/oauth2/v3/certs' }) {
+export function createAccounts({
+  dataDir,
+  appToken = '',
+  clientId = '',
+  adminEmail = '',
+  coachDailyLimit = 60,
+  // Each person's coach on the Claude API, unless set per person in Settings → People.
+  coachDefaults = { model: 'sonnet', effort: 'low', budget: 5, opus: 5, opusCap: 1 },
+  jwksUrl = 'https://www.googleapis.com/oauth2/v3/certs',
+}) {
   const db = new DatabaseSync(path.join(dataDir, 'accounts.db'))
   db.exec(`
     PRAGMA journal_mode = WAL;
@@ -39,7 +48,11 @@ export function createAccounts({ dataDir, appToken = '', clientId = '', adminEma
     CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
     CREATE TABLE IF NOT EXISTS invites (code TEXT PRIMARY KEY, created_by TEXT NOT NULL, created INTEGER NOT NULL, expires INTEGER NOT NULL, note TEXT, used_by TEXT, used_at INTEGER);
     CREATE TABLE IF NOT EXISTS coach_use (user_id TEXT NOT NULL, day TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (user_id, day));
+    CREATE TABLE IF NOT EXISTS coach_cost (user_id TEXT NOT NULL, month TEXT NOT NULL, model TEXT NOT NULL, usd REAL NOT NULL DEFAULT 0, requests INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, month, model));
+    CREATE TABLE IF NOT EXISTS opus_sessions (user_id TEXT NOT NULL, id TEXT NOT NULL, month TEXT NOT NULL, usd REAL NOT NULL DEFAULT 0, created INTEGER NOT NULL, PRIMARY KEY (user_id, id));
   `)
+  // Per-person coach settings (JSON: model, effort, budget, opus); empty means the defaults.
+  if (!db.prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'coach'").get()) db.exec('ALTER TABLE users ADD COLUMN coach TEXT')
   const admin = adminEmail.trim().toLowerCase()
   // The owner always exists: their data is the original database.
   db.prepare("INSERT OR IGNORE INTO users (id, role, created, mcp_token, email) VALUES ('owner', 'admin', ?, ?, ?)").run(Date.now(), rand(24), admin || null)
@@ -68,10 +81,50 @@ export function createAccounts({ dataDir, appToken = '', clientId = '', adminEma
     openInvites: db.prepare('SELECT * FROM invites WHERE used_by IS NULL AND expires > ? ORDER BY created DESC'),
     useToday: db.prepare('SELECT n FROM coach_use WHERE user_id = ? AND day = ?'),
     bump: db.prepare('INSERT INTO coach_use (user_id, day, n) VALUES (?, ?, 1) ON CONFLICT (user_id, day) DO UPDATE SET n = n + 1'),
+    setCoach: db.prepare('UPDATE users SET coach = ? WHERE id = ?'),
+    spend: db.prepare('INSERT INTO coach_cost (user_id, month, model, usd, requests) VALUES (?, ?, ?, ?, 1) ON CONFLICT (user_id, month, model) DO UPDATE SET usd = usd + excluded.usd, requests = requests + 1'),
+    spent: db.prepare('SELECT model, usd, requests FROM coach_cost WHERE user_id = ? AND month = ?'),
+    spentAll: db.prepare('SELECT COALESCE(SUM(usd), 0) AS usd FROM coach_cost WHERE month = ?'),
+    opusList: db.prepare('SELECT * FROM opus_sessions WHERE user_id = ? AND month = ?'),
+    opusGet: db.prepare('SELECT * FROM opus_sessions WHERE user_id = ? AND id = ?'),
+    opusAdd: db.prepare('INSERT INTO opus_sessions (user_id, id, month, usd, created) VALUES (?, ?, ?, 0, ?)'),
+    opusCharge: db.prepare('UPDATE opus_sessions SET usd = usd + ? WHERE user_id = ? AND id = ?'),
   }
 
   const pub = (u) => u && { id: u.id, email: u.email || '', name: u.name || '', picture: u.picture || '', role: u.role, disabled: !!u.disabled }
   const today = () => new Date().toISOString().slice(0, 10)
+  const month = () => new Date().toISOString().slice(0, 7)
+  const r2 = (n) => Math.round(n * 1e4) / 1e4
+
+  /** Someone's coach settings with the defaults filled in, and what they've used this month. */
+  function coachPlan(u) {
+    let own = {}
+    try {
+      own = JSON.parse(u.coach || '{}') || {}
+    } catch {
+      /* ignore a bad value */
+    }
+    const plan = { ...coachDefaults, ...Object.fromEntries(Object.entries(own).filter(([, v]) => v != null && v !== '')) }
+    const m = month()
+    const rows = q.spent.all(u.id, m)
+    const sessions = q.opusList.all(u.id, m)
+    const spent = rows.reduce((a, r) => a + r.usd, 0)
+    const opusSpent = sessions.reduce((a, r) => a + r.usd, 0)
+    return {
+      admin: u.role === 'admin',
+      custom: own, // only what's set for this person
+      model: plan.model,
+      effort: plan.effort,
+      budget: Number(plan.budget), // USD a month; below 0 means no limit
+      opus: Number(plan.opus), // Opus planning sessions a month
+      opusCap: Number(plan.opusCap),
+      spent: r2(spent),
+      // The budget covers everyday use; Opus planning sessions have their own allowance.
+      budgetSpent: r2(spent - opusSpent),
+      opusUsed: sessions.length,
+      byModel: Object.fromEntries(rows.map((r) => [r.model, { usd: r2(r.usd), requests: r.requests }])),
+    }
+  }
 
   // ---- Google ID tokens ----
   let keys = null
@@ -201,9 +254,11 @@ export function createAccounts({ dataDir, appToken = '', clientId = '', adminEma
     people() {
       const day = today()
       return {
-        users: q.users.all().map((u) => ({ ...pub(u), created: u.created, coachToday: q.useToday.get(u.id, day)?.n || 0 })),
+        users: q.users.all().map((u) => ({ ...pub(u), created: u.created, coachToday: q.useToday.get(u.id, day)?.n || 0, coach: coachPlan(u) })),
         invites: q.openInvites.all(Date.now()).map((i) => ({ code: i.code, created: i.created, expires: i.expires, note: i.note || '' })),
         coachLimit: coachDailyLimit,
+        coachDefaults,
+        coachMonth: r2(q.spentAll.get(month()).usd),
       }
     },
     invite(byId, note) {
@@ -227,6 +282,45 @@ export function createAccounts({ dataDir, appToken = '', clientId = '', adminEma
       if (n >= coachDailyLimit) return false
       q.bump.run(user.id, today())
       return true
+    },
+    coachPlan: (id) => coachPlan(q.user.get(id)),
+    /** Change someone's coach settings: model, effort, budget (USD a month, -1 no limit), opus (sessions a month). null resets one to the default. */
+    setCoach(id, patch) {
+      const u = q.user.get(String(id))
+      if (!u) throw Object.assign(new Error('No such person'), { status: 404 })
+      let cur = {}
+      try {
+        cur = JSON.parse(u.coach || '{}') || {}
+      } catch {
+        /* start over */
+      }
+      const next = { ...cur }
+      const set = (k, v, ok) => {
+        if (!(k in patch)) return
+        if (patch[k] == null || patch[k] === '') delete next[k]
+        else if (ok(v)) next[k] = v
+        else throw Object.assign(new Error(`Bad ${k}`), { status: 400 })
+      }
+      set('model', patch.model, (v) => ['haiku', 'sonnet', 'opus'].includes(v))
+      set('effort', patch.effort, (v) => ['low', 'medium'].includes(v))
+      set('budget', Number(patch.budget), (v) => Number.isFinite(v) && v >= -1 && v <= 1000)
+      set('opus', Math.round(Number(patch.opus)), (v) => Number.isFinite(v) && v >= 0 && v <= 100)
+      q.setCoach.run(Object.keys(next).length ? JSON.stringify(next) : null, u.id)
+      return coachPlan(q.user.get(u.id))
+    },
+    /** Record what a coach request cost. */
+    coachSpend(userId, model, usd, opusSession) {
+      q.spend.run(userId, month(), model, usd)
+      if (opusSession) q.opusCharge.run(usd, userId, opusSession)
+    },
+    /** Use (or continue) an Opus planning session: ok, or why not. */
+    opusSession(userId, id) {
+      const plan = coachPlan(q.user.get(userId))
+      const s = q.opusGet.get(userId, String(id))
+      if (s) return s.usd < plan.opusCap ? { ok: true } : { ok: false, reason: 'cap' }
+      if (plan.opusUsed >= plan.opus) return { ok: false, reason: 'used' }
+      q.opusAdd.run(userId, String(id).slice(0, 60), month(), Date.now())
+      return { ok: true }
     },
     inviteInfo(code) {
       const i = q.invite.get(String(code || ''))

@@ -12,6 +12,7 @@ import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise } from '../shared/planImport.mjs'
 import { videoInfo } from './video.mjs'
 import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
+import { MODELS, claudeChat, claudeEnabled, claudeError, claudeJson } from './claude.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
 // Optional stronger model for planning questions and weekly reviews (e.g. a Pro model); defaults to MODEL.
@@ -19,7 +20,7 @@ const PLAN_MODEL = process.env.GEMINI_PLAN_MODEL || MODEL
 const BASE = (process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com').replace(/\/$/, '')
 const DAY = 86400000
 
-export const coachEnabled = () => !!process.env.GEMINI_API_KEY
+export const coachEnabled = () => !!process.env.GEMINI_API_KEY || claudeEnabled()
 
 
 // ---- Gemini REST -----------------------------------------------------------------
@@ -68,6 +69,8 @@ async function geminiFetch(method, payload, signal, model = MODEL) {
 export function friendlyError(e) {
   const status = e?.status
   const message = e?.message
+  const claude = claudeError(e)
+  if (claude) return claude
   if (!e?.gemini) return 'The coach is unavailable right now.'
   if (status === 429) return 'The free Gemini limit is used up for now. Try again in a minute (or tomorrow if the daily limit is reached).'
   if (status === 400 && /api key/i.test(message || '')) return 'The server’s GEMINI_API_KEY was rejected.'
@@ -132,7 +135,8 @@ async function generateJson(system, prompt, schema, model = MODEL) {
 
 const DECLARATIONS = COACH_TOOLS.map(({ name, description, parameters }) => ({ name, description, parameters: toGemini(parameters) }))
 
-export function createCoach({ db, q, mcp, push }) {
+/** `route(kind, body)` picks the model and records the cost (see coachRoute.mjs); without it everything is Gemini. */
+export function createCoach({ db, q, mcp, push, route = () => ({ provider: 'gemini', charge() {} }) }) {
   const items = () => mcp.rows('coach')
   const write = (rec) => {
     const seq = q.maxSeq.get().seq + 1
@@ -266,7 +270,26 @@ export function createCoach({ db, q, mcp, push }) {
     res.on('close', () => ctrl.abort())
     const contents = messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
     const system = systemText({ context: typeof body.context === 'string' ? body.context.slice(0, 300000) : '', tz })
+    const r = route('chat', body)
     try {
+      if (r.provider === 'claude') {
+        if (r.notice) send({ notice: r.notice })
+        const appRoutines = typeof body.routines === 'string' ? body.routines.slice(0, 50000) : ''
+        const usage = await claudeChat({
+          system,
+          messages,
+          key: r.key,
+          effort: r.effort,
+          send,
+          signal: ctrl.signal,
+          runTool: (name, input) => runTool(name, input, send, appRoutines),
+          onCost: (usd, model) => r.charge(usd, model),
+        })
+        const m = Object.values(MODELS).find((x) => usage.model.startsWith(x.id))
+        send({ meta: { model: m?.label || usage.model, effort: r.effort, usd: Math.round(usage.usd * 1e4) / 1e4, opus: r.opus } })
+        send({ done: true })
+        return res.end()
+      }
       for (let round = 0; round < 6; round++) {
         const { parts, finish, blocked } = await streamTurn(
           {
@@ -310,6 +333,21 @@ export function createCoach({ db, q, mcp, push }) {
     res.end()
   }
 
+  /** One JSON answer on whichever model `route` picks; Claude's cost is charged to the person. */
+  async function json(kind, body, system, prompt, spec, geminiModel) {
+    const r = route(kind, body)
+    if (r.provider !== 'claude') return generateJson(system, prompt, toGemini(spec.schema), geminiModel)
+    const effort = kind === 'weekly' ? 'medium' : r.effort
+    try {
+      const { out, usd } = await claudeJson({ system, prompt, schema: spec.schema, key: r.key, effort })
+      r.charge(usd, MODELS[r.key].id)
+      return out
+    } catch (e) {
+      if (e?.usd) r.charge(e.usd, MODELS[r.key].id)
+      throw e
+    }
+  }
+
   /** Short structured answers: pre-workout targets, post-workout takeaway, condensing old chat. */
   async function quick(body) {
     const tz = typeof body.tz === 'string' ? body.tz : undefined
@@ -318,19 +356,11 @@ export function createCoach({ db, q, mcp, push }) {
     if (body.kind === 'pre') {
       const routine = String(body.routine || 'today’s workout')
       const exercises = Array.isArray(body.exercises) ? body.exercises.slice(0, 20).map(String) : []
-      const out = await generateJson(
-        system,
-        QUICK.pre.prompt(routine, exercises),
-        toGemini(QUICK.pre.schema),
-      )
+      const out = await json('quick', body, system, QUICK.pre.prompt(routine, exercises), QUICK.pre)
       return { focus: String(out.focus || ''), targets: Array.isArray(out.targets) ? out.targets : [] }
     }
     if (body.kind === 'workout') {
-      const out = await generateJson(
-        system,
-        QUICK.workout.prompt(),
-        toGemini(QUICK.workout.schema),
-      )
+      const out = await json('quick', body, system, QUICK.workout.prompt(), QUICK.workout)
       const text = String(out.takeaway || '').trim()
       if (text && typeof body.workoutId === 'string') write({ id: `insight-w-${body.workoutId}`, kind: 'insight', type: 'workout', ref: body.workoutId, text, created: Date.now(), source: 'coach' })
       const all = items()
@@ -348,11 +378,7 @@ export function createCoach({ db, q, mcp, push }) {
     if (body.kind === 'condense') {
       const transcript = (cleanMessages(body.messages) || []).map((m) => `${m.role === 'user' ? 'Athlete' : 'Coach'}: ${m.content}`).join('\n\n')
       if (!transcript) return { notes: [] }
-      const out = await generateJson(
-        system,
-        QUICK.condense.prompt(transcript),
-        toGemini(QUICK.condense.schema),
-      )
+      const out = await json('quick', body, system, QUICK.condense.prompt(transcript), QUICK.condense)
       const notes = (Array.isArray(out.notes) ? out.notes : []).map((n) => String(n).trim()).filter(Boolean).slice(0, 5)
       for (const text of notes) write({ id: newId('note'), kind: 'note', text: text.slice(0, 300), created: Date.now(), source: 'coach' })
       return { notes }
@@ -381,7 +407,7 @@ export function createCoach({ db, q, mcp, push }) {
         `THIS WEEK'S WORKOUTS\n${await mcp.callTool('recent_workouts', { from: weekKey, limit: 20 })}`,
         ...(fresh ? [] : [`EARLIER WORKOUTS\n${await mcp.callTool('recent_workouts', { to: ymd(Date.now() - 7 * DAY, tz), limit: 12 })}`, await mcp.callTool('body_stats', {})]),
       ].join('\n\n')
-      const out = await generateJson(systemText({ context, tz }), QUICK.weekly.prompt(), toGemini(QUICK.weekly.schema), PLAN_MODEL)
+      const out = await json('weekly', {}, systemText({ context, tz }), QUICK.weekly.prompt(), QUICK.weekly, PLAN_MODEL)
       const text = String(out.review || '').trim()
       if (!text) return
       write({ id, kind: 'insight', type: 'weekly', ref: weekKey, text, created: Date.now(), source: 'coach' })

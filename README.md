@@ -121,13 +121,33 @@ Then ask, for example, "import this plan into Gloop" with the plan attached. Too
 
 ## AI coach
 
-In the Claude-hosted copy the coach runs on Claude (your Claude usage; the page asks once for permission) and your data is saved to your Claude account, so closing the page loses nothing. On your own server it runs on Gemini as below.
+In the Claude-hosted copy the coach runs on Claude (your Claude usage; the page asks once for permission) and your data is saved to your Claude account, so closing the page loses nothing. On your own server it runs on Gemini as below, or on Claude with `ANTHROPIC_API_KEY` (see [Coach on Claude](#coach-on-claude-with-budgets-per-person)).
 
 The Coach tab sends your question plus a text summary of your training (the last 8 weeks of totals, 4 weeks of workouts, progression per exercise, heart rate zones, morning readings, shoulder ratings, weight and fasts) to your server, which asks Google's Gemini (`gemini-3.5-flash` by default) and streams the answer back. To turn it on:
 
 1. Create a free API key in Google AI Studio (aistudio.google.com → Get API key).
 2. Add `GEMINI_API_KEY=...` to the server's environment in Coolify and redeploy.
 3. Optional: `GEMINI_MODEL` to use a different Gemini model, and `GEMINI_PLAN_MODEL` for a stronger one (e.g. a Pro model) used only for planning questions (goals, training blocks) and the Sunday review. Busy or failed Gemini calls are retried twice before you see an error.
+
+### Coach on Claude, with budgets per person
+
+With `ANTHROPIC_API_KEY` set, the server's coach runs on Claude instead of Gemini (same tools, proposals and streaming), and keeps track of what each person costs:
+
+- **You** (the owner) pick the model and effort in the message box: Auto (Opus for planning, Sonnet otherwise), or Haiku, Sonnet or Opus at low or medium effort. Each reply shows the model and what it cost. No budget.
+- **Everyone else** gets their model and effort from Settings → People, within a monthly budget. Past the budget, answers come from Haiku until the month turns. **Plan with Opus** in the message box starts an Opus planning session for that conversation; those have their own monthly allowance and a cost cap each.
+- **Settings → People** shows this month's spend for everyone and per person (by model), and lets you change each person's model (Opus = full model), effort, budget and Opus sessions.
+
+Defaults for new people (all optional):
+
+| Variable | Default | |
+|---|---|---|
+| `COACH_MODEL` | `sonnet` | `haiku`, `sonnet` or `opus` |
+| `COACH_EFFORT` | `low` | `low` or `medium` |
+| `COACH_MONTHLY_BUDGET` | `5` | USD a month per person; `-1` for no limit |
+| `COACH_OPUS_SESSIONS` | `5` | Opus planning sessions a month per person |
+| `COACH_OPUS_SESSION_USD` | `1` | what one planning session can use |
+
+Costs use list prices (Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per million input/output tokens, with prompt caching). `COACH_DAILY_LIMIT` still applies as a backstop. Gemini, when it's the coach, isn't metered.
 
 The free tier has per-minute and per-day request limits, which one person asking a coach won't normally hit. On Google's free tier, your prompts (including the training summary) may be used by Google to improve its products; a paid key doesn't have that.
 

@@ -18,12 +18,30 @@ export const coachOn = signal<boolean | null>(null)
 /** Where the coach runs: your server (Gemini), or Claude when the app is a Claude artifact. */
 export const coachMode = signal<'server' | 'claude' | null>(null)
 
+/** Your coach on the server's Claude API: model, budget and Opus sessions (null on Gemini or without a server). */
+export interface CoachPlan {
+  admin: boolean
+  model: 'haiku' | 'sonnet' | 'opus'
+  effort: 'low' | 'medium'
+  budget: number // USD a month; below 0 means no limit
+  opus: number // Opus planning sessions a month
+  opusCap: number
+  spent: number
+  budgetSpent: number
+  opusUsed: number
+  byModel: Record<string, { usd: number; requests: number }>
+  custom: Partial<{ model: string; effort: string; budget: number; opus: number }>
+}
+export const coachPlan = signal<CoachPlan | null>(null)
+
 let serverChecked = false
 export async function checkCoach() {
   let server = false
   try {
     const res = await fetch('/api/coach/status', { headers: { authorization: `Bearer ${getToken()}` } })
-    server = res.ok && (res.headers.get('content-type') || '').includes('json') ? !!(await res.json()).enabled : false
+    const json = res.ok && (res.headers.get('content-type') || '').includes('json') ? await res.json() : null
+    server = !!json?.enabled
+    coachPlan.value = json?.plan || null
   } catch {
     server = false
   }

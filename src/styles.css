@@ -3670,6 +3670,110 @@ label.setting:active {
   bottom: calc(var(--safe-bottom) + var(--tabbar-h) + 100px);
 }
 
+/* ---------- Settings → People: each person's coach ---------- */
+.setting.person {
+  flex-wrap: wrap;
+}
+.person-coach {
+  flex-basis: 100%;
+  min-width: 0;
+  margin: calc(-1 * var(--sp-1)) 0 var(--sp-1);
+}
+.person-coach-sum {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+}
+.person-coach-sum .chev {
+  color: var(--muted);
+  transition: transform 200ms var(--ease);
+}
+.person-coach-sum .chev.open {
+  transform: rotate(180deg);
+}
+.person-coach-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-1) 0;
+}
+.person-coach-edit label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+.person-coach-edit label span {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text);
+}
+.person-coach-edit select {
+  width: 58%;
+  flex: none;
+  min-height: 40px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 16px;
+}
+.person .person-coach-note {
+  white-space: normal;
+  overflow: visible;
+  line-height: 1.45;
+}
+.person-coach-text {
+  flex: 1;
+  min-width: 0;
+}
+.coach-month {
+  padding: 0 var(--sp-1) var(--sp-2);
+}
+
+/* ---------- coach model pick (owner) / Opus planning toggle (everyone else) ---------- */
+.model-pick {
+  position: relative;
+  flex: none;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 32px;
+  padding: 0 var(--sp-2-5, 10px);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-13);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.model-pick select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  font-size: 16px; /* no zoom on iOS */
+}
+.model-pick.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.reply-meta {
+  font-size: var(--fs-12);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- coach during a workout: floating button + sheet ---------- */
 .coach-fab {
   position: fixed;

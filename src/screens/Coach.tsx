@@ -5,10 +5,10 @@ import { GooDots } from '../ui/Goo'
 import { route, navigate } from '../router'
 import { active, exMap, workouts } from '../store'
 import { sessionsByExercise } from '../stats'
-import { checkCoach, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, type Proposal, type ProposalDay } from '../coach'
-import { ask, chat, chatBusy, chatInput, chatStatus, clearChat, decide, stopChat } from '../coachChat'
+import { checkCoach, coachMode, coachOn, coachPlan, describeProposal, ensureTz, latestWeekly, openCommitments, type Proposal, type ProposalDay } from '../coach'
+import { ask, chat, chatBusy, chatInput, chatStatus, clearChat, coachEffort, coachModel, decide, opusSession, setCoachEffort, setCoachModel, setOpusSession, stopChat } from '../coachChat'
 import { Icon } from '../ui/icons'
-import { confirmDialog } from '../ui/overlay'
+import { confirmDialog, toast } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
 import { adjustMessage } from '../ui/Feedback'
 import { fmtDay } from '../util'
@@ -49,6 +49,11 @@ export function ChatThread({ from }: { from: number }) {
             {busy && i === msgs.length - 1 && status && (
               <span class="coach-status">
                 <span class="spinner" aria-hidden="true" /> {status}…
+              </span>
+            )}
+            {m.meta && coachPlan.value?.admin && (
+              <span class="reply-meta">
+                {m.meta.model} · {m.meta.effort} · ${m.meta.usd < 0.01 ? m.meta.usd.toFixed(4) : m.meta.usd.toFixed(3)}
               </span>
             )}
             {m.memory?.map((x) => (
@@ -117,6 +122,61 @@ function ProposalCard({ p, onDecide }: { p: Proposal; onDecide: (approve: boolea
   )
 }
 
+const PICKS: [string, string][] = [
+  ['auto', 'Auto'],
+  ['haiku:low', 'Haiku · low'],
+  ['haiku:medium', 'Haiku · medium'],
+  ['sonnet:low', 'Sonnet · low'],
+  ['sonnet:medium', 'Sonnet · medium'],
+  ['opus:low', 'Opus · low'],
+  ['opus:medium', 'Opus · medium'],
+]
+
+/** The owner: model and effort in one drop-down. Everyone else: Opus for planning, while they have sessions left. */
+function ModelPick() {
+  const plan = coachPlan.value
+  if (!plan || coachMode.value !== 'server') return null
+  if (plan.admin) {
+    const cur = coachModel.value === 'auto' ? 'auto' : `${coachModel.value}:${coachEffort.value === 'auto' ? 'low' : coachEffort.value}`
+    return (
+      <label class="model-pick">
+        <span>{PICKS.find(([k]) => k === cur)?.[1].replace(' · ', ' ') || 'Auto'}</span>
+        <Icon name="down" size={14} />
+        <select
+          aria-label="Coach model and effort"
+          value={cur}
+          onChange={(e) => {
+            const [m, eff] = e.currentTarget.value.split(':')
+            setCoachModel(m)
+            setCoachEffort(eff || 'auto')
+          }}
+        >
+          {PICKS.map(([k, l]) => (
+            <option value={k}>{k === 'auto' ? 'Auto: Opus to plan, Sonnet otherwise' : l}</option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+  const left = Math.max(0, plan.opus - plan.opusUsed)
+  const on = !!opusSession.value
+  if (plan.model === 'opus' || (!on && !left)) return null
+  return (
+    <button
+      type="button"
+      class={'model-pick' + (on ? ' on' : '')}
+      aria-pressed={on}
+      onClick={() => {
+        setOpusSession(!on)
+        toast(on ? 'Back to your usual coach' : `Planning with Opus: this conversation uses 1 of your ${left} sessions left this month`)
+      }}
+    >
+      <Icon name="sparkles" size={14} />
+      <span>{on ? 'Opus on' : `Opus plan · ${left}`}</span>
+    </button>
+  )
+}
+
 /** Message box with send (or stop while the coach is answering). */
 export function Composer({ placeholder, focusWorkoutId }: { placeholder: string; focusWorkoutId?: string }) {
   const busy = chatBusy.value
@@ -145,6 +205,7 @@ export function Composer({ placeholder, focusWorkoutId }: { placeholder: string;
           }
         }}
       />
+      <ModelPick />
       {busy ? (
         <button type="button" class="send" onClick={stopChat} aria-label="Stop">
           <Icon name="x" size={20} />

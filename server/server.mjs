@@ -10,6 +10,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { createMcpHandler } from './mcp.mjs'
 import { createPush } from './push.mjs'
 import { coachEnabled, createCoach, friendlyError } from './coach.mjs'
+import { claudeEnabled } from './claude.mjs'
+import { coachRoute } from './coachRoute.mjs'
 import { videoInfo } from './video.mjs'
 import { createAccounts } from './accounts.mjs'
 
@@ -41,6 +43,13 @@ const accounts = createAccounts({
   clientId: GOOGLE_CLIENT_ID,
   adminEmail: ADMIN_EMAIL,
   coachDailyLimit: Number(process.env.COACH_DAILY_LIMIT ?? 60),
+  coachDefaults: {
+    model: ['haiku', 'sonnet', 'opus'].includes(process.env.COACH_MODEL) ? process.env.COACH_MODEL : 'sonnet',
+    effort: process.env.COACH_EFFORT === 'medium' ? 'medium' : 'low',
+    budget: Number(process.env.COACH_MONTHLY_BUDGET ?? 5), // USD a month per person; -1 for no limit
+    opus: Number(process.env.COACH_OPUS_SESSIONS ?? 5), // Opus planning sessions a month per person
+    opusCap: Number(process.env.COACH_OPUS_SESSION_USD ?? 1), // USD one planning session can use
+  },
   jwksUrl: process.env.GOOGLE_JWKS_URL || undefined,
 })
 /** No sign-in configured at all: the server is open, as before (everything is the owner's). */
@@ -89,7 +98,7 @@ function openContext(userId) {
   }
   const mcp = createMcpHandler({ db, q, rootDir: ROOT })
   const push = createPush(db, { subject: process.env.PUSH_CONTACT || 'mailto:gloop@localhost' })
-  const coach = createCoach({ db, q, mcp, push })
+  const coach = createCoach({ db, q, mcp, push, route: (kind, body) => coachRoute(accounts, userId, kind, body) })
   const ctx = { id: userId, db, q, dbId, mcp, push, coach }
   contexts.set(userId, ctx)
   return ctx
@@ -248,7 +257,7 @@ if (BACKUP_DAYS > 0) {
   setInterval(backup, 3600000).unref() // checks hourly, writes once per day
 }
 
-const coachOff = () => ({ error: 'Set GEMINI_API_KEY on the server to turn on the coach.' })
+const coachOff = () => ({ error: 'Set ANTHROPIC_API_KEY or GEMINI_API_KEY on the server to turn on the coach.' })
 const coachOut = (limit) => ({ error: `You’ve used today’s ${limit} coach messages. They reset at midnight (UTC).` })
 
 const server = http.createServer(async (req, res) => {
@@ -310,11 +319,15 @@ const server = http.createServer(async (req, res) => {
           if (!b.disabled) openContext(String(b.id))
           return send(res, 200, { ok: true })
         }
+        if (pathname === '/api/admin/coach' && req.method === 'POST') {
+          const b = await readBody(req)
+          return send(res, 200, accounts.setCoach(b.id, b))
+        }
         return send(res, 404, { error: 'Not found' })
       }
       if (pathname === '/api/sync' && req.method === 'POST') return send(res, 200, sync(ctx, await readBody(req)))
       if (pathname === '/api/video-info') return send(res, 200, await videoInfo(url.searchParams.get('url')))
-      if (pathname === '/api/coach/status') return send(res, 200, { enabled: coachEnabled() })
+      if (pathname === '/api/coach/status') return send(res, 200, { enabled: coachEnabled(), claude: claudeEnabled(), plan: claudeEnabled() ? accounts.coachPlan(user.id) : null })
       if (pathname === '/api/coach' && req.method === 'POST') {
         if (!coachEnabled()) return send(res, 503, coachOff())
         if (!accounts.coachTake(user)) return send(res, 429, coachOut(accounts.people().coachLimit))

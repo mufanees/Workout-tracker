@@ -1,3 +1,4 @@
+import type { CoachPlan } from './coach'
 // Signing in with Google, for a Gloop server with accounts (server/accounts.mjs).
 //
 // The server gives back a session token, which the app uses exactly like the old sync key (same
@@ -144,9 +145,11 @@ export async function signOut() {
 
 // ---- the owner's tools ----
 export interface People {
-  users: (Me & { created: number; coachToday: number; disabled: boolean })[]
+  users: (Me & { created: number; coachToday: number; disabled: boolean; coach: CoachPlan })[]
   invites: { code: string; created: number; expires: number; note: string }[]
   coachLimit: number
+  coachDefaults: { model: string; effort: string; budget: number; opus: number; opusCap: number }
+  coachMonth: number // USD spent on the coach this month, everyone
 }
 async function call<T>(path: string, body?: unknown): Promise<T> {
   const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { ...auth(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
@@ -158,6 +161,8 @@ export const people = () => call<People>('/api/admin/people')
 export const createInvite = (note?: string) => call<{ code: string; expires: number }>('/api/admin/invite', { note })
 export const revokeInvite = (code: string) => call('/api/admin/invite/revoke', { code })
 export const setAccess = (id: string, disabled: boolean) => call('/api/admin/access', { id, disabled })
+/** Someone's coach: model, effort, budget (USD a month, -1 no limit), opus (sessions a month); null resets to the default. */
+export const setCoach = (id: string, patch: Record<string, string | number | null>) => call<CoachPlan>('/api/admin/coach', { id, ...patch })
 export const newConnectorLink = () => call<{ mcpToken: string }>('/api/auth/mcp-token', {})
 export const inviteUrl = (code: string) => `${location.origin}/#/join/${code}`
 export const checkInvite = (code: string) => fetch(`/api/auth/invite?code=${encodeURIComponent(code)}`).then((r) => r.json() as Promise<{ ok: boolean; reason?: string }>)

@@ -5,7 +5,7 @@ import { getToken, syncNow } from './sync'
 import { exMap } from './store'
 import { buildCoachContext, coachPasteText, routinesText } from './coachContext'
 import { claudeChat } from './coachClaude'
-import { applyProposal, coachMode, coachOn, quick, tz, type Proposal } from './coach'
+import { applyProposal, checkCoach, coachMode, coachOn, coachPlan, quick, tz, type Proposal } from './coach'
 import { toast } from './ui/overlay'
 import { saveVideo } from './videos'
 
@@ -15,6 +15,8 @@ export interface Msg {
   at?: number // when it was sent
   memory?: { action: string; text: string }[]
   proposals?: Proposal[]
+  /** Which model answered and what it cost (server Claude only). */
+  meta?: { model: string; effort: string; usd: number; opus?: boolean }
 }
 
 const KEY = 'reps-coach'
@@ -35,6 +37,32 @@ const persist = (m: Msg[]) => {
 }
 
 export const chat = signal<Msg[]>(load())
+
+const pref = (k: string, d: string) => {
+  try {
+    return localStorage.getItem(k) || d
+  } catch {
+    return d
+  }
+}
+const keep = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v)
+  } catch {
+    /* storage blocked */
+  }
+}
+/** The owner's picks: model ('auto' lets the server choose) and effort. */
+export const coachModel = signal(pref('reps-coach-model', 'auto'))
+export const coachEffort = signal(pref('reps-coach-effort', 'auto'))
+export const setCoachModel = (v: string) => (keep('reps-coach-model', v), (coachModel.value = v))
+export const setCoachEffort = (v: string) => (keep('reps-coach-effort', v), (coachEffort.value = v))
+/** An Opus planning session in progress (everyone else): its id while it's on. */
+export const opusSession = signal<string | null>(pref('reps-coach-opus', '') || null)
+export const setOpusSession = (on: boolean) => {
+  opusSession.value = on ? `plan-${Date.now().toString(36)}` : null
+  keep('reps-coach-opus', opusSession.value || '')
+}
 export const chatBusy = signal(false)
 export const chatStatus = signal('')
 /** The message box text, kept here so a failed send can put the question back. */
@@ -144,7 +172,13 @@ export async function ask(text: string, focusWorkoutId?: string) {
       method: 'POST',
       signal: ctrl.signal,
       headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` },
-      body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), context: buildCoachContext({ focusWorkoutId }), routines: routinesText(), tz: tz() }),
+      body: JSON.stringify({
+        messages: history.map(({ role, content }) => ({ role, content })),
+        context: buildCoachContext({ focusWorkoutId }),
+        routines: routinesText(),
+        tz: tz(),
+        ...(coachPlan.value?.admin ? { model: coachModel.value, effort: coachEffort.value } : opusSession.value ? { opus: opusSession.value } : {}),
+      }),
     })
     if (!res.ok || !res.body) throw new Error(res.status === 401 ? 'Connect sync first (Settings → Sync key).' : 'The coach is unavailable right now.')
     const reader = res.body.getReader()
@@ -159,8 +193,23 @@ export async function ask(text: string, focusWorkoutId?: string) {
         const line = buf.slice(0, i).replace(/^data: /, '')
         buf = buf.slice(i + 2)
         if (!line) continue
-        const ev = JSON.parse(line) as { t?: string; error?: string; tool?: string; memory?: { action: string; text: string }; proposal?: Proposal; video?: { exerciseId: string; name: string; url: string; title?: string | null } }
+        const ev = JSON.parse(line) as {
+          t?: string
+          error?: string
+          tool?: string
+          notice?: string
+          meta?: Msg['meta']
+          memory?: { action: string; text: string }
+          proposal?: Proposal
+          video?: { exerciseId: string; name: string; url: string; title?: string | null }
+        }
         if (ev.error) throw new Error(ev.error)
+        if (ev.notice) {
+          toast(ev.notice)
+          // a planning session that can't continue ends here
+          if (opusSession.value && /planning session/i.test(ev.notice)) setOpusSession(false)
+        }
+        if (ev.meta) reply.meta = ev.meta
         if (ev.t) {
           reply.content += ev.t
           chatStatus.value = ''
@@ -178,6 +227,7 @@ export async function ask(text: string, focusWorkoutId?: string) {
     if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : '…'
     save(await condense([...history, reply]))
     void syncNow() // pull memory the coach saved
+    if (coachPlan.value) void checkCoach() // what's left of the budget
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
       save([...history, { ...reply, content: reply.content ? reply.content + ' …' : '(stopped)' }])

@@ -1,7 +1,8 @@
 // Accounts in the app: sign in with Google, your account, the owner's People (invites, access),
 // your Claude connector link, and the screen an invite link opens.
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { checkInvite, createInvite, googleClientId, inviteUrl, me, newConnectorLink, people, renderGoogleButton, revokeInvite, setAccess, signIn, signOut, unsynced, type People } from '../account'
+import type { CoachPlan } from '../coach'
+import { checkInvite, createInvite, googleClientId, inviteUrl, me, newConnectorLink, people, renderGoogleButton, revokeInvite, setAccess, setCoach, signIn, signOut, unsynced, type People } from '../account'
 import { navigate } from '../router'
 import { settings } from '../store'
 import { syncState } from '../sync'
@@ -204,9 +205,16 @@ export function PeopleSection() {
     }
   }
   const members = (data?.users || []).filter((u) => u.role !== 'admin')
+  const mine = data?.users.find((u) => u.role === 'admin')?.coach
   return (
     <>
       <h2 class="section-title">People</h2>
+      {data?.coachDefaults && mine && (
+        <p class="setting-note coach-month">
+          Coach this month: <b>${data.coachMonth.toFixed(2)}</b> for everyone, ${mine.spent.toFixed(2)} of it yours. New people get {MODEL_NAME[data.coachDefaults.model]} ({data.coachDefaults.effort}),{' '}
+          {data.coachDefaults.budget < 0 ? 'no budget limit' : `$${data.coachDefaults.budget} a month`} and {data.coachDefaults.opus} Opus planning sessions.
+        </p>
+      )}
       <div class="settings-group people">
         <div class="setting column">
           <span>
@@ -279,11 +287,95 @@ export function PeopleSection() {
                 void load()
               }}
             />
+            {data?.coachDefaults && u.coach && <PersonCoach id={u.id} plan={u.coach} defaults={data.coachDefaults} onSaved={load} />}
           </div>
         ))}
         {data && !members.length && !data.invites.length && <p class="setting-note">Nobody else yet. Invite a friend and their log stays private to them.</p>}
       </div>
     </>
+  )
+}
+
+const MODEL_NAME: Record<string, string> = { haiku: 'Haiku', sonnet: 'Sonnet', opus: 'Opus' }
+
+/** One person's coach: what it has cost this month, and their model, effort, budget and Opus sessions. */
+function PersonCoach({ id, plan, defaults, onSaved }: { id: string; plan: CoachPlan; defaults: People['coachDefaults']; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const save = async (patch: Record<string, string | number | null>) => {
+    try {
+      await setCoach(id, patch)
+      onSaved()
+    } catch (e) {
+      toast((e as Error).message)
+    }
+  }
+  const c = plan.custom || {}
+  const budget = plan.budget < 0 ? 'no limit' : `$${plan.budgetSpent.toFixed(2)} of $${plan.budget}`
+  const over = plan.budget >= 0 && plan.budgetSpent >= plan.budget
+  return (
+    <div class="person-coach">
+      <button class="person-coach-sum" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <Icon name="coach" size={15} />
+        <span class="person-coach-text">
+          {MODEL_NAME[plan.model]} · {plan.effort} · {budget}
+          {over ? ' · on Haiku' : ''} · Opus {plan.opusUsed}/{plan.opus}
+        </span>
+        <Icon name="down" size={15} class={open ? 'chev open' : 'chev'} />
+      </button>
+      {open && (
+        <div class="person-coach-edit">
+          <label>
+            <span>Model</span>
+            <select value={c.model || ''} onChange={(e) => save({ model: e.currentTarget.value || null })}>
+              <option value="">Default ({MODEL_NAME[defaults.model]})</option>
+              <option value="haiku">Haiku</option>
+              <option value="sonnet">Sonnet</option>
+              <option value="opus">Opus (full model)</option>
+            </select>
+          </label>
+          <label>
+            <span>Effort</span>
+            <select value={c.effort || ''} onChange={(e) => save({ effort: e.currentTarget.value || null })}>
+              <option value="">Default ({defaults.effort})</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+            </select>
+          </label>
+          <label>
+            <span>Budget a month</span>
+            <select
+              value={c.budget == null ? '' : c.budget < 0 ? '-1' : String(c.budget)}
+              onChange={(e) => save({ budget: e.currentTarget.value === '' ? null : Number(e.currentTarget.value) })}
+            >
+              <option value="">Default ({defaults.budget < 0 ? 'no limit' : `$${defaults.budget}`})</option>
+              {[1, 2, 5, 10, 20, 50].map((n) => (
+                <option value={String(n)}>${n}</option>
+              ))}
+              {c.budget != null && c.budget >= 0 && ![1, 2, 5, 10, 20, 50].includes(c.budget) && <option value={String(c.budget)}>${c.budget}</option>}
+              <option value="-1">No limit</option>
+            </select>
+          </label>
+          <label>
+            <span>Opus planning sessions</span>
+            <select value={c.opus == null ? '' : String(c.opus)} onChange={(e) => save({ opus: e.currentTarget.value === '' ? null : Number(e.currentTarget.value) })}>
+              <option value="">Default ({defaults.opus} a month)</option>
+              {[0, 1, 3, 5, 10, 20].map((n) => (
+                <option value={String(n)}>{n} a month</option>
+              ))}
+            </select>
+          </label>
+          <small class="person-coach-note">
+            ${plan.spent.toFixed(2)} this month
+            {Object.entries(plan.byModel).length
+              ? `: ${Object.entries(plan.byModel)
+                  .map(([m, v]) => `${MODEL_NAME[m.replace('claude-', '').split('-')[0]] || m} $${v.usd.toFixed(2)} (${v.requests})`)
+                  .join(', ')}`
+              : ''}
+            . Past the budget, answers come from Haiku; Opus sessions are separate, up to ${defaults.opusCap} each.
+          </small>
+        </div>
+      )}
+    </div>
   )
 }
 
