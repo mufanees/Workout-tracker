@@ -11,7 +11,7 @@ import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise } from '../shared/planImport.mjs'
 import { videoInfo } from './video.mjs'
-import { COACH_TOOLS, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
+import { COACH_TOOLS, OWNER_ABOUT, QUICK, isPlanning, systemText as buildSystem, toGemini, ymd as ymdShared } from '../shared/coachSpec.mjs'
 import { MODELS, claudeChat, claudeEnabled, claudeError, claudeJson } from './claude.mjs'
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash'
@@ -135,8 +135,11 @@ async function generateJson(system, prompt, schema, model = MODEL) {
 
 const DECLARATIONS = COACH_TOOLS.map(({ name, description, parameters }) => ({ name, description, parameters: toGemini(parameters) }))
 
-/** `route(kind, body)` picks the model and records the cost (see coachRoute.mjs); without it everything is Gemini. */
-export function createCoach({ db, q, mcp, push, route = () => ({ provider: 'gemini', charge() {} }) }) {
+/**
+ * `route(kind, body)` picks the model and records the cost (see coachRoute.mjs); without it everything is Gemini.
+ * `owner`: this is the app owner's coach, which also knows their background (OWNER_ABOUT).
+ */
+export function createCoach({ db, q, mcp, push, owner = false, route = () => ({ provider: 'gemini', charge() {} }) }) {
   const items = () => mcp.rows('coach')
   const write = (rec) => {
     const seq = q.maxSeq.get().seq + 1
@@ -154,7 +157,7 @@ export function createCoach({ db, q, mcp, push, route = () => ({ provider: 'gemi
     return list.find((x) => x.kind === 'profile') || { id: 'profile', kind: 'profile' }
   }
 
-  const systemText = ({ context, tz }) => buildSystem({ list: items(), context, tz })
+  const systemText = ({ context, tz }) => buildSystem({ list: items(), context, tz, about: owner ? OWNER_ABOUT : '' })
 
 
   const same = (a, b) => String(a || '').toLowerCase().replace(/[^a-z0-9]/g, '') === String(b || '').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -198,6 +201,18 @@ export function createCoach({ db, q, mcp, push, route = () => ({ provider: 'gemi
         emit({ video: { exerciseId: ex.id, name: ex.name, url, title } })
         emit({ memory: { action: 'video', text: `${ex.name}: ${title || url}` } })
         return { saved: true, exercise: ex.name, title }
+      }
+      case 'save_profile': {
+        const fields = ['goals', 'schedule', 'equipment', 'injuries', 'preferences', 'age']
+        const patch = {}
+        for (const k of fields) {
+          if (args[k] == null || String(args[k]).trim() === '') continue
+          patch[k] = k === 'age' ? Number(args[k]) || null : String(args[k]).trim().slice(0, 400)
+        }
+        if (!Object.keys(patch).length) return { error: 'nothing to save' }
+        write({ ...profileOf(), ...patch })
+        emit({ memory: { action: 'profile', text: Object.keys(patch).join(', ') } })
+        return { saved: Object.keys(patch) }
       }
       case 'remember': {
         const text = String(args.note || '').trim().slice(0, 300)

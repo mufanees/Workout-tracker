@@ -1,4 +1,5 @@
-import { useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
+import { checkCoach, coachOn } from '../coach'
 import { active, routines, saveRoutine, remove, saveSettings, exMap } from '../store'
 import { navigate } from '../router'
 import { startCardio, startEmpty, startRoutine } from '../workout'
@@ -22,6 +23,9 @@ import { CheckinCard } from '../ui/Checkin'
 import { Lava } from '../ui/Goo'
 
 export function Train() {
+  useEffect(() => {
+    if (coachOn.value == null) void checkCoach()
+  }, [])
   const groups = new Map<string, Routine[]>()
   for (const r of routines.value) {
     const k = r.folder || ''
@@ -152,6 +156,9 @@ function RoutineCard({ r }: { r: Routine }) {
   )
 }
 
+/** Opens the coach on building a program of their own: it asks what it needs to know first. */
+const buildOwn = () => navigate(`/coach?ask=${encodeURIComponent('Build me a program of my own. Ask me what you need to know first.')}`)
+
 /** The coach-built program: next routine in the rotation, sessions this week. */
 function ProgramCard() {
   const s = programStatus.value!
@@ -160,6 +167,7 @@ function ProgramCard() {
       title: s.program.name,
       message: s.program.summary,
       actions: [
+        ...(coachOn.value ? [{ label: 'Build a new program', icon: 'sparkles', onSelect: buildOwn }] : []),
         { label: 'Ask coach to adjust it', icon: 'coach', onSelect: () => navigate(`/coach?ask=${encodeURIComponent(`Let's review my program “${s.program.name}”. I'm in week ${s.week}. What should change?`)}`) },
         {
           label: 'Back to the Comeback plan',
@@ -235,6 +243,11 @@ function PlanCard() {
       <button class="btn btn-block btn-lg" onClick={() => startRoutine(p.routine!)}>
         <Icon name="play" size={18} /> Start Workout {p.day}
       </button>
+      {coachOn.value && (
+        <button class="plan-own" onClick={buildOwn}>
+          <Icon name="sparkles" size={15} /> Build my own program with the coach
+        </button>
+      )}
     </section>
   )
 }

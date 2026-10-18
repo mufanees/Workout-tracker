@@ -103,7 +103,7 @@ function openContext(userId) {
   }
   const mcp = createMcpHandler({ db, q, rootDir: ROOT })
   const push = createPush(db, { subject: process.env.PUSH_CONTACT || 'mailto:gloop@localhost' })
-  const coach = createCoach({ db, q, mcp, push, route: (kind, body) => coachRoute(accounts, userId, kind, body) })
+  const coach = createCoach({ db, q, mcp, push, owner: userId === 'owner', route: (kind, body) => coachRoute(accounts, userId, kind, body) })
   const ctx = { id: userId, db, q, dbId, mcp, push, coach }
   contexts.set(userId, ctx)
   return ctx

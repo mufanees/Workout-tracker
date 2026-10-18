@@ -58,7 +58,7 @@ export function ChatThread({ from }: { from: number }) {
             )}
             {m.memory?.map((x) => (
               <span class="mem-chip">
-                <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'library' ? 'Saved to library' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : x.action === 'video' ? 'Video saved' : 'Remembered'}: {x.text}
+                <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'library' ? 'Saved to library' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : x.action === 'video' ? 'Video saved' : x.action === 'profile' ? 'Saved to your profile' : 'Remembered'}: {x.text}
               </span>
             ))}
             {m.proposals?.map((p) => (

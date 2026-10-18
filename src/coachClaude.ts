@@ -75,6 +75,18 @@ async function memory(name: string, a: Record<string, unknown>, h: Pick<ChatHand
     h.onMemory({ action: 'video', text: `${ex.name}: ${title || url}` })
     return { saved: true, exercise: ex.name, title }
   }
+  if (name === 'save_profile') {
+    const patch: Record<string, string | number | null> = {}
+    for (const k of ['goals', 'schedule', 'equipment', 'injuries', 'preferences', 'age']) {
+      if (a[k] == null || String(a[k]).trim() === '') continue
+      patch[k] = k === 'age' ? Number(a[k]) || null : String(a[k]).trim().slice(0, 400)
+    }
+    if (!Object.keys(patch).length) throw new Error('nothing to save')
+    const cur = items.find((x) => x.kind === 'profile') || ({ id: 'profile', kind: 'profile', updatedAt: 0 } as CoachItem)
+    await saveCoachItem({ ...cur, ...patch })
+    h.onMemory({ action: 'profile', text: Object.keys(patch).join(', ') })
+    return { saved: Object.keys(patch) }
+  }
   if (name === 'remember') {
     const text = String(a.note || '').trim().slice(0, 300)
     if (!text) throw new Error('empty note')

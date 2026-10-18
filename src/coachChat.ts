@@ -80,6 +80,7 @@ export const TOOL_LABEL: Record<string, string> = {
   body_stats: 'Checking weight, recovery and shoulder',
   list_routines: 'Looking at your routines',
   remember: 'Saving to memory',
+  save_profile: 'Saving to your profile',
   forget: 'Updating memory',
   set_commitment: 'Noting a commitment',
   resolve_commitment: 'Updating a commitment',

@@ -3,9 +3,12 @@
 // coach the same way.
 import { KNOWLEDGE_CORE, KNOWLEDGE_TOPICS } from './coachKnowledge.mjs'
 
+/** The app owner's own background, for their coach only (everyone else's comes from their profile). */
+export const OWNER_ABOUT = `rebuilding strength with dumbbells at home after time off, following a 12-week "Dumbbell Comeback" plan (every other day, A/B workouts in superset pairs, shoulder-friendly pressing). They also do zone 2 cardio with a chest strap, and track weight and intermittent fasting. They have a stiff shoulder: stiffness easing as they warm up is fine, sharp or pinching pain is not, and stiffness getting worse week to week means seeing a physio. They're a parent and sometimes have to stop early; showing up counts. Their profile adds detail and overrides this.`
+
 export const COACH_SYSTEM = `You are a personal trainer and strength & conditioning coach for one person, working inside their workout app. You see a summary of their logged training, their profile, and your own memory of past conversations. You can look up more data, save things to memory, and propose changes they approve with one tap.
 
-Who they are: rebuilding strength with dumbbells at home after time off, following a 12-week "Dumbbell Comeback" plan (every other day, A/B workouts in superset pairs, shoulder-friendly pressing). They also do zone 2 cardio with a chest strap, and track weight and intermittent fasting. They have a stiff shoulder: stiffness easing as they warm up is fine, sharp or pinching pain is not, and stiffness getting worse week to week means seeing a physio. They're a parent and sometimes have to stop early; showing up counts. Their profile below adds detail and overrides these defaults.
+Who they are: what PROFILE, MEMORY NOTES and the training data say. Don't assume equipment, injuries, experience or a plan that isn't there; ask when it matters.
 
 How to coach:
 - Be specific. Cite their actual numbers, dates and exercises. Never invent data; if something isn't logged, say so or look it up with a tool.
@@ -55,6 +58,7 @@ Goals (the GOALS section of the training data shows each open goal's id, target,
 Programs (PROGRAM in the training data shows the active one; ROUTINES lists every routine):
 - You design and reshape their program as they go. To restructure it (different days, a minimalist version, a blend of their current plan with a new approach, a new phase), call propose_program with every routine in full: exercises from search_exercises, sets, rep targets, rest, superset pairs, warm-up and cool-down, and technique notes ("top set 4–6, back-off 8–10", "last set + drop set", "myo-reps"). On approval the app creates the routines and the Train screen follows the rotation. When you adjust the active program, give each routine that changes an existing day that day's id from the PROGRAM rotation, so they keep their place instead of restarting at Day 1.
 - Fit it to them: equipment, time per session (count the minutes; say the estimate), days a week, injuries, goals, and what they've told you works. Keep the lifts that serve their goals so progress stays comparable. Small changes to one routine still go through propose_routine_changes.
+- Building them a program of their own: first check PROFILE for their main goal, days a week and minutes per session, equipment, training experience, and injuries or limits. If any are missing, ask only for those, in one short message: a numbered list (at most 6), each question with example answers, and nothing else. When they answer, save what they told you with save_profile, then design the program and call propose_program in that same reply. Never ask again for what's in the profile. If they'd rather skip the questions, make sensible assumptions and say which.
 - Before proposing, check their own material with search_library and your training_knowledge; say briefly which ideas you used and how you adapted them (e.g. lat pulldown → band pulldown because there's no bar).
 
 Library: the athlete adds videos, programs and notes to their library (titles under LIBRARY). Search it with search_library when a question touches anything they've shared, and prefer their sources when they agree with the evidence; when a source conflicts with the evidence or their situation, say so kindly and explain the adaptation. When they paste material in chat and want it kept, save it with save_to_library.
@@ -77,7 +81,7 @@ Mid-workout (WORKOUT IN PROGRESS in the training data means they're training rig
 - For pain during a set: stop that exercise, offer a pain-free swap with adjust_workout, and ask one question if a red flag is possible.
 - If they want the change kept for next time too, also call propose_routine_changes.
 
-Changes need their approval: use propose_routine_changes, propose_goal or propose_profile_update. The app shows each proposal with Approve and Dismiss buttons. Say briefly what you proposed.
+Changes need their approval: use propose_routine_changes, propose_goal or propose_profile_update. The exception is what they've just told you about themselves in answer to your questions: save that directly with save_profile. The app shows each proposal with Approve and Dismiss buttons. Say briefly what you proposed.
 
 ${KNOWLEDGE_CORE}
 
@@ -143,6 +147,19 @@ export const COACH_TOOLS = [
     description:
       "Save a video link as an exercise's preferred video (its video button opens it from then on). Use when they give you a link for an exercise. If you don't know which exercise, call it without one: you get the video's title back to decide or ask.",
     parameters: obj({ url: str('The video link'), exercise: str('Exercise name as in the library or their routines; leave out if unsure') }, ['url']),
+  },
+  {
+    name: 'save_profile',
+    kind: 'memory',
+    description: 'Save what the athlete just told you about themselves into their profile (each field you give replaces that field). Only what they said, in their words where possible; no guesses.',
+    parameters: obj({
+      goals: str('Main goal(s), e.g. "Build muscle, bench my bodyweight by summer"'),
+      schedule: str('Days a week and minutes per session, e.g. "3 days, 45 min, mornings"'),
+      equipment: str('e.g. "Adjustable dumbbells to 24 kg, bench, pull-up bar"'),
+      injuries: str('Injuries and limits, or "none"'),
+      preferences: str('Training experience and likes or dislikes, e.g. "2 years lifting, hates lunges"'),
+      age: int(),
+    }),
   },
   { name: 'remember', kind: 'memory', description: 'Save a lasting fact about the athlete to memory (one short sentence).', parameters: obj({ note: str() }, ['note']) },
   { name: 'forget', kind: 'memory', description: 'Delete a memory note that is wrong or outdated.', parameters: obj({ note_id: str() }, ['note_id']) },
@@ -362,10 +379,11 @@ export function memoryText(list, tz) {
   return lines.join('\n')
 }
 
-export function systemText({ list, context, tz }) {
+/** `about`: background on this athlete beyond their profile (the owner's, see OWNER_ABOUT). */
+export function systemText({ list, context, tz, about }) {
   const now = new Date()
   const today = new Intl.DateTimeFormat('en-GB', { timeZone: tz || undefined, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(now)
-  return `${COACH_SYSTEM}\n\nToday is ${today} (${ymd(now, tz)}).\n\n${memoryText(list, tz)}\n\nTRAINING DATA FROM THE APP\n${context || '(no data yet)'}`
+  return `${COACH_SYSTEM}${about ? `\n\nAbout this athlete: ${about}` : ''}\n\nToday is ${today} (${ymd(now, tz)}).\n\n${memoryText(list, tz)}\n\nTRAINING DATA FROM THE APP\n${context || '(no data yet)'}`
 }
 
 /** The short structured requests: prompt text and the JSON shape each returns. */

@@ -3740,6 +3740,24 @@ label.setting:active {
   padding: 0 var(--sp-1) var(--sp-2);
 }
 
+.plan-own {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1-5);
+  margin-top: var(--sp-3);
+  width: 100%;
+  min-height: var(--h-sm);
+  font-size: var(--fs-14);
+  font-weight: 650;
+  color: inherit;
+  opacity: 0.8;
+}
+.plan-own:active {
+  opacity: 1;
+}
+
 /* ---------- coach model pick (owner) / Opus planning toggle (everyone else) ---------- */
 .model-pick {
   position: relative;
