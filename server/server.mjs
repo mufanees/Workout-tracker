@@ -35,6 +35,11 @@ try {
   )
   process.exit(1)
 }
+/** A number from the environment; unset, empty or not a number means the default. */
+const envNumber = (name, fallback) => {
+  const v = String(process.env[name] ?? '').trim()
+  return v !== '' && Number.isFinite(Number(v)) ? Number(v) : fallback
+}
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || ''
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
 const accounts = createAccounts({
@@ -46,9 +51,9 @@ const accounts = createAccounts({
   coachDefaults: {
     model: ['haiku', 'sonnet', 'opus'].includes(process.env.COACH_MODEL) ? process.env.COACH_MODEL : 'sonnet',
     effort: process.env.COACH_EFFORT === 'medium' ? 'medium' : 'low',
-    budget: Number(process.env.COACH_MONTHLY_BUDGET ?? 5), // USD a month per person; -1 for no limit
-    opus: Number(process.env.COACH_OPUS_SESSIONS ?? 5), // Opus planning sessions a month per person
-    opusCap: Number(process.env.COACH_OPUS_SESSION_USD ?? 1), // USD one planning session can use
+    budget: envNumber('COACH_MONTHLY_BUDGET', 5), // USD a month per person; -1 for no limit
+    opus: envNumber('COACH_OPUS_SESSIONS', 5), // Opus planning sessions a month per person
+    opusCap: envNumber('COACH_OPUS_SESSION_USD', 1), // USD one planning session can use
   },
   jwksUrl: process.env.GOOGLE_JWKS_URL || undefined,
 })
