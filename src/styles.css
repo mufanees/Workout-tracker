@@ -3670,6 +3670,74 @@ label.setting:active {
   bottom: calc(var(--safe-bottom) + var(--tabbar-h) + 100px);
 }
 
+/* ---------- coach during a workout: floating button + sheet ---------- */
+.coach-fab {
+  position: fixed;
+  z-index: 26;
+  right: max(16px, calc((100vw - 640px) / 2 + 16px));
+  bottom: calc(var(--safe-bottom) + 20px);
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+  transition: bottom 300ms var(--ease), transform 150ms ease-out;
+}
+.coach-fab:active {
+  transform: scale(0.96);
+}
+.coach-fab.resting {
+  bottom: calc(var(--safe-bottom) + var(--rest-bar-h, 76px) + 22px);
+}
+.coach-fab-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  border: 2px solid var(--ink);
+}
+.coach-fab-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  border-top-color: var(--accent);
+  animation: spin 900ms linear infinite;
+}
+.coach-fab-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-15);
+  line-height: 1.45;
+}
+.sheet .composer {
+  position: static;
+  max-width: none;
+  box-shadow: none;
+}
+.sheet .chat {
+  padding-bottom: 0;
+}
+.coach-fab-asks {
+  padding-top: var(--sp-1);
+}
+.coach-fab-asks.row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--sp-4));
+  padding: var(--sp-1) var(--sp-4) 0;
+}
+.coach-fab-asks.row::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---------- hero quote: big, loud, rotating ---------- */
 .hero-quote {
   position: relative;

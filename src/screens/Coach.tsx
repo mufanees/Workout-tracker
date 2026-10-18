@@ -3,67 +3,15 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { openGoals } from '../goals'
 import { GooDots } from '../ui/Goo'
 import { route, navigate } from '../router'
-import { getToken, syncNow } from '../sync'
-import { exMap, workouts } from '../store'
+import { active, exMap, workouts } from '../store'
 import { sessionsByExercise } from '../stats'
-import { buildCoachContext, coachPasteText, routinesText } from '../coachContext'
-import { claudeChat } from '../coachClaude'
-import { applyProposal, checkCoach, coachMode, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, quick, tz, type Proposal, type ProposalDay } from '../coach'
+import { checkCoach, coachOn, describeProposal, ensureTz, latestWeekly, openCommitments, type Proposal, type ProposalDay } from '../coach'
+import { ask, chat, chatBusy, chatInput, chatStatus, clearChat, decide, stopChat } from '../coachChat'
 import { Icon } from '../ui/icons'
-import { confirmDialog, toast } from '../ui/overlay'
+import { confirmDialog } from '../ui/overlay'
 import { QuoteCard } from '../ui/Quote'
 import { adjustMessage } from '../ui/Feedback'
-import { saveVideo } from '../videos'
 import { fmtDay } from '../util'
-
-interface Msg {
-  role: 'user' | 'assistant'
-  content: string
-  memory?: { action: string; text: string }[]
-  proposals?: Proposal[]
-}
-
-const KEY = 'reps-coach'
-const KEEP = 40 // messages kept on the phone; older ones are condensed into memory
-const load = (): Msg[] => {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || '[]')
-  } catch {
-    return []
-  }
-}
-const persist = (m: Msg[]) => {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(m))
-  } catch {
-    /* storage blocked */
-  }
-}
-
-const TOOL_LABEL: Record<string, string> = {
-  recent_workouts: 'Looking through your workouts',
-  exercise_progress: 'Checking that exercise’s history',
-  body_stats: 'Checking weight, recovery and shoulder',
-  list_routines: 'Looking at your routines',
-  remember: 'Saving to memory',
-  forget: 'Updating memory',
-  set_commitment: 'Noting a commitment',
-  resolve_commitment: 'Updating a commitment',
-  propose_routine_targets: 'Preparing a routine change',
-  propose_routine_changes: 'Reworking your routine',
-  search_exercises: 'Finding alternatives',
-  propose_goal: 'Preparing a goal',
-  propose_training_block: 'Planning a training block',
-  propose_program: 'Designing your program',
-  training_knowledge: 'Checking the training science',
-  find_stretches: 'Picking stretches',
-  propose_mobility_plan: 'Building in your mobility',
-  search_library: 'Reading your library',
-  save_to_library: 'Saving to your library',
-  save_exercise_video: 'Saving the video',
-  resolve_goal: 'Updating your goal',
-  propose_profile_update: 'Preparing a profile update',
-}
 
 function suggestions(): string[] {
   let top: string | null = null
@@ -85,13 +33,135 @@ function suggestions(): string[] {
   ]
 }
 
+/** The conversation from message `from` on: replies, memory chips and proposals with Approve. */
+export function ChatThread({ from }: { from: number }) {
+  const msgs = chat.value
+  const busy = chatBusy.value
+  const status = chatStatus.value
+  return (
+    <div class="chat">
+      {msgs.map((m, i) =>
+        i < from ? null : m.role === 'user' ? (
+          <div class="bubble user">{m.content}</div>
+        ) : (
+          <div class="bubble coach">
+            {m.content ? <Markdown text={m.content} /> : busy && i === msgs.length - 1 ? <GooDots /> : null}
+            {busy && i === msgs.length - 1 && status && (
+              <span class="coach-status">
+                <span class="spinner" aria-hidden="true" /> {status}…
+              </span>
+            )}
+            {m.memory?.map((x) => (
+              <span class="mem-chip">
+                <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'library' ? 'Saved to library' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : x.action === 'video' ? 'Video saved' : 'Remembered'}: {x.text}
+              </span>
+            ))}
+            {m.proposals?.map((p) => (
+              <ProposalCard p={p} onDecide={(ok) => decide(i, p.id, ok)} />
+            ))}
+          </div>
+        ),
+      )}
+    </div>
+  )
+}
+
+function ProposalCard({ p, onDecide }: { p: Proposal; onDecide: (approve: boolean) => void }) {
+  const d = describeProposal(p)
+  const reason = (p.args as { reason?: string }).reason
+  const live = p.tool === 'adjust_workout'
+  return (
+    <div class={'proposal ' + (p.state || 'pending') + (d.days ? ' rich' : '')}>
+      <b class="proposal-title">{d.title}</b>
+      {d.chips && d.chips.length > 0 && (
+        <div class="proposal-chips">
+          {d.chips.map((c) => (
+            <span>{c}</span>
+          ))}
+        </div>
+      )}
+      {reason && <span class="muted small">{reason}</span>}
+      {d.days ? (
+        <>
+          {d.summary && <p class="proposal-summary">{d.summary}</p>}
+          {d.days.map((day, di) => (
+            <ProposalDayCard day={day} open={di === 0} />
+          ))}
+        </>
+      ) : (
+        <ul class="proposal-lines">
+          {d.lines.map((l) => (
+            <li>{l}</li>
+          ))}
+        </ul>
+      )}
+      {p.state === 'pending' || !p.state ? (
+        live && !active.value ? (
+          <span class="proposal-state">That workout is over</span>
+        ) : (
+          <div class="row gap">
+            <button class="btn btn-secondary btn-sm grow" onClick={() => onDecide(false)}>
+              Dismiss
+            </button>
+            <button class="btn btn-primary btn-sm grow" onClick={() => onDecide(true)}>
+              {live ? 'Apply' : 'Approve'}
+            </button>
+          </div>
+        )
+      ) : (
+        <span class="proposal-state">
+          <Icon name={p.state === 'approved' ? 'check' : 'x'} size={14} /> {p.state === 'approved' ? (live ? 'Applied' : 'Approved') : 'Dismissed'}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Message box with send (or stop while the coach is answering). */
+export function Composer({ placeholder, focusWorkoutId }: { placeholder: string; focusWorkoutId?: string }) {
+  const busy = chatBusy.value
+  const off = coachOn.value === false
+  const input = chatInput.value
+  const send = () => void ask(input, focusWorkoutId)
+  return (
+    <form
+      class="composer"
+      onSubmit={(e) => {
+        e.preventDefault()
+        send()
+      }}
+    >
+      <textarea
+        id="coach-input"
+        rows={1}
+        value={input}
+        placeholder={placeholder}
+        aria-label="Message your coach"
+        onInput={(e) => (chatInput.value = e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            send()
+          }
+        }}
+      />
+      {busy ? (
+        <button type="button" class="send" onClick={stopChat} aria-label="Stop">
+          <Icon name="x" size={20} />
+        </button>
+      ) : (
+        <button type="submit" class="send" disabled={!input.trim()} aria-label={off ? 'Copy question and training summary' : 'Send'}>
+          <Icon name={off ? 'copy' : 'up'} size={20} />
+        </button>
+      )}
+    </form>
+  )
+}
+
 export function Coach() {
-  const [msgs, setMsgs] = useState<Msg[]>(load)
-  const [input, setInput] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState('')
+  const msgs = chat.value
+  const busy = chatBusy.value
   const endRef = useRef<HTMLDivElement>(null)
-  const abort = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (coachOn.value == null) void checkCoach()
@@ -117,139 +187,9 @@ export function Coach() {
     } else void ask('Review this workout: what went well, what to adjust next time, and one thing to focus on.', id!)
   }, [coachOn.value])
 
-  const save = (m: Msg[]) => {
-    setMsgs(m)
-    persist(m)
-  }
-
-  /** Keep the chat short: condense the oldest messages into memory notes, then drop them. */
-  const condense = async (all: Msg[]): Promise<Msg[]> => {
-    if (all.length <= KEEP) return all
-    const old = all.slice(0, all.length - KEEP + 10)
-    try {
-      await quick({ kind: 'condense', messages: old.map(({ role, content }) => ({ role, content })) })
-    } catch {
-      /* best effort: still trim */
-    }
-    return all.slice(old.length)
-  }
-
-  const ask = async (text: string, focusWorkoutId?: string) => {
-    const q = text.trim()
-    if (!q || busy) return
-    if (!coachOn.value) return copyForClaude(q)
-    const history: Msg[] = [...msgs, { role: 'user', content: q }]
-    const reply: Msg = { role: 'assistant', content: '', memory: [], proposals: [] }
-    const show = () => setMsgs([...history, { ...reply }])
-    show()
-    setInput('')
-    setBusy(true)
-    setStatus('')
-    const ctrl = new AbortController()
-    abort.current = ctrl
-    try {
-      if (coachMode.value === 'claude') {
-        const text = await claudeChat(history.map(({ role, content }) => ({ role, content })), focusWorkoutId, {
-          signal: ctrl.signal,
-          onText: (t) => {
-            reply.content = t
-            setStatus('')
-            show()
-          },
-          onTool: (name) => {
-            setStatus(TOOL_LABEL[name] || 'Working on it')
-            show()
-          },
-          onMemory: (m) => {
-            reply.memory!.push(m)
-            show()
-          },
-          onProposal: (p) => {
-            reply.proposals!.push(p)
-            show()
-          },
-        })
-        reply.content = text || reply.content
-        if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : '…'
-        save(await condense([...history, reply]))
-        return
-      }
-      await syncNow() // the coach reads your profile and memory from the server
-      const res = await fetch('/api/coach', {
-        method: 'POST',
-        signal: ctrl.signal,
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), context: buildCoachContext({ focusWorkoutId }), routines: routinesText(), tz: tz() }),
-      })
-      if (!res.ok || !res.body) throw new Error(res.status === 401 ? 'Connect sync first (Settings → Sync key).' : 'The coach is unavailable right now.')
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
-      let buf = ''
-      for (;;) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buf += dec.decode(value, { stream: true })
-        let i
-        while ((i = buf.indexOf('\n\n')) >= 0) {
-          const line = buf.slice(0, i).replace(/^data: /, '')
-          buf = buf.slice(i + 2)
-          if (!line) continue
-          const ev = JSON.parse(line) as { t?: string; error?: string; tool?: string; memory?: { action: string; text: string }; proposal?: Proposal; video?: { exerciseId: string; name: string; url: string; title?: string | null } }
-          if (ev.error) throw new Error(ev.error)
-          if (ev.t) {
-            reply.content += ev.t
-            setStatus('')
-          }
-          if (ev.tool) setStatus(TOOL_LABEL[ev.tool] || 'Working on it')
-          if (ev.memory) reply.memory!.push(ev.memory)
-          if (ev.video) {
-            const ex = exMap.value.get(ev.video.exerciseId)
-            if (ex) void saveVideo(ex, ev.video.url, { title: ev.video.title || undefined })
-          }
-          if (ev.proposal) reply.proposals!.push({ ...ev.proposal, state: 'pending' })
-          show()
-        }
-      }
-      if (!reply.content) reply.content = reply.proposals?.length ? 'Here’s what I suggest:' : '…'
-      save(await condense([...history, reply]))
-      void syncNow() // pull memory the coach saved
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') {
-        save([...history, { ...reply, content: reply.content ? reply.content + ' …' : '(stopped)' }])
-      } else {
-        setMsgs(history.slice(0, -1))
-        setInput(q)
-        toast((e as Error).message || 'The coach is unavailable right now.')
-      }
-    } finally {
-      setBusy(false)
-      setStatus('')
-      abort.current = null
-    }
-  }
-
-  const decide = async (mi: number, pid: string, approve: boolean) => {
-    const m = msgs[mi]
-    const p = m.proposals?.find((x) => x.id === pid)
-    if (!p) return
-    try {
-      if (approve) toast(await applyProposal(p))
-      const next = msgs.map((x, j) => (j === mi ? { ...x, proposals: x.proposals!.map((y) => (y.id === pid ? { ...y, state: approve ? ('approved' as const) : ('dismissed' as const) } : y)) } : x))
-      save(next)
-    } catch (e) {
-      toast((e as Error).message)
-    }
-  }
-
-  const copyForClaude = (q: string) =>
-    navigator.clipboard
-      .writeText(coachPasteText(q))
-      .then(() => toast('Copied. Paste it into Gemini or Claude to get your answer.'))
-      .catch(() => toast('Couldn’t copy on this device.'))
-
   const clear = async () => {
     if (!(await confirmDialog({ title: 'Clear this conversation?', message: 'Your coach keeps its memory. Manage that under Memory.', confirm: 'Clear', danger: true }))) return
-    save([])
+    clearChat()
   }
 
   const off = coachOn.value === false
@@ -307,73 +247,8 @@ export function Coach() {
         </section>
       )}
 
-      <div class="chat">
-        {msgs.map((m, i) =>
-          m.role === 'user' ? (
-            <div class="bubble user">{m.content}</div>
-          ) : (
-            <div class="bubble coach">
-              {m.content ? <Markdown text={m.content} /> : busy && i === msgs.length - 1 ? <GooDots /> : null}
-              {busy && i === msgs.length - 1 && status && (
-                <span class="coach-status">
-                  <span class="spinner" aria-hidden="true" /> {status}…
-                </span>
-              )}
-              {m.memory?.map((x) => (
-                <span class="mem-chip">
-                  <Icon name="brain" size={13} /> {x.action === 'forgot' ? 'Forgot' : x.action === 'commitment' ? 'Commitment' : x.action === 'library' ? 'Saved to library' : x.action === 'goal reached' ? 'Goal reached' : x.action === 'goal dropped' ? 'Goal dropped' : x.action === 'video' ? 'Video saved' : 'Remembered'}: {x.text}
-                </span>
-              ))}
-              {m.proposals?.map((p) => {
-                const d = describeProposal(p)
-                const reason = (p.args as { reason?: string }).reason
-                return (
-                  <div class={'proposal ' + (p.state || 'pending') + (d.days ? ' rich' : '')}>
-                    <b class="proposal-title">{d.title}</b>
-                    {d.chips && d.chips.length > 0 && (
-                      <div class="proposal-chips">
-                        {d.chips.map((c) => (
-                          <span>{c}</span>
-                        ))}
-                      </div>
-                    )}
-                    {reason && <span class="muted small">{reason}</span>}
-                    {d.days ? (
-                      <>
-                        {d.summary && <p class="proposal-summary">{d.summary}</p>}
-                        {d.days.map((day, di) => (
-                          <ProposalDayCard day={day} open={di === 0} />
-                        ))}
-                      </>
-                    ) : (
-                      <ul class="proposal-lines">
-                        {d.lines.map((l) => (
-                          <li>{l}</li>
-                        ))}
-                      </ul>
-                    )}
-                    {p.state === 'pending' || !p.state ? (
-                      <div class="row gap">
-                        <button class="btn btn-secondary btn-sm grow" onClick={() => decide(i, p.id, false)}>
-                          Dismiss
-                        </button>
-                        <button class="btn btn-primary btn-sm grow" onClick={() => decide(i, p.id, true)}>
-                          Approve
-                        </button>
-                      </div>
-                    ) : (
-                      <span class="proposal-state">
-                        <Icon name={p.state === 'approved' ? 'check' : 'x'} size={14} /> {p.state === 'approved' ? 'Approved' : 'Dismissed'}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ),
-        )}
-        <div ref={endRef} />
-      </div>
+      <ChatThread from={0} />
+      <div ref={endRef} />
 
       {!busy && (
         <div class="chips-wrap coach-chips">
@@ -385,37 +260,7 @@ export function Coach() {
         </div>
       )}
 
-      <form
-        class="composer"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void ask(input)
-        }}
-      >
-        <textarea
-          id="coach-input"
-          rows={1}
-          value={input}
-          placeholder={off ? 'Ask, then paste into Gemini' : 'Ask your coach'}
-          aria-label="Message your coach"
-          onInput={(e) => setInput(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              void ask(input)
-            }
-          }}
-        />
-        {busy ? (
-          <button type="button" class="send" onClick={() => abort.current?.abort()} aria-label="Stop">
-            <Icon name="x" size={20} />
-          </button>
-        ) : (
-          <button type="submit" class="send" disabled={!input.trim()} aria-label={off ? 'Copy question and training summary' : 'Send'}>
-            <Icon name={off ? 'copy' : 'up'} size={20} />
-          </button>
-        )}
-      </form>
+      <Composer placeholder={off ? 'Ask, then paste into Gemini' : 'Ask your coach'} />
     </div>
   )
 }

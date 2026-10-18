@@ -6,7 +6,7 @@ import { knowledgeLookup, searchLibrary } from '../shared/coachKnowledge.mjs'
 import { findStretches } from '../shared/rehabKnowledge.mjs'
 import { matchExercise, type LibExercise } from '../shared/planImport.mjs'
 import { sampleFn } from './cloud'
-import { bodyWeights, coachItems, dayNotes, exercises, fasts, readings, remove, saveCoachItem, workouts } from './store'
+import { active, bodyWeights, coachItems, dayNotes, exercises, fasts, readings, remove, saveCoachItem, workouts } from './store'
 import { checkinWords, buildCoachContext, routinesText, workoutLine } from './coachContext'
 import { sessionsByExercise } from './stats'
 import type { Proposal } from './coach'
@@ -149,7 +149,8 @@ export async function claudeChat(history: { role: 'user' | 'assistant'; content:
   const msgs = turnsFor(`${system}\n\nThe conversation follows. Reply to the athlete's last message.`, history)
   try {
     // Planning questions (goals, programs, milestones) get the strongest model; everyday ones stay quick.
-    const modelTier = isPlanning(history[history.length - 1]?.content || '') ? 'complex' : 'default'
+    // Mid-workout they're waiting between sets, so those stay quick too.
+    const modelTier = !active.value && isPlanning(history[history.length - 1]?.content || '') ? 'complex' : 'default'
     const { text } = await sample(msgs, { tools, cache: false, modelTier, signal: h.signal, onText: ({ text }: { text: string }) => h.onText(text) })
     return text
   } catch (e) {

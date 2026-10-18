@@ -4,8 +4,8 @@ import { weightModelText } from './weightModel'
 import { goalsText } from './goals'
 import { blockText } from './blocks'
 import { dayKey } from './fasting'
-import { planFor } from './timeplan'
-import { bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
+import { pace, planFor } from './timeplan'
+import { active, bodyWeights, dayNotes, exMap, fasts, readings, routines, settings, workouts } from './store'
 import { prIndex, sessionsByExercise, stalledAt } from './stats'
 import { planStatus } from './plan'
 import { programStatus, programText } from './program'
@@ -65,11 +65,46 @@ export function workoutLine(w: Workout) {
   return lines.join('\n')
 }
 
+/** The session they're doing right now, for changes mid-workout (adjust_workout). */
+export function liveWorkoutText(w: Workout, now = Date.now()): string {
+  const mins = Math.round((now - w.start) / 60000)
+  const working = w.exercises.flatMap((e) => e.sets).filter((s) => s.kind !== 'warmup')
+  const tp = w.timePlan
+  const p = tp ? pace(w, now) : null
+  const head = [`"${w.name}", started ${mins} min ago`]
+  if (tp) head.push(`time budget ${tp.budget} min (${mins >= tp.budget ? 'over budget' : `${tp.budget - mins} min left`}${p && Math.abs(p.behind) >= 2 ? `, ${p.behind > 0 ? `${p.behind} min behind` : `${-p.behind} min ahead of`} pace` : ''})`)
+  head.push(`${working.filter((s) => s.done).length} of ${working.length} working sets done`)
+  const lines = [head.join(', ') + '.']
+  const groups = new Map<string, string>()
+  w.exercises.forEach((e, i) => {
+    const ex = exMap.value.get(e.exerciseId)
+    const type = ex?.type || 'weight_reps'
+    if (e.superset && !groups.has(e.superset)) groups.set(e.superset, String.fromCharCode(65 + groups.size))
+    const done = e.sets.filter((s) => s.done)
+    const left = e.sets.filter((s) => !s.done && s.kind !== 'warmup')
+    const plan = left[0] ? fmtSet({ ...left[0], weight: left[0].cw ?? left[0].tw ?? null, reps: left[0].cr ?? left[0].tr ?? null }, type) : ''
+    const bits = [`${i + 1}. ${ex?.name || e.exerciseId}`]
+    if (e.superset) bits.push(` [superset ${groups.get(e.superset)}]`)
+    if (e.target) bits.push(` target ${e.target}`)
+    if (e.rest) bits.push(`, rest ${e.rest}s`)
+    bits.push(`: done ${done.length ? done.map((s) => fmtSet(s, type)).join(', ') : 'none'}`)
+    bits.push(left.length ? `; ${left.length} set${left.length > 1 ? 's' : ''} left${plan ? ` (planned ${plan})` : ''}` : '; finished')
+    lines.push('  ' + bits.join(''))
+  })
+  const ticked = (k: string, n: number) => Array.from({ length: n }, (_, i) => w.checks?.[k + i]).filter(Boolean).length
+  if (w.warmup?.length) lines.push(`  Warm-up: ${ticked('w', w.warmup.length)} of ${w.warmup.length} done`)
+  if (w.cooldown?.length) lines.push(`  Cool-down: ${ticked('c', w.cooldown.length)} of ${w.cooldown.length} done (${w.cooldown.join('; ')})`)
+  return lines.join('\n')
+}
+
 export function buildCoachContext(opts: { focusWorkoutId?: string } = {}): string {
   const st = settings.value
   const now = Date.now()
   const out: string[] = []
   out.push(`Today: ${date(now)} (${new Date().toLocaleDateString('en-GB', { weekday: 'long' })}). Weights in kg (dumbbell exercises: weight of one dumbbell). Display unit: ${st.unit}.`)
+
+  const live = active.value
+  if (live) out.push(`\nWORKOUT IN PROGRESS (they're training now)\n${liveWorkoutText(live, now)}\n`)
 
   const p = planStatus.value
   if (programStatus.value) out.push(`PROGRAM (coach-built, active)\n${programText()}`)

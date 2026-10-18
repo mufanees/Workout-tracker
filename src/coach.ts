@@ -11,6 +11,7 @@ import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
 import { describeDay, mobilityFrom } from './mobility'
 import { clone, startOfDay, uid } from './util'
+import { applyAdjust, describeAdjust } from './adjust'
 
 /** null = still checking; false = no coach on this server (or no server). */
 export const coachOn = signal<boolean | null>(null)
@@ -75,7 +76,7 @@ export async function quick<T>(body: Record<string, unknown>, focusWorkoutId?: s
 
 export interface Proposal {
   id: string
-  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program' | 'propose_mobility_plan'
+  tool: 'propose_routine_changes' | 'propose_routine_targets' | 'propose_goal' | 'propose_profile_update' | 'propose_training_block' | 'propose_program' | 'propose_mobility_plan' | 'adjust_workout'
   args: Record<string, unknown>
   state?: 'pending' | 'approved' | 'dismissed'
 }
@@ -138,6 +139,7 @@ function programDay(r: any): ProposalDay {
 /** What approving will do: a title and plain lines, plus structure for the richer cards. */
 export function describeProposal(p: Proposal): ProposalView {
   const a = p.args as Record<string, any>
+  if (p.tool === 'adjust_workout') return { title: 'Change today’s workout', lines: describeAdjust(a) }
   if (p.tool === 'propose_routine_targets' || p.tool === 'propose_routine_changes') {
     const list = (x: unknown) => (Array.isArray(x) ? x : [])
     const dose = (c: any) => [c.sets != null ? `${c.sets} sets` : '', c.weight_kg != null ? `${c.weight_kg} kg` : '', c.reps != null ? `× ${c.reps}` : ''].filter(Boolean).join(' ')
@@ -192,6 +194,7 @@ export function describeProposal(p: Proposal): ProposalView {
 /** Apply an approved proposal locally (it syncs from there). Returns a confirmation message. */
 export async function applyProposal(p: Proposal): Promise<string> {
   const a = p.args as Record<string, any>
+  if (p.tool === 'adjust_workout') return applyAdjust(a)
   if (p.tool === 'propose_program') {
     const name = String(a.name || 'Program').slice(0, 60)
     const plan = { folder: name, routines: (Array.isArray(a.routines) ? a.routines : []).map((r: any) => ({ ...r, exercises: (Array.isArray(r?.exercises) ? r.exercises : []).map((e: any) => ({ ...e, superset: e?.superset ?? undefined })) })) }

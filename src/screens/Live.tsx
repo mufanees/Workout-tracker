@@ -4,6 +4,7 @@ import { active, exMap, routines, settings, unit, updateActive } from '../store'
 import { navigate, navPending } from '../router'
 import { adjustRest, armRest, discardActive, finishActive, restTimer, startRest, stopRest, unlockAudio } from '../workout'
 import { HRPanel } from '../ui/HR'
+import { CoachBubble } from '../ui/CoachBubble'
 import { checkCoach, coachOn, quick } from '../coach'
 import { summarizeHR } from '../hr'
 import { WorkoutEditor, completeSet, placeholderFor, nextUp } from '../ui/WorkoutEditor'
@@ -250,6 +251,7 @@ export function Live() {
       </main>
 
       <RestBar />
+      <CoachBubble />
       <FinishSheet open={finishing} onClose={() => setFinishing(false)} />
     </div>
   )

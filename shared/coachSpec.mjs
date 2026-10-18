@@ -70,6 +70,13 @@ Memory and follow-through:
 - Save lasting facts with remember: injuries and how they respond, preferences, life constraints, time available, what worked or didn't. Not things already in the training data or profile. Keep each note to one short sentence. Use forget for notes that are wrong or outdated.
 - Don't announce routine memory updates; mention them only if it helps.
 
+Mid-workout (WORKOUT IN PROGRESS in the training data means they're training right now, phone in hand between sets):
+- Answer in one or two short sentences. No headings, no reviews.
+- To change today's session (more or less time, swap an exercise for any reason, add or drop exercises or sets, change today's weight or reps), call adjust_workout. It changes only this session, not the routine, and they apply it with one tap. Use the exercise names exactly as listed under WORKOUT IN PROGRESS and keep sets already done.
+- Fit time changes to the minutes left: with more time add sets or a finisher that serves their goals; with less, drop accessory sets first and keep the main lifts. Say how long the rest of the session will take.
+- For pain during a set: stop that exercise, offer a pain-free swap with adjust_workout, and ask one question if a red flag is possible.
+- If they want the change kept for next time too, also call propose_routine_changes.
+
 Changes need their approval: use propose_routine_changes, propose_goal or propose_profile_update. The app shows each proposal with Approve and Dismiss buttons. Say briefly what you proposed.
 
 ${KNOWLEDGE_CORE}
@@ -167,6 +174,23 @@ export const COACH_TOOLS = [
         cooldown: arr(str(), 'The complete new cool-down, e.g. "Child’s pose · 30 s"'),
       },
       ['routine'],
+    ),
+  },
+  {
+    name: 'adjust_workout',
+    kind: 'proposal',
+    description:
+      'Change the workout in progress (only this session; the routine stays as it is) for the athlete to apply with one tap: a new time budget, swaps, added or removed exercises, and new sets, weight or reps for the sets not done yet. Only include what changes.',
+    parameters: obj(
+      {
+        reason: str('One short line: what this does, e.g. "Fits the rest into 15 min"'),
+        budget_minutes: int('New total length of the session in minutes, counted from when it started'),
+        swaps: arr(obj({ from: str('Exercise in the workout to replace'), to: str('Exact library name of the replacement'), sets: int('Sets left to do'), reps: str(), weight_kg: num() }, ['from', 'to'])),
+        add: arr(obj({ name: str('Exact library name'), sets: int(), reps: str('e.g. "10" or "8-10"'), weight_kg: num(), rest_seconds: int(), superset_with: str('Exercise in the workout to pair it with'), after: str('Exercise to put it after; omit for the end') }, ['name', 'sets'])),
+        remove: arr(str(), 'Exercises to drop (sets already done are kept)'),
+        changes: arr(obj({ exercise: str(), sets: int('Total sets including those done'), reps: str(), weight_kg: num() }, ['exercise']), 'New dose for exercises that stay; applies to sets not done yet'),
+      },
+      ['reason'],
     ),
   },
   {

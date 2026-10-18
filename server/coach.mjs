@@ -240,6 +240,7 @@ export function createCoach({ db, q, mcp, push }) {
       case 'propose_goal':
       case 'propose_training_block':
       case 'propose_program':
+      case 'adjust_workout':
       case 'propose_mobility_plan':
       case 'propose_profile_update': {
         const id = newId('prop')
@@ -274,7 +275,7 @@ export function createCoach({ db, q, mcp, push }) {
             tools: [{ functionDeclarations: DECLARATIONS }],
             generationConfig: { maxOutputTokens: 8192 },
           },
-          { onText: (t) => send({ t }), signal: ctrl.signal, model: isPlanning(messages[messages.length - 1]?.content) ? PLAN_MODEL : MODEL },
+          { onText: (t) => send({ t }), signal: ctrl.signal, model: isPlanning(messages[messages.length - 1]?.content) && !String(body.context || '').includes('WORKOUT IN PROGRESS') ? PLAN_MODEL : MODEL },
         )
         if (blocked || finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT') {
           send({ t: '\n\nGemini declined to answer that one. Try asking about your training a different way.' })
