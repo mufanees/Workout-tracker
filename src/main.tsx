@@ -1,7 +1,8 @@
 import { render } from 'preact'
 import { App } from './App'
 import { init } from './store'
-import { startAutoSync } from './sync'
+import { afterServerSync, startAutoSync } from './sync'
+import { relinkProgram } from './program'
 import { loadAccount } from './account'
 import { handleShare, takeShare } from './share'
 import { reconnectSaved } from './hr'
@@ -15,6 +16,8 @@ render(<App />, document.getElementById('app')!)
 
 init()
   .then(() => {
+    void relinkProgram()
+    afterServerSync.push(relinkProgram)
     startAutoSync()
     void loadAccount()
     handleShare()

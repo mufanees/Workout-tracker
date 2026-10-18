@@ -1,7 +1,8 @@
 // Browser walk of a coach program adjustment: the athlete approves a program, does Day 1 and Day 2,
 // then the coach adjusts it (renamed, same days). Train must carry on at Day 3 in the same week,
-// not restart at Day 1. Also repairs data already reset by the old behaviour (new routine ids,
-// start moved to today), and screenshots the structured program card and a sectioned reply.
+// not restart at Day 1: the proposal carries the ids of the days it changes. Also repairs data
+// already reset by the old behaviour (new routine ids, start moved to today), and screenshots
+// the structured program card and a sectioned reply.
 // npm run build && node qa/program-adjust-ui.mjs
 import http from 'node:http'
 import fs from 'node:fs'
@@ -132,8 +133,10 @@ try {
   const week = t.eyebrow.match(/Week (\d+)/)?.[1]
   check('week 2 of the program', week === '2', t.eyebrow)
 
-  // The coach adjusts it, renamed, same days.
+  // The coach adjusts it, renamed, passing the ids of the days it changes.
+  const dayIds = await idb(async (all) => (await all('settings'))[0].program.routineIds)
   next = program('Buff Dudes Phase 1 · 25/35 min')
+  next.routines.forEach((r, i) => (r.id = dayIds[i]))
   next.routines[0].exercises[0].notes = '14 kg. 3rd round on 35-min days'
   await approve('Make the exercises scale with the time I have')
   const card = p.locator('.proposal').last()
@@ -156,7 +159,8 @@ try {
     const rs = await all('routines')
     return { ids: s.program.routineIds, first: rs.find((r) => r.id === s.program.routineIds[0]), count: rs.filter((r) => /Day \d · Full Body/.test(r.name) && !r.deleted).length }
   })
-  check('routines updated in place, no duplicates', after.count === 3, String(after.count))
+  check('routines updated in place, no duplicates', after.count === 3 && after.ids.join() === dayIds.join(), String(after.count))
+  check('the change applied', JSON.stringify(after.first).includes('14 kg'))
   await p.locator('.plan-card').screenshot({ path: `${shots}/3-train.png` })
 
   // Data already reset by the old behaviour: fresh copies of the routines, start moved to today.
@@ -171,13 +175,24 @@ try {
       ids.push(copy.id)
     }
     const d = new Date()
-    s.program = { ...s.program, routineIds: ids, start: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
+    s.program = { ...s.program, routineIds: ids, start: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(), relinked: undefined }
     s.updatedAt = Date.now()
     await put('settings', s)
   })
   t = await train()
   check('already-reset data picks up at Day 3 again', /Day 3/.test(t.title), t.title)
   check('and week 2 again', t.eyebrow.match(/Week (\d+)/)?.[1] === '2', t.eyebrow)
+  const relinked = await idb(async (all) => ({ p: (await all('settings'))[0].program, w: (await all('workouts')).map((w) => w.routineId) }))
+  check('workouts point at the program days now', relinked.p.relinked && relinked.w.every((id) => relinked.p.routineIds.includes(id)), JSON.stringify(relinked.w))
+
+  // A proposal without ids is a new program: it starts over at Day 1.
+  next = program('Something new')
+  await approve('Start me on a new program')
+  check('no ids reads as a new program', /New program/.test(await p.locator('.proposal').last().textContent()))
+  await p.locator('.proposal').last().locator('button:has-text("Approve")').click()
+  await wait(800)
+  t = await train()
+  check('a new program starts at Day 1, week 1', /Day 1/.test(t.title) && /Week 1/.test(t.eyebrow), t.title + ' / ' + t.eyebrow)
 } catch (e) {
   results.push('ERROR ' + e.message.split('\n')[0])
 }

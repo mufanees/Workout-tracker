@@ -6,7 +6,7 @@ import { afterServerSync, getToken, syncNow } from './sync'
 import { coachItems, exercises, exMap, routines, saveCoachItem, saveExercise, saveRoutine, saveSettings, settings, workouts } from './store'
 import { matchExercise, resolvePlan, type LibExercise } from '../shared/planImport.mjs'
 import { buildCoachContext, routinesText } from './coachContext'
-import type { CoachItem, Exercise, ExType, GoalSpec, Routine } from './types'
+import type { CoachItem, Exercise, ExType, GoalSpec } from './types'
 import { fmtValue, goalStatus, twoDumbbells } from './goals'
 import { blockFrom, phaseLine } from './blocks'
 import { describeDay, mobilityFrom } from './mobility'
@@ -159,7 +159,7 @@ export function describeProposal(p: Proposal): ProposalView {
       lines.push(`${r?.name}: ${ex.join('; ')}`)
     }
     const name = String(a.name || 'Program')
-    const adjusting = !!settings.value.program && list.some((r: any) => (settings.value.program?.routineIds || []).some((id) => norm(routines.value.find((x) => x.id === id)?.name || '') === norm(String(r?.name || ''))))
+    const adjusting = list.some((r: any) => r?.id && settings.value.program?.routineIds.includes(String(r.id)))
     return { title: `${adjusting ? 'Updated program' : 'New program'}: ${name}`, lines, chips, summary: a.summary ? String(a.summary) : undefined, days: list.map(programDay) }
   }
   if (p.tool === 'propose_mobility_plan') {
@@ -197,20 +197,21 @@ export async function applyProposal(p: Proposal): Promise<string> {
     const plan = { folder: name, routines: (Array.isArray(a.routines) ? a.routines : []).map((r: any) => ({ ...r, exercises: (Array.isArray(r?.exercises) ? r.exercises : []).map((e: any) => ({ ...e, superset: e?.superset ?? undefined })) })) }
     const result = resolvePlan(plan, exercises.value, () => uid())
     for (const e of result.newExercises) await saveExercise({ id: e.id, name: e.name, muscle: e.muscle, equipment: e.equipment, type: e.type as ExType, custom: true, updatedAt: 0 } as Exercise)
-    // An adjustment to the running program updates its routines in place (same ids), so your
+    // A routine with the id of a day in the running program updates that day in place, so the
     // history stays linked and the rotation and week carry on instead of restarting at Day 1.
     const cur = settings.value.program
-    const prev = new Map((cur?.routineIds || []).map((id) => routines.value.find((r) => r.id === id)).filter((r): r is Routine => !!r).map((r) => [norm(r.name), r]))
+    const keep = new Set(cur?.routineIds || [])
     const ids: string[] = []
     let carried = 0
-    for (const r of result.routines) {
-      const old = prev.get(norm(r.name))
-      prev.delete(norm(r.name))
+    for (const [i, r] of result.routines.entries()) {
+      const id = String(plan.routines[i]?.id || '')
+      const old = keep.has(id) ? routines.value.find((x) => x.id === id) : undefined
+      keep.delete(id)
       if (old) carried++
       ids.push((await saveRoutine(old ? { ...r, id: old.id, order: old.order, updatedAt: old.updatedAt } : { ...r, updatedAt: 0 })).id)
     }
     const start = cur && carried ? cur.start : startOfDay(new Date())
-    await saveSettings({ program: { name, routineIds: ids, daysPerWeek: Math.max(1, Math.min(7, Math.round(Number(a.days_per_week) || 3))), minutes: Number(a.minutes) || undefined, summary: a.summary ? String(a.summary).slice(0, 400) : undefined, start } })
+    await saveSettings({ program: { name, routineIds: ids, daysPerWeek: Math.max(1, Math.min(7, Math.round(Number(a.days_per_week) || 3))), minutes: Number(a.minutes) || undefined, summary: a.summary ? String(a.summary).slice(0, 400) : undefined, start, relinked: true } })
     if (getToken()) void saveSnapshot(true)
     return `Program “${name}” is set: ${ids.length} routines`
   }

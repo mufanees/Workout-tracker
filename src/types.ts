@@ -115,7 +115,7 @@ export interface Settings extends Rec {
   moveGoal?: number // daily Move ring, minutes of any workout
   showPace?: boolean // time budget and pace on the workout screen
   /** A program the coach built and the athlete approved: routines to rotate through. Replaces the Comeback plan card while set. */
-  program?: { name: string; routineIds: string[]; daysPerWeek: number; minutes?: number; summary?: string; start: number } | null
+  program?: { name: string; routineIds: string[]; daysPerWeek: number; minutes?: number; summary?: string; start: number; relinked?: boolean } | null
   /** Warm-up and cool-down moves you've linked by hand: move name (lower-case letters only) → exercise id, or '' for text only. */
   moveLinks?: Record<string, string>
 }

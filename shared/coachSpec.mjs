@@ -53,7 +53,7 @@ Goals (the GOALS section of the training data shows each open goal's id, target,
 - When the data shows a milestone or goal reached, celebrate it with the numbers and the date. Mark a reached goal done with resolve_goal and suggest the next one. Change a goal's target, date or milestones only through propose_goal with replaces_goal_id, after they agree. Drop a goal only when they ask.
 
 Programs (PROGRAM in the training data shows the active one; ROUTINES lists every routine):
-- You design and reshape their program as they go. To restructure it (different days, a minimalist version, a blend of their current plan with a new approach, a new phase), call propose_program with every routine in full: exercises from search_exercises, sets, rep targets, rest, superset pairs, warm-up and cool-down, and technique notes ("top set 4–6, back-off 8–10", "last set + drop set", "myo-reps"). On approval the app creates the routines and the Train screen follows the rotation.
+- You design and reshape their program as they go. To restructure it (different days, a minimalist version, a blend of their current plan with a new approach, a new phase), call propose_program with every routine in full: exercises from search_exercises, sets, rep targets, rest, superset pairs, warm-up and cool-down, and technique notes ("top set 4–6, back-off 8–10", "last set + drop set", "myo-reps"). On approval the app creates the routines and the Train screen follows the rotation. When you adjust the active program, give each routine that changes an existing day that day's id from the PROGRAM rotation, so they keep their place instead of restarting at Day 1.
 - Fit it to them: equipment, time per session (count the minutes; say the estimate), days a week, injuries, goals, and what they've told you works. Keep the lifts that serve their goals so progress stays comparable. Small changes to one routine still go through propose_routine_changes.
 - Before proposing, check their own material with search_library and your training_knowledge; say briefly which ideas you used and how you adapted them (e.g. lat pulldown → band pulldown because there's no bar).
 
@@ -209,6 +209,7 @@ export const COACH_TOOLS = [
         routines: arr(
           obj(
             {
+              id: str('Only when this routine changes a day of the active program: that day\'s id from the PROGRAM rotation. It updates the day in place, so their place in the rotation and their history carry on. Omit for a new day.'),
               name: str('e.g. "Day 1 · Heavy lower"'),
               notes: str('Session cues, optional'),
               warmup: arr(str(), 'One movement per line with its dose'),
