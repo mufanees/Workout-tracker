@@ -12,7 +12,7 @@
     "single": "vite build && node scripts/artifact.mjs"
   },
   "engines": {
-    "node": ">=22.13"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "devDependencies": {
     "@fontsource-variable/space-grotesk": "^5.3.0",
