@@ -1,5 +1,5 @@
 # ---- build the PWA ----
-FROM node:22-alpine AS build
+FROM node:22.23.4-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 
 # ---- runtime: tiny Node server + SQLite (built into Node 22) ----
-FROM node:22-alpine
+FROM node:22.23.4-alpine
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data
 WORKDIR /app
 COPY package.json package-lock.json ./
